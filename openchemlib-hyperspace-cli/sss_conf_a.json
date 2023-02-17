@@ -1,0 +1,11 @@
+{
+  "input": "/home/liphath1/datasets/eight_idcodes.txt",
+  "output": "cli_out.dwar",
+  "space": "/home/liphath1/hyperspace_base_2/data_hyperspace/real_space_latest_SMALL_FragFp.data",
+  "maxCombiHits": 32,
+  "maxExpandedHits": 4000,
+  "minFFPQueryBits": 24,
+  "maxQueryTimeMillis": 60000,
+  "threads": -1,
+  "maxSplits": 3
+}

@@ -1,0 +1,19 @@
+{
+  "ServiceProviders": [
+    {"ServiceName":  "REAL Space SSS", "ServiceProvider":  "HyperspaceSSS",
+      "Config": { "SpaceName": "REAL Space" , "File": "/home/liphath1/hyperspace_base_2/data_hyperspace/REAL_Space_latest_FragFp.data" , "MaxNumberOfThreads": -1 }
+    },
+    {"ServiceName":  "Idorsia VCS 3.2 (2S) SSS", "ServiceProvider":  "HyperspaceSSS",
+      "Config": { "SpaceName": "IVCS 3 (2S)" , "File": "/home/liphath1/hyperspace_base_2/data_hyperspace/ivcs3_2s_FragFp.data" , "MaxNumberOfThreads": -1 }
+    },
+    {"ServiceName":  "Idorsia VCS 3.2 (3S) SSS", "ServiceProvider":  "HyperspaceSSS",
+      "Config": { "SpaceName": "IVCS 3 (3S)" , "File": "/home/liphath1/hyperspace_base_2/data_hyperspace/IVCS3_3S_FragFp.data" , "MaxNumberOfThreads": -1 }
+    },
+    {"ServiceName":  "REAL Space Similarity", "ServiceProvider":  "HyperspaceSimilarity",
+      "Config": { "SpaceName": "REAL Space" , "File": "/home/liphath1/hyperspace_base_2/data_hyperspace/REAL_Space_latest_FragFp_similarity3.data" , "MaxNumberOfThreads": -1 }
+    },
+    {"ServiceName":  "Idorsia VCS 3.2 (2S) Similarity", "ServiceProvider":  "HyperspaceSimilarity",
+      "Config": { "SpaceName": "IVCS 3 (2S)" , "File": "/home/liphath1/hyperspace_base_2/data_hyperspace/ivcs3_2s_FragFp_similarity3.data" , "MaxNumberOfThreads": -1 }
+    },
+  ]
+}

@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.idorsia.research</groupId>
+    <artifactId>openchemlib-hyperspace</artifactId>
+    <packaging>pom</packaging>
+    <version>dev-SNAPSHOT</version>
+
+    <developers>
+        <developer>
+            <name>Thomas Liphardt</name>
+            <email>thomas.liphardt@idorsia.com</email>
+            <organization>Idorsia Pharmaceuticals Ltd.</organization>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/Actelion/openchemlib-hyperspace.git</connection>
+        <developerConnection>scm:git:ssh://github.com:Actelion/openchemlib-hyperspace.git</developerConnection>
+        <url>https://github.com/Actelion/openchemlib-hyperspace</url>
+    </scm>
+
+
+    <properties>
+        <!--<java.version>1.8</java.version>-->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!--<maven.compiler.source>1.8</maven.compiler.source>-->
+        <!--<maven.compiler.target>1.8</maven.compiler.target>-->
+        <!--<maven.compiler.release>8</maven.compiler.release>-->
+        <maven.compiler.release>8</maven.compiler.release>
+        <revision>2.0.9-SNAPSHOT</revision>
+        <!--<maven.compiler.source>${java.version}</maven.compiler.source>-->
+        <!--<maven.compiler.target>${java.version}</maven.compiler.target>-->
+    </properties>
+
+    <modules>
+        <module>openchemlib-hyperspace-core</module>
+        <module>openchemlib-hyperspace-core-gui</module>
+        <module>openchemlib-hyperspace-sar</module>
+        <module>openchemlib-hyperspace-cli</module>
+        <module>openchemlib-hyperspace-test</module>
+        <module>openchemlib-hyperspace-tools</module>
+        <!--<module>hyperspace-shared</module>-->
+    </modules>
+
+    <name>openchemlib-hyperspace</name>
+    <!-- FIXME change it to the project's website -->
+    <url>https://github.com/Actelion/openchemlib-hyperspace</url>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.actelion.research</groupId>
+                <artifactId>openchemlib</artifactId>
+                <!--<version>2022.11.2</version>-->
+                <!--<version>2022.9.1</version>-->
+                <version>2022.12.2-SNAPSHOT</version>
+                <!--<scope>compile</scope>-->
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>3.11</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>2.8.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>5.4.2</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-engine</artifactId>
+                <version>5.4.2</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
+            <plugins>
+                <plugin> <!-- this will set the version of all child modules to the version specified in the parent pom.-->
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>flatten-maven-plugin</artifactId>
+                    <!--<version>1.2.2</version>-->
+                    <configuration>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>flatten</id>
+                            <phase>process-resources</phase>
+                            <goals>
+                                <goal>flatten</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+
+                <!-- clean lifecycle, see https://maven.apache.org/ref/current/maven-core/lifecycles.html#clean_Lifecycle -->
+                <plugin>
+                    <artifactId>maven-clean-plugin</artifactId>
+                    <version>3.1.0</version>
+                </plugin>
+                <!-- default lifecycle, jar packaging: see https://maven.apache.org/ref/current/maven-core/default-bindings.html#Plugin_bindings_for_jar_packaging -->
+                <plugin>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>3.0.2</version>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.8.0</version>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>2.22.1</version>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>3.0.2</version>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-install-plugin</artifactId>
+                    <version>2.5.2</version>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-deploy-plugin</artifactId>
+                    <version>2.8.2</version>
+                    <executions>
+                        <execution>
+                            <id>default-deploy</id>
+                            <phase>deploy</phase>
+                            <goals>
+                                <goal>deploy</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <!-- site lifecycle, see https://maven.apache.org/ref/current/maven-core/lifecycles.html#site_Lifecycle -->
+                <!--<plugin>
+                    <artifactId>maven-site-plugin</artifactId>
+                    <version>3.7.1</version>
+                </plugin>-->
+                <plugin>
+                    <artifactId>maven-project-info-reports-plugin</artifactId>
+                    <version>3.0.0</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <!--
+    <distributionManagement>
+        <repository>
+            <id>computational-biology-nexus</id>
+            <url>http://bioinfo.idorsia.com:8081/nexus/content/groups/public</url>
+        </repository>
+        <snapshotRepository>
+            <id>computational-biology-nexus</id>
+            <url>http://bioinfo.idorsia.com:8081/nexus/content/repositories/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
+    -->
+    <!--<distributionManagement>
+        <repository>
+            <id>idorsia-releases-repo</id>
+            <url>https://nexus.idorsia.com/repository/idorsia-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>idorsia-snapshots-repo</id>
+            <url>https://nexus.idorsia.com/repository/idorsia-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>-->
+
+    <!--<repositories>
+    <repository>
+        <id>idorsia-releases-repo</id>
+        <url>https://nexus.idorsia.com/repository/idorsia-releases/</url>
+        <releases>
+            <enabled>true</enabled>
+        </releases>
+        <snapshots>
+            <enabled>false</enabled>
+        </snapshots>
+    </repository>
+    <repository>
+        <id>idorsia-snapshots-repo</id>
+        <url>https://nexus.idorsia.com/repository/idorsia-snapshots/</url>
+        <releases>
+            <enabled>false</enabled>
+        </releases>
+        <snapshots>
+            <enabled>true</enabled>
+        </snapshots>
+    </repository>
+    </repositories>-->
+
+    <!--
+    <repositories>
+        <repository>
+            <id>snapshots-repo</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <releases><enabled>false</enabled></releases>
+            <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+        <repository>
+            <id>computational-biology-nexus</id>
+            <url>http://bioinfo.idorsia.com:8081/nexus/content/repositories/releases</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+        <repository>
+            <id>computational-biology-nexus-public</id>
+            <url>http://bioinfo.idorsia.com:8081/nexus/content/groups/public</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+        <repository>
+            <id>computational-biology-nexus-snapshots</id>
+            <url>http://bioinfo.idorsia.com:8081/nexus/content/repositories/snapshots</url>
+            <releases><enabled>false</enabled></releases>
+            <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+    </repositories>
+    -->
+
+</project>

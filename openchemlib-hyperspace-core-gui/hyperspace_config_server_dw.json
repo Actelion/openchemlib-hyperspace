@@ -1,0 +1,7 @@
+{
+  "ServiceProviders": [
+    {"ServiceName":  "REAL Space SSS DWService", "ServiceProvider":  "HyperspaceSSSForDW",
+      "Config": { "SpaceName": "REAL Space" , "File": "/home/liphath1/hyperspace_base_2/data_hyperspace/REAL_Space_latest_FragFp.data" }
+    }
+  ]
+}

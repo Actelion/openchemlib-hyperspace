@@ -1,0 +1,16 @@
+{
+  "ServiceProviders": [
+    {"ServiceName":  "REAL Space SSS", "ServiceProvider":  "HyperspaceSSSRemote",
+      "Config": { "Server": "CHALUW-DEV11" , "Port": "8090" , "SearchServiceName": "REAL Space SSS" , "GUIServiceName":  "REAL Space SSS"}
+    },
+    {"ServiceName":  "IVCS3 2S SSS", "ServiceProvider":  "HyperspaceSSSRemote",
+      "Config": { "Server": "CHALUW-DEV11" , "Port": "8090" , "SearchServiceName": "Idorsia VCS 3.2 (2S) SSS" , "GUIServiceName":  "IVCS 3 (2s) SSS"}
+    },
+    {"ServiceName":  "REAL Space Sim", "ServiceProvider":  "HyperspaceSimilarityRemote",
+      "Config": { "Server": "CHALUW-DEV11" , "Port": "8090" , "SearchServiceName": "REAL Space Similarity" , "GUIServiceName":  "REAL Space Similarity"}
+    },
+    {"ServiceName":  "IVCS3 2S Sim", "ServiceProvider":  "HyperspaceSimilarityRemote",
+      "Config": { "Server": "CHALUW-DEV11" , "Port": "8090" , "SearchServiceName": "Idorsia VCS 3.2 (2S) Similarity" , "GUIServiceName":  "IVCS 3 (2s) Similarity"}
+    }
+  ]
+}

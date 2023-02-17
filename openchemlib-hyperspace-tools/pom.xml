@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.idorsia.research</groupId>
+        <artifactId>openchemlib-hyperspace</artifactId>
+        <version>dev-SNAPSHOT</version>
+    </parent>
+
+    <!--<groupId>com.idorsia.research</groupId>-->
+    <artifactId>openchemlib-hyperspace-tools</artifactId>
+    <version>${revision}</version>
+    <packaging>jar</packaging>
+    <!--<version>1.2-SNAPSHOT</version>-->
+
+    <developers>
+        <developer>
+            <name>Thomas Liphardt</name>
+            <email>thomas.liphardt@idorsia.com</email>
+            <organization>Idorsia Pharmaceuticals Ltd.</organization>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/Actelion/openchemlib-hyperspace.git</connection>
+        <developerConnection>scm:git:ssh://github.com:Actelion/openchemlib-hyperspace.git</developerConnection>
+        <url>https://github.com/Actelion/openchemlib-hyperspace</url>
+    </scm>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.idorsia.research</groupId>
+            <artifactId>openchemlib-hyperspace-core</artifactId>
+            <version>${revision}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.idorsia.research</groupId>
+            <artifactId>openchemlib-hyperspace-core-gui</artifactId>
+            <version>${revision}</version>
+            <scope>compile</scope>
+        </dependency>
+        <!--<dependency>
+            <groupId>com.idorsia.research</groupId>
+            <artifactId>hyperspace-fragmentanalyzer</artifactId>
+            <version>${revision}</version>
+            <scope>compile</scope>
+        </dependency>-->
+        <dependency>
+            <groupId>com.idorsia.research</groupId>
+            <artifactId>openchemlib-hyperspace-sar</artifactId>
+            <version>${revision}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.11</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.8.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20201115</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.pushing-pixels</groupId>
+            <artifactId>radiance-substance</artifactId>
+            <version>3.5.1</version>
+        </dependency>
+    </dependencies>
+
+
+    <build>
+        <resources>
+            <resource><directory>src/main/resources</directory></resource>
+        </resources>
+
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>2.2</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+
+</project>

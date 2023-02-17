@@ -85,6 +85,9 @@ The file server_config.json just contains the different available search service
 
 
 ## Hyperspace GUI Manual
+
+![Hyperspace2 GUI](hyperspace2_gui_manual.png)
+
 Example launch of GUI:
 
 `java -Xmx16G -jar <path_to_hyperspace_server_jar> com.idorsia.research.chem.hyperspace.gui.HyperspaceSearchGUI <path_to_json_config_file>`

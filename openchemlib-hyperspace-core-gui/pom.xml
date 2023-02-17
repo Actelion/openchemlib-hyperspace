@@ -154,34 +154,6 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
 
-            <plugin>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>1.7</version>
-                <executions>
-                    <execution>
-                        <id>exe</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target name="exe">
-                                <taskdef name="putjar" classname="com.actelion.research.putjar.PutJarTask"
-                                         classpath="${putjar}"/>
-
-                                <putjar outfile="${project.basedir}/target/Hyperspace2.exe"
-                                        jarfile="${project.basedir}/target/hyperspace-core-gui-2.0.8-SNAPSHOT.jar"
-                                        mainclass="com.idorsia.research.chem.hyperspace.gui.StartHyperspaceStandalone"
-                                        classpath=""
-                                        vmoptions="-jre 11 -dpi -Dactelion.progdir=#  -Duser.language=EN -Duser.region=US -Xmx8196M"
-                                        arch="x64"
-                                        debug="false"/>
-                            </target>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
             <!--
             <plugin>
                 <groupId>com.akathist.maven.plugins.launch4j</groupId>

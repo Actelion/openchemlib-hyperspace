@@ -1,0 +1,6 @@
+{
+  "ServiceProviders": [
+    {"ServiceName":  "TEST Space SSS", "ServiceProvider":  "HyperspaceSSS",
+      "Config": { "SpaceName": "TEST Space" , "File": "test_mode_ffp.data" , "MaxNumberOfThreads": -1 }
+    }]
+}

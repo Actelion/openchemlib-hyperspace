@@ -1,0 +1,9 @@
+1. Perform steps 1. to 3. from example.txt
+
+2. Start the server:
+
+java -jar hyperspace-cli SERVER hyperspace_test_config.json
+
+3. Connect to the server:
+
+java -jar hyperspace-cli GUI com.idorsia.research.chem.hyperspace.gui.HyperspaceGUI hyperspace_test_config_remote_local.json

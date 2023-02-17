@@ -1,0 +1,10 @@
+{
+  "ServiceProviders": [
+    {"ServiceName":  "TEST Space SSS", "ServiceProvider":  "HyperspaceSSSRemote",
+      "Config": { "Server": "127.0.0.1" , "Port": "8090" , "SearchServiceName": "TEST Space SSS" , "GUIServiceName":  "Test Space SSS"}
+    },    
+    {"ServiceName":  "TEST Space Similarity", "ServiceProvider":  "HyperspaceSimilarityRemote",
+      "Config": { "Server": "127.0.0.1" , "Port": "8090" , "SearchServiceName": "TEST Space Similarity" , "GUIServiceName":  "Test Space Similarity"}
+    }
+  ]
+}

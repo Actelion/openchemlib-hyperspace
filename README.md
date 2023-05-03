@@ -1,8 +1,35 @@
 # openchemlib-hyperspace
 Cheminformatics tools, workflows and pipelines for substructure search, virtual screening and data analysis
 
-# Developers
-- Thomas Liphardt
+
+# First Steps -  Substructure search in a toy combinatorial library space
+The following six steps are required to try out the fast substructure search in combinatorial library spaces. In this example we create the necessary datastructures from a provided input file containing a toy combinatorial library space consisting of 30k structures.
+
+1. Download and build with maven, i.e. just use "mvn package", or alternatively import into Intellij and execute the maven task "mvn package"
+
+2. A successful build should create the .jar file  /hyperspace-cli/target/hyperspace-cli.jar , check that it exists
+
+3. Switch to the example subfolder and copy the hyperspace-cli.jar file in there
+
+4. Create hyperspace data file from example space file "idorsia_toy_space_a.txt". This is a virtual library that we used for validation of the algorithms. It contains a few synthon reactions and in total around 30k structures, i.e. it is easily possible to compare search results of Hyperspace against normal enumerated search.
+
+   To do this use the following command:
+ 
+   java -jar openchemlib-hyperspace-cli CREATESPACE idorsia_toy_space_a.txt test FragFp 2
+ 
+   Explanation of the parameters after CREATESPACE: (1) input file name (2) name of the space that you want to create (determines the output file name) (3) descriptor name (must be FragFp for substructure search), (4) number of threads for space creation.
+ 
+5. Start the GUI for interactive search in our toy space
+
+    java -jar openchemlib-hyperspace-cli GUI hyperspace_test_config.json
+
+6. Try out some queries using OpenChemLib query features, e.g. "foA@@@DjU_YVgKNBBJ@@@@vpA``". Please check the section Hyperspace GUI Manual below for instructions on how to use the software.
+
+You can now run substructure searches against the 30k structures.
+
+![Hyperspace2 GUI](hyperspace2_gui_manual.png)
+
+
 
 # Build
 ## General
@@ -175,3 +202,7 @@ smiles5	r2_1_s1	1	r2
 smiles6	r2_2_s1	2	r2
 smiles7	r2_2_s2	2	r2
 smiles8	r2_2_s3	2	r2
+```
+
+# Developers
+- Thomas Liphardt

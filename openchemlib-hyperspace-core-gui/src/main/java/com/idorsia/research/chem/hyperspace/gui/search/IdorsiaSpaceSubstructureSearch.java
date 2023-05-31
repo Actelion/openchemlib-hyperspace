@@ -35,6 +35,11 @@ public class IdorsiaSpaceSubstructureSearch extends AbstractSearchProvider<Synth
     }
 
     @Override
+    public SearchProviderConfiguration getSearchProviderConfiguration() {
+        return null;
+    }
+
+    @Override
     public JPanel getSearchConfigurationView() {
         return null;
     }

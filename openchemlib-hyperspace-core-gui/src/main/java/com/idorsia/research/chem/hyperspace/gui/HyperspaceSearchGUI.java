@@ -1,6 +1,9 @@
 package com.idorsia.research.chem.hyperspace.gui;
 
 import com.idorsia.research.chem.hyperspace.HyperspaceUtils;
+import com.idorsia.research.chem.hyperspace.gui.action.AddSubstructureSearchProviderAction;
+import com.idorsia.research.chem.hyperspace.gui.action.LoadHyperspaceConfigFileAction;
+import com.idorsia.research.chem.hyperspace.gui.action.SaveHyperspaceConfigFileAction;
 import com.idorsia.research.chem.hyperspace.gui.process.AbstractHyperspaceProcess;
 import com.idorsia.research.chem.hyperspace.gui.process.JProcessList;
 import com.idorsia.research.chem.hyperspace.gui.search.AbstractSearchProvider;
@@ -13,6 +16,7 @@ import org.pushingpixels.substance.api.skin.SubstanceBusinessLookAndFeel;
 
 import javax.swing.*;
 import java.awt.*;
+import java.io.File;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -200,13 +204,22 @@ public class HyperspaceSearchGUI {
         f_main.setSize(Math.min(1200,screen_width),Math.min(800,screen_height));
         f_main.setVisible(true);
 
+        initMenu();
+
         p_main = new JMainPanel();
-
-
         f_main.getContentPane().add(p_main,BorderLayout.CENTER);
 
         // init:
         String json_config = HyperspaceUtils.readFileIntoString(config_file);
+        if(json_config==null) {
+            File fi_a = new File(config_file);
+            if(!fi_a.exists()) {
+                System.out.println("[INFO] Try to create config file..");
+                File fi = new File(config_file);
+                json_config = config_file;
+            }
+        }
+
         //JSONObject joc = new JSONObject(json_config);
         try {
             Map<String,AbstractSearchProvider> providers = HyperspaceInit.loadSearchProviderInitFile(this,json_config);
@@ -289,7 +302,6 @@ public class HyperspaceSearchGUI {
 
     }
 
-
     public JMainPanel getHyperspaceMainPanel() {
         return this.p_main;
     }
@@ -331,6 +343,18 @@ public class HyperspaceSearchGUI {
                 gui.init(final_config_file);
             }
         });
+    }
+
+    public void initMenu() {
+        JMenuBar menubar = new JMenuBar();
+        JMenu mfile = new JMenu("File");
+        mfile.add(new LoadHyperspaceConfigFileAction(gui));
+        mfile.add(new SaveHyperspaceConfigFileAction(gui));
+        mfile.addSeparator();
+        mfile.add(new AddSubstructureSearchProviderAction(gui));
+        menubar.add(mfile);
+        this.f_main.setJMenuBar(menubar);
+        this.f_main.validate();
     }
 
     public static HyperspaceSearchGUI getGUI() {

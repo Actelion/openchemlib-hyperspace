@@ -125,6 +125,17 @@ public class HyperspaceSubstructureSearch extends AbstractSearchProvider<Synthon
             return this.spaceName;
         }
 
+        private String serviceName;
+        @Override
+        public String getServiceName() {
+            return this.serviceName;
+        }
+
+        @Override
+        public void setServiceName(String serviceName) {
+            this.serviceName = serviceName;
+        }
+
         public String serializeToJSON() {
             JSONObject jo = new JSONObject();
             jo.put("SpaceName",this.spaceName);
@@ -169,12 +180,18 @@ public class HyperspaceSubstructureSearch extends AbstractSearchProvider<Synthon
     public void setConfigurationAndGUI(SearchProviderConfiguration config, HyperspaceSearchGUI gui) {
         this.gui = gui;
         this.config_initialization = (InitializationConfig) config;
+        //this.searchServiceName = this.config_initialization.
         if(config_initialization==null) {
             this.setStatus(SearchProviderStatus.REMOTE);
         }
         if(gui != null) {
             initGUI();
         }
+    }
+
+    @Override
+    public SearchProviderConfiguration getSearchProviderConfiguration() {
+        return this.config_initialization;
     }
 
     JPanel gui_search_combined; // will have gui_search_top on top and below gui_search
@@ -364,9 +381,11 @@ public class HyperspaceSubstructureSearch extends AbstractSearchProvider<Synthon
         return init_process;
     }
 
+    private String searchServiceName;
+
     @Override
     public String getSearchName() {
-        return null;
+        return "Hyperspace Substructure Search";
     }
 
     @Override

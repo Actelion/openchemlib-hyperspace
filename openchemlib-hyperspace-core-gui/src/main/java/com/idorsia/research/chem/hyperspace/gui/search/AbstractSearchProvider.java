@@ -29,7 +29,12 @@ public abstract class AbstractSearchProvider<T> {
         public void   setNumberOfThreads(int threads);
     }
 
-    public static interface SearchProviderConfiguration {}
+    public static interface SearchProviderConfiguration {
+        public String getServiceName();
+        public void setServiceName(String serviceName);
+        public String serializeToJSON();
+        public void deserializeFromJSON(String json) throws Exception;
+    }
 
     public static class IncompatibleSearchConfigurationException extends Exception {
     }
@@ -37,6 +42,7 @@ public abstract class AbstractSearchProvider<T> {
     public abstract void setConfigurationAndGUI(SearchProviderConfiguration config, HyperspaceSearchGUI gui);
 
     public enum SearchProviderStatus { REMOTE, NOT_INITIALIZED , INITIALIZING , READY , ERROR };
+
 
     public abstract String getSearchName();
 
@@ -82,6 +88,8 @@ public abstract class AbstractSearchProvider<T> {
             li.statusChanged();
         }
     }
+
+    public abstract SearchProviderConfiguration getSearchProviderConfiguration();
 
     public void addSearchProviderListener(SearchProviderListener li) {
         this.listeners.add(li);

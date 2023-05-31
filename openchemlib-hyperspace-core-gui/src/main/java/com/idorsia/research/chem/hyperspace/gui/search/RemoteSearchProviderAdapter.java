@@ -27,7 +27,7 @@ public class RemoteSearchProviderAdapter<T> extends AbstractSearchProvider<T> {
     private final AbstractSearchProvider<T> searchProvider;
     private RemoteSearchProviderConfig remoteConfig;
 
-    public static class RemoteSearchProviderConfig {
+    public static class RemoteSearchProviderConfig implements SearchProviderConfiguration{
         public String server;
         public int    port;
         public  String searchServiceName;
@@ -54,6 +54,18 @@ public class RemoteSearchProviderAdapter<T> extends AbstractSearchProvider<T> {
             this.searchServiceName = jo.getString("SearchServiceName");
             this.guiServiceName = jo.getString("GUIServiceName");
         }
+
+        private String serviceName;
+        @Override
+        public String getServiceName() {
+            return this.serviceName;
+        }
+
+        @Override
+        public void setServiceName(String serviceName) {
+            this.serviceName = serviceName;
+        }
+
     }
 
     private String guiServiceName = "NA";
@@ -104,6 +116,12 @@ public class RemoteSearchProviderAdapter<T> extends AbstractSearchProvider<T> {
     @Override
     public Class getSearchConfigurationClass() {
         return RemoteSearchProviderConfig.class;
+    }
+
+    @Override
+    public SearchProviderConfiguration getSearchProviderConfiguration() {
+        // todo implement..
+        return this.remoteConfig;
     }
 
     @Override

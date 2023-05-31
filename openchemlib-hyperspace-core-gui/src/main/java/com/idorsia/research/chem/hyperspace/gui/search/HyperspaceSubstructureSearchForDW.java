@@ -171,6 +171,11 @@ public class HyperspaceSubstructureSearchForDW extends AbstractSearchProvider<Si
     }
 
     @Override
+    public SearchProviderConfiguration getSearchProviderConfiguration() {
+        return this.remoteSearchProviderAdapter.getSearchProviderConfiguration();
+    }
+
+    @Override
     public Class getSearchConfigurationClass() {
         return search.getSearchConfigurationClass();
     }

@@ -78,5 +78,9 @@ public class JSearchProviderListPanel extends JPanel {
         this.revalidate();
     }
 
+    public List<AbstractSearchProvider> getSearchProviders() {
+        return this.searchProviders;
+    }
+
 
 }

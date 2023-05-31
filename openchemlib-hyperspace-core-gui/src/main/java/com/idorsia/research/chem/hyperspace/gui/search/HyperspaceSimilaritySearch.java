@@ -310,6 +310,11 @@ public class HyperspaceSimilaritySearch extends AbstractSearchProvider<SynthonSi
         return SimilaritySearchConfiguration.class;
     }
 
+    @Override
+    public SearchProviderConfiguration getSearchProviderConfiguration() {
+        return this.config_initialization;
+    }
+
     HyperspaceSimilaritySearchInitializationProcess init_process = null;
 
     @Override

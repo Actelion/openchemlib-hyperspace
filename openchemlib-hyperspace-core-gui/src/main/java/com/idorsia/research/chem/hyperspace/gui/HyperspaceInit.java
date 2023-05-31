@@ -2,10 +2,13 @@ package com.idorsia.research.chem.hyperspace.gui;
 
 import com.idorsia.research.chem.hyperspace.gui.process.AbstractHyperspaceProcess;
 import com.idorsia.research.chem.hyperspace.gui.search.*;
-import org.apache.commons.lang3.tuple.Pair;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -28,6 +31,7 @@ public class HyperspaceInit {
         if(name.equals( "HyperspaceSSS" ) ) {
             HyperspaceSubstructureSearch.InitializationConfig init_config = new HyperspaceSubstructureSearch.InitializationConfig();
             init_config.deserializeFromJSON(config);
+            init_config.setServiceName(name);
             HyperspaceSubstructureSearch hsss = new HyperspaceSubstructureSearch();
             hsss.setConfigurationAndGUI(init_config,gui);
             return hsss;
@@ -36,6 +40,7 @@ public class HyperspaceInit {
         if(name.equals("HyperspaceSSSRemote")) {
             RemoteSearchProviderAdapter.RemoteSearchProviderConfig remote_config = new RemoteSearchProviderAdapter.RemoteSearchProviderConfig();
             remote_config.deserializeFromJSON(config);
+            remote_config.setServiceName(name);
             //HyperspaceSubstructureSearch hsss = new HyperspaceSubstructureSearch(gui,null);
             HyperspaceSubstructureSearch hsss = new HyperspaceSubstructureSearch();
             hsss.setConfigurationAndGUI(null,gui);
@@ -46,6 +51,7 @@ public class HyperspaceInit {
         if(name.equals("HyperspaceSSSForDW")) {
             HyperspaceSubstructureSearch.InitializationConfig init_config = new HyperspaceSubstructureSearch.InitializationConfig();
             init_config.deserializeFromJSON(config);
+            init_config.setServiceName(name);
             HyperspaceSubstructureSearchForDW hsss = new HyperspaceSubstructureSearchForDW();
             hsss.setConfigurationAndGUI(init_config,gui);
             return hsss;
@@ -54,6 +60,7 @@ public class HyperspaceInit {
         if(name.equals("HyperspaceSimilarity")) {
             HyperspaceSubstructureSearch.InitializationConfig init_config = new HyperspaceSubstructureSearch.InitializationConfig();
             init_config.deserializeFromJSON(config);
+            init_config.setServiceName(name);
             HyperspaceSimilaritySearch hsss = new HyperspaceSimilaritySearch();
             hsss.setConfigurationAndGUI(init_config,gui);
             return hsss;
@@ -62,6 +69,7 @@ public class HyperspaceInit {
         if(name.equals("HyperspaceSimilarityRemote")) {
             RemoteSearchProviderAdapter.RemoteSearchProviderConfig remote_config = new RemoteSearchProviderAdapter.RemoteSearchProviderConfig();
             remote_config.deserializeFromJSON(config);
+            remote_config.setServiceName(name);
             //HyperspaceSubstructureSearch hsss = new HyperspaceSubstructureSearch(gui,null);
             HyperspaceSimilaritySearch hsss = new HyperspaceSimilaritySearch();
             hsss.setConfigurationAndGUI(null,gui);
@@ -102,6 +110,32 @@ public class HyperspaceInit {
         return search_providers;
     }
 
+
+    public static void saveSearchProviderInitFile(HyperspaceSearchGUI gui, File output) {
+        List<AbstractSearchProvider> sps = gui.getHyperspaceMainPanel().getHyperspaceSearchPanel().getSearchProviderListPanel().getSearchProviders();
+
+        JSONArray ja = new JSONArray();
+        for(AbstractSearchProvider spi : sps) {
+            if(spi instanceof HyperspaceSubstructureSearch) {
+                JSONObject joi = new JSONObject();
+                JSONObject joi_conf = new JSONObject(spi.getSearchProviderConfiguration().serializeToJSON());
+                joi.put("ServiceProvider","HyperspaceSSS");
+                joi.put("Config",joi_conf);
+                joi.put("ServiceName",spi.getSearchProviderConfiguration().getServiceName());
+                ja.put(joi);
+            }
+        }
+        try {
+            BufferedWriter out = new BufferedWriter(new FileWriter(output));
+            JSONObject jo = new JSONObject();
+            jo.put("ServiceProviders",ja);
+            jo.write(out);
+            out.flush();
+            out.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     /**
      *

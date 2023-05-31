@@ -43,6 +43,13 @@
             <version>${revision}</version>
             <scope>compile</scope>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/tech.molecules/leet-chem-core -->
+        <dependency>
+            <groupId>tech.molecules</groupId>
+            <artifactId>leet-chem-core</artifactId>
+            <version>0.0.5</version>
+        </dependency>
+
         <!--<dependency>
             <groupId>com.idorsia.research</groupId>
             <artifactId>hyperspace-fragmentanalyzer</artifactId>

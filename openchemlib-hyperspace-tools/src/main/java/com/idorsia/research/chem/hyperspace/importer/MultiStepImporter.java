@@ -34,7 +34,7 @@ public class MultiStepImporter {
      *
      * @return
      */
-    public static List<MultiStepSynthonReaction> parseReactions_01(String pathToReactionFolder) throws Exception {
+    public static List<MultiStepSynthonReaction> parseReactions_01(String pathToReactionFolder, ImporterMode mode) throws Exception {
         // 1. create A
         File sfA = new File(pathToReactionFolder+File.separator+"A");
         File[] dwA_all = sfA.listFiles( new FilenameFilter(){
@@ -82,29 +82,34 @@ public class MultiStepImporter {
 
         all_synthon_reactions.add(r_AB);
 
-        // 3. create virtual_bb rxns A
-        List<ConcreteMultiStepSynthonReaction> rxns_a = parseVirtualBBsFolder( pathToReactionFolder+File.separator+"A"+File.separator+"virtual_bbs");
-        List<ConcreteMultiStepSynthonReaction> rxns_b = parseVirtualBBsFolder( pathToReactionFolder+File.separator+"B"+File.separator+"virtual_bbs");
+        if(mode == ImporterMode.TwoSplit) {
+            // 3. create virtual_bb rxns A
+            List<ConcreteMultiStepSynthonReaction> rxns_a = new ArrayList<>();
+            List<ConcreteMultiStepSynthonReaction> rxns_b = new ArrayList<>();
 
-        // 4. create all combinations r_A + rxns_b
+            rxns_a = parseVirtualBBsFolder(pathToReactionFolder + File.separator + "A" + File.separator + "virtual_bbs");
+            rxns_b = parseVirtualBBsFolder(pathToReactionFolder + File.separator + "B" + File.separator + "virtual_bbs");
 
-        for(ConcreteMultiStepSynthonReaction ri : rxns_b) {
-            try {
-                MultiStepSynthonReaction r_xi = ImporterTool.combineTwoSynthonReactions(r_A, ri);
-                all_synthon_reactions.add(r_xi);
-            } catch (Exception e) {
-                e.printStackTrace();
+
+            // 4. create all combinations r_A + rxns_b
+            for (ConcreteMultiStepSynthonReaction ri : rxns_b) {
+                try {
+                    MultiStepSynthonReaction r_xi = ImporterTool.combineTwoSynthonReactions(r_A, ri);
+                    all_synthon_reactions.add(r_xi);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
-        }
 
-        // 5. create all combinations r_B + rxns_a
+            // 5. create all combinations r_B + rxns_a
 
-        for(ConcreteMultiStepSynthonReaction ri : rxns_a) {
-            try {
-                MultiStepSynthonReaction r_xi = ImporterTool.combineTwoSynthonReactions(r_B, ri);
-                all_synthon_reactions.add(r_xi);
-            } catch (Exception e) {
-                e.printStackTrace();
+            for (ConcreteMultiStepSynthonReaction ri : rxns_a) {
+                try {
+                    MultiStepSynthonReaction r_xi = ImporterTool.combineTwoSynthonReactions(r_B, ri);
+                    all_synthon_reactions.add(r_xi);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
 
@@ -163,16 +168,38 @@ public class MultiStepImporter {
         return mssr;
     }
 
+    private enum ImporterMode { OneSplit , TwoSplit };
 
+    /**
+     * Arguments: 1. mode: "1split" or "2split"
+     *            2. input-file-path
+     *            3. output-file-name
+     *
+     * @param args
+     */
     public static void main(String args[]) {
         //String path_a = "C:\\Temp\\virtual_spaces\\Benzimidazol_with_aldehyde";
 
+        String str_mode   = args[0];
+        String str_path_a = args[1];
+        String str_output = args[2];
+
+        ImporterMode mode = ImporterMode.OneSplit;
+        if(str_mode.equalsIgnoreCase("1split")) { mode = ImporterMode.OneSplit;}
+        else if(str_mode.equalsIgnoreCase("2split")) {mode = ImporterMode.TwoSplit;}
+        else {
+            System.out.println("[INFO] unknown mode: "+str_mode);
+            System.out.println("[INFO] unknown mode: -> fallback to 1split");
+        }
+
+
         List<Pair<String,MultiStepSynthonReaction>> all_reactions = new ArrayList<>();
-        File folderCombLibraries = new File("C:\\Temp\\virtual_spaces\\CombinatorialLibraries");
+        //File folderCombLibraries = new File("C:\\Temp\\virtual_spaces\\CombinatorialLibraries");
+        File folderCombLibraries = new File(str_path_a);
         for(File fi : folderCombLibraries.listFiles()) {
             List<MultiStepSynthonReaction> rxns_i = new ArrayList<>();
             try {
-                rxns_i = parseReactions_01(fi.getAbsolutePath());
+                rxns_i = parseReactions_01(fi.getAbsolutePath(),mode);
             } catch (Exception e) {
                 e.printStackTrace();
             }

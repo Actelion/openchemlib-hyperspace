@@ -1,9 +1,12 @@
 package com.idorsia.research.chem.hyperspace.gui;
 
 import com.idorsia.research.chem.hyperspace.HyperspaceUtils;
-import com.idorsia.research.chem.hyperspace.gui.action.AddSubstructureSearchProviderAction;
-import com.idorsia.research.chem.hyperspace.gui.action.LoadHyperspaceConfigFileAction;
-import com.idorsia.research.chem.hyperspace.gui.action.SaveHyperspaceConfigFileAction;
+//import com.idorsia.research.chem.hyperspace.gui.action.AddSubstructureSearchProviderAction;
+//import com.idorsia.research.chem.hyperspace.gui.action.LoadHyperspaceConfigFileAction;
+//import com.idorsia.research.chem.hyperspace.gui.action.SaveHyperspaceConfigFileAction;
+import com.idorsia.research.chem.hyperspace.gui.actions.AddSubstructureSearchProviderAction;
+import com.idorsia.research.chem.hyperspace.gui.actions.LoadHyperspaceConfigFileAction;
+import com.idorsia.research.chem.hyperspace.gui.actions.SaveHyperspaceConfigFileAction;
 import com.idorsia.research.chem.hyperspace.gui.process.AbstractHyperspaceProcess;
 import com.idorsia.research.chem.hyperspace.gui.process.JProcessList;
 import com.idorsia.research.chem.hyperspace.gui.search.AbstractSearchProvider;

@@ -4,15 +4,13 @@ import com.idorsia.research.chem.hyperspace.HyperspaceUtils;
 //import com.idorsia.research.chem.hyperspace.gui.action.AddSubstructureSearchProviderAction;
 //import com.idorsia.research.chem.hyperspace.gui.action.LoadHyperspaceConfigFileAction;
 //import com.idorsia.research.chem.hyperspace.gui.action.SaveHyperspaceConfigFileAction;
-import com.idorsia.research.chem.hyperspace.gui.actions.AddSubstructureSearchProviderAction;
-import com.idorsia.research.chem.hyperspace.gui.actions.LoadHyperspaceConfigFileAction;
-import com.idorsia.research.chem.hyperspace.gui.actions.SaveHyperspaceConfigFileAction;
+import com.idorsia.research.chem.hyperspace.gui.action.AddSubstructureSearchProviderAction;
+import com.idorsia.research.chem.hyperspace.gui.action.LoadHyperspaceConfigFileAction;
+import com.idorsia.research.chem.hyperspace.gui.action.SaveHyperspaceConfigFileAction;
 import com.idorsia.research.chem.hyperspace.gui.process.AbstractHyperspaceProcess;
 import com.idorsia.research.chem.hyperspace.gui.process.JProcessList;
 import com.idorsia.research.chem.hyperspace.gui.search.AbstractSearchProvider;
-import com.idorsia.research.chem.hyperspace.gui.search.HyperspaceSimilaritySearch;
 import com.idorsia.research.chem.hyperspace.gui.search.HyperspaceSubstructureSearch;
-import org.json.JSONObject;
 import org.pushingpixels.substance.api.SubstanceCortex;
 import org.pushingpixels.substance.api.SubstanceSlices;
 import org.pushingpixels.substance.api.skin.SubstanceBusinessLookAndFeel;
@@ -21,7 +19,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.File;
 import java.util.*;
-import java.util.List;
 import java.util.stream.Collectors;
 
 

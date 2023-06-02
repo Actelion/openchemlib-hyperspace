@@ -1,4 +1,4 @@
-package com.idorsia.research.chem.hyperspace.gui.actions;
+package com.idorsia.research.chem.hyperspace.gui.action;
 
 import com.idorsia.research.chem.hyperspace.gui.HyperspaceInit;
 import com.idorsia.research.chem.hyperspace.gui.HyperspaceSearchGUI;

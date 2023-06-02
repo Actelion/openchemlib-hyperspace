@@ -1,8 +1,6 @@
-package com.idorsia.research.chem.hyperspace.gui.actions;
+package com.idorsia.research.chem.hyperspace.gui.action;
 
-import com.idorsia.research.chem.hyperspace.gui.HyperspaceInit;
 import com.idorsia.research.chem.hyperspace.gui.HyperspaceSearchGUI;
-import com.idorsia.research.chem.hyperspace.gui.search.AbstractSearchProvider;
 import com.idorsia.research.chem.hyperspace.gui.search.HyperspaceSubstructureSearch;
 
 import javax.swing.*;

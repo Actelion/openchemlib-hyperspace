@@ -34,7 +34,7 @@ public class MultiStepImporter {
      *
      * @return
      */
-    public static List<MultiStepSynthonReaction> parseReactions_01(String pathToReactionFolder, ImporterMode mode) throws Exception {
+    public static List<MultiStepSynthonReaction> parseReactions_01(String pathToReactionFolder, ImporterMode mode, String idfield_name) throws Exception {
         // 1. create A
         File sfA = new File(pathToReactionFolder+File.separator+"A");
         File[] dwA_all = sfA.listFiles( new FilenameFilter(){
@@ -46,14 +46,14 @@ public class MultiStepImporter {
         File dwA = dwA_all[0];
         ImporterSynthonReaction rA = null;
         try {
-            rA = ImporterTool.importSynthonReaction( Collections.singletonList(dwA.getAbsolutePath()),"Enamine-ID");
+            rA = ImporterTool.importSynthonReaction( Collections.singletonList(dwA.getAbsolutePath()),idfield_name);
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         // 2. create B
         File sfB = new File(pathToReactionFolder+File.separator+"B");
-        File[] dwB_all = sfA.listFiles( new FilenameFilter(){
+        File[] dwB_all = sfB.listFiles( new FilenameFilter(){
             @Override
             public boolean accept(File dir, String name) {
                 return name.endsWith(".dwar");
@@ -62,7 +62,7 @@ public class MultiStepImporter {
         File dwB = dwB_all[0];
         ImporterSynthonReaction rB = null;
         try {
-            rB = ImporterTool.importSynthonReaction( Collections.singletonList(dwB.getAbsolutePath()),"Enamine-ID");
+            rB = ImporterTool.importSynthonReaction( Collections.singletonList(dwB.getAbsolutePath()),idfield_name);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -158,7 +158,8 @@ public class MultiStepImporter {
         for(Map.Entry<String, List<File>> entry : groups.entrySet()) {
             //if(mssr.size()>=4) {break;}
             try {
-                ImporterSynthonReaction ri = ImporterTool.importSynthonReaction(entry.getValue().stream().map(fi -> fi.getAbsolutePath()).collect(Collectors.toList()), "Enamine-ID");
+                //ImporterSynthonReaction ri = ImporterTool.importSynthonReaction(entry.getValue().stream().map(fi -> fi.getAbsolutePath()).collect(Collectors.toList()), "Enamine-ID");
+                ImporterSynthonReaction ri = ImporterTool.importSynthonReaction(entry.getValue().stream().map(fi -> fi.getAbsolutePath()).collect(Collectors.toList()), "BB-ID");
                 ConcreteMultiStepSynthonReaction cri = new ConcreteMultiStepSynthonReaction(ri,new ConnectorRemap());
                 mssr.add(cri);
             } catch (Exception e) {
@@ -174,15 +175,16 @@ public class MultiStepImporter {
      * Arguments: 1. mode: "1split" or "2split"
      *            2. input-file-path
      *            3. output-file-name
-     *
+     *            4. idfield-name
      * @param args
      */
     public static void main(String args[]) {
         //String path_a = "C:\\Temp\\virtual_spaces\\Benzimidazol_with_aldehyde";
 
-        String str_mode   = args[0];
-        String str_path_a = args[1];
-        String str_output = args[2];
+        String str_mode     = args[0];
+        String str_path_a   = args[1];
+        String str_output   = args[2];
+        String idfield_name = args[3];
 
         ImporterMode mode = ImporterMode.OneSplit;
         if(str_mode.equalsIgnoreCase("1split")) { mode = ImporterMode.OneSplit;}
@@ -199,7 +201,7 @@ public class MultiStepImporter {
         for(File fi : folderCombLibraries.listFiles()) {
             List<MultiStepSynthonReaction> rxns_i = new ArrayList<>();
             try {
-                rxns_i = parseReactions_01(fi.getAbsolutePath(),mode);
+                rxns_i = parseReactions_01(fi.getAbsolutePath(),mode,idfield_name);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -209,7 +211,7 @@ public class MultiStepImporter {
         }
 
         try {
-            BufferedWriter out = new BufferedWriter(new FileWriter(new File("output_a")));
+            BufferedWriter out = new BufferedWriter(new FileWriter(new File(str_output)));
             List<String> parts_header = new ArrayList<>();
             parts_header.add("smiles");
             parts_header.add("synthon");

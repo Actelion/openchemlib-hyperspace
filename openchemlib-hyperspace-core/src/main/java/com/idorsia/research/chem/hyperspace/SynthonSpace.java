@@ -1773,6 +1773,97 @@ public class SynthonSpace implements Serializable {
        return expanded_hits;
     }
 
+
+    public static interface CombinatorialHitReceiver {
+        public void addCombinatorialHits(List<CombinatorialHit> hi, List<SplitPatternWithConnectorProximityPruningStatistics> stats);
+    }
+
+    /**
+     * Same as function findExpandedHits_withConnProximityMatching, but search is not performed in stages but
+     * each hit candidate hit is directly processed, and hits are streamed to the output during the computation.
+     *
+     * @param space
+     * @param cdh
+     * @param mol
+     * @param num_splits
+     * @param max_fragments
+     * @param rxns_to_omit
+     * @param max_hits maximum number of combinatorial hits that should be examined
+     * @param threads
+     * @param receiver
+     * @return
+     */
+    public static void findExpandedHits_withConnProximityMatching_streaming(SynthonSpace space, CachedDescriptorProvider cdh ,
+                                                                                    StereoMolecule mol, int num_splits, int max_fragments,
+                                                                                    Set<String> rxns_to_omit ,
+                                                                                    int max_hits, int threads,
+                                                                                    CombinatorialHitReceiver receiver) {
+
+
+        int nb = mol.getBonds();
+
+        List<int[]> splits  = null;
+        if(num_splits==0) {
+            splits = new ArrayList<>();
+            splits.add(new int[0]);
+        }
+        else {
+            List<int[]> combi_list = CombinationGenerator.getAllOutOf(nb, num_splits);
+            // !! returns null if b > a..
+            if(combi_list==null) { return; }
+            splits = combi_list.stream().filter(ci -> ci.length == num_splits).collect(Collectors.toList());
+        }
+
+        ExecutorService main_pool = Executors.newFixedThreadPool(threads);
+
+        List<Future> tasks_sss = new ArrayList<>();
+
+        for(int[] si : splits) {
+            final int num_connectors = num_splits+1; // this we should also fix at the beginning..
+            //findInitialHits_forSplitPattern(space,cdh,mol,si,num_connectors,max_fragments,max_hits,initial_hits,initial_hits_sorted);
+
+            Runnable r_initialhits_and_expansion = new Runnable() {
+                @Override
+                public void run() {
+                    List<CombinatorialHit> expanded_hits_i                    = Collections.synchronizedList(new ArrayList<>() ); // synchonrized not needed..
+                    List<SplitPatternWithConnectorProximityPruningStatistics> output_statistics_i = Collections.synchronizedList(new ArrayList<>() );  // synchonrized not needed..
+                    findExpandedHits_forSplitPattern_withConnProximityMatching(space,cdh,mol,si,num_connectors,max_fragments,max_hits,rxns_to_omit,expanded_hits_i,output_statistics_i);
+                    receiver.addCombinatorialHits(expanded_hits_i,output_statistics_i);
+                }
+            };
+            tasks_sss.add(main_pool.submit(r_initialhits_and_expansion));
+        }
+
+        // wait for pool:
+        if(logLevel_findCandidates>0) {
+            System.out.println("[FCH] Substructure search: Start\n");
+        }
+        int cnt_fc = 0;
+        for(Future f_i : tasks_sss) {
+            try {
+                if(Thread.interrupted()) {
+                    f_i.cancel(true);
+                }
+                f_i.get();
+                if(logLevel_findCandidates>0) {
+                    //System.out.print(".");
+                    if ( (++cnt_fc) % 60 == 0) {
+                        //    System.out.print("\n");
+                    }
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            }
+        }
+        if(logLevel_findCandidates>0) {
+            System.out.println("\n[FCH] Substructure search: Done!");
+        }
+
+    }
+
+
     public static class SplitPatternWithConnectorProximityPruningStatistics {
         public final boolean valid_split;
         public final Map<String,List<Map<Integer,Pair<FragType,BitSet>>>> possible_rxn_mappings;

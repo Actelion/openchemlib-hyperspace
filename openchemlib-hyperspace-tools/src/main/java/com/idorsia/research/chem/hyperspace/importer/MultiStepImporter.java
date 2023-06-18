@@ -53,7 +53,7 @@ public class MultiStepImporter {
 
         // 2. create B
         File sfB = new File(pathToReactionFolder+File.separator+"B");
-        File[] dwB_all = sfA.listFiles( new FilenameFilter(){
+        File[] dwB_all = sfB.listFiles( new FilenameFilter(){
             @Override
             public boolean accept(File dir, String name) {
                 return name.endsWith(".dwar");
@@ -82,7 +82,7 @@ public class MultiStepImporter {
 
         all_synthon_reactions.add(r_AB);
 
-        if(mode == ImporterMode.TwoSplit) {
+        if(mode == ImporterMode.TwoSplit || mode == ImporterMode.ThreeSplit ) {
             // 3. create virtual_bb rxns A
             List<ConcreteMultiStepSynthonReaction> rxns_a = new ArrayList<>();
             List<ConcreteMultiStepSynthonReaction> rxns_b = new ArrayList<>();
@@ -90,6 +90,19 @@ public class MultiStepImporter {
             rxns_a = parseVirtualBBsFolder(pathToReactionFolder + File.separator + "A" + File.separator + "virtual_bbs");
             rxns_b = parseVirtualBBsFolder(pathToReactionFolder + File.separator + "B" + File.separator + "virtual_bbs");
 
+            if( mode == ImporterMode.ThreeSplit ) {
+                // 5. create all combinations r_a + r_B
+                for (ConcreteMultiStepSynthonReaction ria : rxns_a) {
+                    try {
+                        for(ConcreteMultiStepSynthonReaction rib : rxns_b) {
+                            MultiStepSynthonReaction r_xi = ImporterTool.combineTwoSynthonReactions(ria, rib);
+                            all_synthon_reactions.add(r_xi);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
 
             // 4. create all combinations r_A + rxns_b
             for (ConcreteMultiStepSynthonReaction ri : rxns_b) {
@@ -112,6 +125,8 @@ public class MultiStepImporter {
                 }
             }
         }
+
+
 
         return all_synthon_reactions;
     }
@@ -168,7 +183,7 @@ public class MultiStepImporter {
         return mssr;
     }
 
-    private enum ImporterMode { OneSplit , TwoSplit };
+    private enum ImporterMode { OneSplit , TwoSplit , ThreeSplit };
 
     /**
      * Arguments: 1. mode: "1split" or "2split"
@@ -187,11 +202,11 @@ public class MultiStepImporter {
         ImporterMode mode = ImporterMode.OneSplit;
         if(str_mode.equalsIgnoreCase("1split")) { mode = ImporterMode.OneSplit;}
         else if(str_mode.equalsIgnoreCase("2split")) {mode = ImporterMode.TwoSplit;}
+        else if(str_mode.equalsIgnoreCase("2split")) {mode = ImporterMode.ThreeSplit;}
         else {
             System.out.println("[INFO] unknown mode: "+str_mode);
             System.out.println("[INFO] unknown mode: -> fallback to 1split");
         }
-
 
         List<Pair<String,MultiStepSynthonReaction>> all_reactions = new ArrayList<>();
         //File folderCombLibraries = new File("C:\\Temp\\virtual_spaces\\CombinatorialLibraries");

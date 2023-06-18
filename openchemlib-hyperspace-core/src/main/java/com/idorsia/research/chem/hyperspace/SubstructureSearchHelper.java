@@ -41,6 +41,134 @@ public class SubstructureSearchHelper {
 
         Set<String> discovered_rxns = new HashSet<>();
 
+        if(false) {
+            if (!hits_bbs.isEmpty()) {
+                BitSet fp_molecule = cdp.getFP_cached(mi);
+
+                // 1. sort expanded hits by frag type.. (then we report all hits from the same frag type in the same combinatorial hit..)
+                Map<SynthonSpace.FragType, List<SynthonSpace.ExpandedHit>> sorted_bb_hits = new HashMap<>();
+                for (SynthonSpace.ExpandedHit hi : hits_bbs) {
+                    Integer hit_frag = hi.hit_fragments.keySet().iterator().next();
+                    SynthonSpace.FragId hit_frag_id = hi.hit_fragments.get(hit_frag);
+
+                    SynthonSpace.FragType hit_ft = new SynthonSpace.FragType(hi.rxn, hit_frag_id.frag);
+                    if (!sorted_bb_hits.containsKey(hit_ft)) {
+                        sorted_bb_hits.put(hit_ft, new ArrayList<>());
+                    }
+                    sorted_bb_hits.get(hit_ft).add(hi);
+                }
+
+                for (SynthonSpace.FragType fti_a : sorted_bb_hits.keySet()) {
+
+                    List<SynthonSpace.FragId> all_matching_fragids = new ArrayList<>();
+                    for (SynthonSpace.ExpandedHit hi : sorted_bb_hits.get(fti_a)) {
+                        all_matching_fragids.add(hi.hit_fragments.get(fti_a.frag));
+                    }
+
+                    //SynthonSpace.CombinatorialHit chi = new SynthonSpace.CombinatorialHit();
+
+                    Map<SynthonSpace.FragType, List<SynthonSpace.FragId>> frag_map = new HashMap<>();
+                    Map<Integer, Pair<SynthonSpace.FragType, BitSet>> fp_mapping = new HashMap<>();
+
+                    StereoMolecule sri_fragments[] = new StereoMolecule[space.getFragTypes(fti_a.rxn_id).size()];
+                    StereoMolecule mi_a = new StereoMolecule(mi);
+                    mi_a.ensureHelperArrays(Molecule.cHelperCIP);
+                    for (int szi = 0; szi < sri_fragments.length; szi++) {
+                        if (szi == 0) {
+                            sri_fragments[szi] = mi_a;
+                        } else {
+                            sri_fragments[szi] = new StereoMolecule();
+                        }
+                    }
+                    SynthonShredder.SplitResult sri = new SynthonShredder.SplitResult(sri_fragments, new ArrayList<>(), "", new ArrayList<>());
+
+                    // loop over frag types and fill the required maps:
+                    int other_splits_cnt = 1;
+                    for (Integer ftii : space.getFragTypes(fti_a.rxn_id).keySet()) {
+                        SynthonSpace.FragType fti = space.getFragTypes(fti_a.rxn_id).get(ftii);
+                        if (ftii == fti_a.frag) {
+                            fp_mapping.put(0, Pair.of(fti_a, fp_molecule));
+                            frag_map.put(fti_a, all_matching_fragids);
+                        }
+//                    else {
+//                        // put all fragments into combinatorial hit:
+//                        frag_map.put( fti , new ArrayList<>( space.getSynthonSet(fti_a.rxn_id,ftii) ) );
+//                        // put empty bitset into fp_mapping
+//                        fp_mapping.put( other_splits_cnt , Pair.of( fti , new BitSet( space.getBits() ) ) );
+//                        other_splits_cnt++;
+//                    }
+                    }
+                    SynthonSpace.CombinatorialHit hit_bb_ci = new SynthonSpace.CombinatorialHit(fti_a.rxn_id, frag_map, sri, fp_mapping);
+                    hits_bbs_as_combinatorial_hits.add(hit_bb_ci);
+                }
+            }
+        }
+        if(true) {
+            List<SynthonSpace.CombinatorialHit> hits_from_bbs = new ArrayList<>();
+            expandBuildingBlockExpandedHits(space, cdp, hits_bbs, mi, new SynthonSpace.CombinatorialHitReceiver() {
+                @Override
+                public synchronized void addCombinatorialHits(List<SynthonSpace.CombinatorialHit> hi, List<SynthonSpace.SplitPatternWithConnectorProximityPruningStatistics> stats) {
+                    hits_from_bbs.addAll(hi);
+                }
+            });
+            hits_bbs_as_combinatorial_hits = hits_from_bbs;
+        }
+
+
+
+
+        discovered_rxns.addAll(hits_bbs_as_combinatorial_hits.stream().map(hi -> hi.rxn).collect(Collectors.toList()));
+
+        hits_1s = space.findExpandedHits_withConnProximityMatching(space,cdp,mi,1,2,
+                (omitRxnsWithHitsFromLowerSplitNumber?discovered_rxns:new HashSet<>()), 200,1);
+        discovered_rxns.addAll(hits_1s.stream().map(hi -> hi.rxn).collect(Collectors.toList()));
+        hits_2s = space.findExpandedHits_withConnProximityMatching(space,cdp,mi,2,3,
+                (omitRxnsWithHitsFromLowerSplitNumber?discovered_rxns:new HashSet<>()), 200,1);
+        discovered_rxns.addAll(hits_2s.stream().map(hi -> hi.rxn).collect(Collectors.toList()));
+        hits_3s = space.findExpandedHits_withConnProximityMatching(space,cdp,mi,3,4,
+                (omitRxnsWithHitsFromLowerSplitNumber?discovered_rxns:new HashSet<>()),200,1);
+        discovered_rxns.addAll( hits_3s.stream().map( hi -> hi.rxn ).collect(Collectors.toList()) );
+        //if(hits_3s.isEmpty()) {
+        //    hits_4s = space.findExpandedHits_withConnProximityMatching(space,cdp,mi,4,4,200,1);
+        //}
+
+        System.out.println("Hits (bb): "+hits_bbs_as_combinatorial_hits.size());
+        System.out.println("Hits (1s): "+hits_1s.size());
+        System.out.println("Hits (2s): "+hits_2s.size());
+        System.out.println("Hits (3s): "+hits_3s.size());
+        System.out.println("Hits (4s): "+hits_4s.size());
+
+        List<SynthonSpace.CombinatorialHit> all_hits = new ArrayList<>();
+        all_hits.addAll(hits_bbs_as_combinatorial_hits);
+        all_hits.addAll(hits_1s);
+        all_hits.addAll(hits_2s);
+        all_hits.addAll(hits_3s);
+        all_hits.addAll(hits_4s);
+
+        if(fillIncompleteMappings) {
+            for(int zi=0;zi<all_hits.size();zi++) {
+                SynthonSpace.CombinatorialHit ci = all_hits.get(zi);
+                // check if all synthon sets of the synthon reaction are matched. If not, add the fragments to the combinatorial hit
+                List<SynthonSpace.FragType> synthsets_matched = new ArrayList<>(ci.mapping.values().stream().map( xi -> (xi!=null)?xi.getLeft(): null).collect(Collectors.toList()));
+                List<SynthonSpace.FragType> extra_synthsets = space.getFragTypes(ci.rxn).values().stream().collect(Collectors.toList());
+                extra_synthsets.removeAll(synthsets_matched);
+                if(!extra_synthsets.isEmpty()) {
+                    for(SynthonSpace.FragType fti : extra_synthsets) {
+                        System.out.println("Fill incomplete mapping for set: "+fti.toString());
+                        ci.hit_fragments.put(fti,space.getSynthonSet(fti.rxn_id,fti.frag));
+                    }
+                }
+            }
+        }
+
+        return all_hits;
+    }
+
+
+    public static void expandBuildingBlockExpandedHits(SynthonSpace space, CachedDescriptorProvider cdp, List<SynthonSpace.ExpandedHit> hits_bbs, StereoMolecule mi, SynthonSpace.CombinatorialHitReceiver receiver) {
+        //List<SynthonSpace.CombinatorialHit> hits_bbs_as_combinatorial_hits = new ArrayList<>();
+        //Set<String> discovered_rxns = new HashSet<>();
+
         if(!hits_bbs.isEmpty()) {
             BitSet fp_molecule = cdp.getFP_cached(mi);
 
@@ -92,58 +220,83 @@ public class SubstructureSearchHelper {
 //                    }
                 }
                 SynthonSpace.CombinatorialHit hit_bb_ci = new SynthonSpace.CombinatorialHit(fti_a.rxn_id, frag_map, sri, fp_mapping);
-                hits_bbs_as_combinatorial_hits.add(hit_bb_ci);
+                //hits_bbs_as_combinatorial_hits.add(hit_bb_ci);
+                receiver.addCombinatorialHits(Collections.singletonList(hit_bb_ci),Collections.singletonList(null));
             }
         }
-
-
-        discovered_rxns.addAll(hits_bbs_as_combinatorial_hits.stream().map(hi -> hi.rxn).collect(Collectors.toList()));
-
-        hits_1s = space.findExpandedHits_withConnProximityMatching(space,cdp,mi,1,2,
-                (omitRxnsWithHitsFromLowerSplitNumber?discovered_rxns:new HashSet<>()), 200,1);
-        discovered_rxns.addAll(hits_1s.stream().map(hi -> hi.rxn).collect(Collectors.toList()));
-        hits_2s = space.findExpandedHits_withConnProximityMatching(space,cdp,mi,2,3,
-                (omitRxnsWithHitsFromLowerSplitNumber?discovered_rxns:new HashSet<>()), 200,1);
-        discovered_rxns.addAll(hits_2s.stream().map(hi -> hi.rxn).collect(Collectors.toList()));
-        hits_3s = space.findExpandedHits_withConnProximityMatching(space,cdp,mi,3,4,
-                (omitRxnsWithHitsFromLowerSplitNumber?discovered_rxns:new HashSet<>()),200,1);
-        discovered_rxns.addAll( hits_3s.stream().map( hi -> hi.rxn ).collect(Collectors.toList()) );
-        //if(hits_3s.isEmpty()) {
-        //    hits_4s = space.findExpandedHits_withConnProximityMatching(space,cdp,mi,4,4,200,1);
-        //}
-
-        System.out.println("Hits (bb): "+hits_bbs_as_combinatorial_hits.size());
-        System.out.println("Hits (1s): "+hits_1s.size());
-        System.out.println("Hits (2s): "+hits_2s.size());
-        System.out.println("Hits (3s): "+hits_3s.size());
-        System.out.println("Hits (4s): "+hits_4s.size());
-
-        List<SynthonSpace.CombinatorialHit> all_hits = new ArrayList<>();
-        all_hits.addAll(hits_bbs_as_combinatorial_hits);
-        all_hits.addAll(hits_1s);
-        all_hits.addAll(hits_2s);
-        all_hits.addAll(hits_3s);
-        all_hits.addAll(hits_4s);
-
-        if(fillIncompleteMappings) {
-            for(int zi=0;zi<all_hits.size();zi++) {
-                SynthonSpace.CombinatorialHit ci = all_hits.get(zi);
-                // check if all synthon sets of the synthon reaction are matched. If not, add the fragments to the combinatorial hit
-                List<SynthonSpace.FragType> synthsets_matched = new ArrayList<>(ci.mapping.values().stream().map( xi -> (xi!=null)?xi.getLeft(): null).collect(Collectors.toList()));
-                List<SynthonSpace.FragType> extra_synthsets = space.getFragTypes(ci.rxn).values().stream().collect(Collectors.toList());
-                extra_synthsets.removeAll(synthsets_matched);
-                if(!extra_synthsets.isEmpty()) {
-                    for(SynthonSpace.FragType fti : extra_synthsets) {
-                        System.out.println("Fill incomplete mapping for set: "+fti.toString());
-                        ci.hit_fragments.put(fti,space.getSynthonSet(fti.rxn_id,fti.frag));
-                    }
-                }
-            }
-        }
-
-        return all_hits;
     }
 
+
+    /**
+     *
+     * @param space
+     * @param cdp
+     * @param mi
+     * @param threads
+     * @param fillIncompleteMappings if true, then adds all synthons of the non-matched synthon sets into the
+     *                               combinatorial hits.
+     * @param omitRxnsWithHitsFromLowerSplitNumber if true, then if we find hits at a specific number of splits, we omit
+     *                                             the synthon reaction in more complicated searches.
+     * @return
+     */
+    public static void run_substructure_search_streaming_01(SynthonSpace space, CachedDescriptorProvider cdp, StereoMolecule mi, int threads, boolean fillIncompleteMappings, boolean omitRxnsWithHitsFromLowerSplitNumber, SynthonSpace.CombinatorialHitReceiver receiver) {
+
+        // 1. bb hits:
+        System.out.println("sss: bb screen");
+        List<SynthonSpace.ExpandedHit> hits_bbs = SynthonSpace.screen_building_blocks(space,cdp,mi,threads);
+        List<SynthonSpace.CombinatorialHit> hits_bbs_as_combinatorial_hits = new ArrayList<>();
+
+        Set<String> discovered_rxns = new HashSet<>();
+        expandBuildingBlockExpandedHits(space, cdp, hits_bbs, mi, new SynthonSpace.CombinatorialHitReceiver() {
+            @Override
+            public synchronized void addCombinatorialHits(List<SynthonSpace.CombinatorialHit> hi, List<SynthonSpace.SplitPatternWithConnectorProximityPruningStatistics> stats) {
+                receiver.addCombinatorialHits(hi,stats);
+                discovered_rxns.addAll(hi.stream().map(xi -> xi.rxn).collect(Collectors.toList()));
+            }
+        });
+
+        // 2.
+        System.out.println("sss: 1split -> start");
+        space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 1, 2,
+                (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
+                    @Override
+                    public void addCombinatorialHits(List<SynthonSpace.CombinatorialHit> hi, List<SynthonSpace.SplitPatternWithConnectorProximityPruningStatistics> stats) {
+                        discovered_rxns.addAll(hi.stream().map(xi -> xi.rxn).collect(Collectors.toList()));
+                        receiver.addCombinatorialHits(hi,stats);
+                    }
+                });
+        System.out.println("sss: 1split -> done");
+
+        System.out.println("sss: 2split -> start");
+        space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 1, 2,
+                (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
+                    @Override
+                    public void addCombinatorialHits(List<SynthonSpace.CombinatorialHit> hi, List<SynthonSpace.SplitPatternWithConnectorProximityPruningStatistics> stats) {
+                        discovered_rxns.addAll(hi.stream().map(xi -> xi.rxn).collect(Collectors.toList()));
+                        receiver.addCombinatorialHits(hi,stats);
+                    }
+                });
+        System.out.println("sss: 2split -> done");
+        space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 2, 3,
+                (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
+                    @Override
+                    public void addCombinatorialHits(List<SynthonSpace.CombinatorialHit> hi, List<SynthonSpace.SplitPatternWithConnectorProximityPruningStatistics> stats) {
+                        discovered_rxns.addAll(hi.stream().map(xi -> xi.rxn).collect(Collectors.toList()));
+                        receiver.addCombinatorialHits(hi,stats);
+                    }
+                });
+        System.out.println("sss: 2split -> done");
+        System.out.println("sss: 3split -> start");
+        space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 3, 4,
+                (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
+                    @Override
+                    public void addCombinatorialHits(List<SynthonSpace.CombinatorialHit> hi, List<SynthonSpace.SplitPatternWithConnectorProximityPruningStatistics> stats) {
+                        discovered_rxns.addAll(hi.stream().map(xi -> xi.rxn).collect(Collectors.toList()));
+                        receiver.addCombinatorialHits(hi,stats);
+                    }
+                });
+        System.out.println("sss: 3split -> stop");
+    }
 
     /**
      * For up to three bonds that represent bridges, this function enumerates

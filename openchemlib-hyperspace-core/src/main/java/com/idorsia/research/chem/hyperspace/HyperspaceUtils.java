@@ -24,6 +24,11 @@ import java.util.List;
 public class HyperspaceUtils {
 
 
+
+    public static int setHighlightedSubstructure(StereoMolecule M, StereoMolecule query) {
+        return setHighlightedSubstructure(M,query,true);
+    }
+
     /**
      * Sets any set of bonds that match the query substructure
      * to highlighted.
@@ -31,7 +36,7 @@ public class HyperspaceUtils {
      * @param M
      * @param query
      */
-    public static int setHighlightedSubstructure(StereoMolecule M, StereoMolecule query) {
+    public static int setHighlightedSubstructure(StereoMolecule M, StereoMolecule query, boolean highlighAllMatches) {
         StereoMolecule fi = query;
 
         //fi.setFragment(true);
@@ -60,6 +65,9 @@ public class HyperspaceUtils {
                 if (bonds.get(zi)) {
                     M.setBondBackgroundHiliting(zi, true);
                 }
+            }
+            if(!highlighAllMatches) {
+                break;
             }
         }
         return matches.size();

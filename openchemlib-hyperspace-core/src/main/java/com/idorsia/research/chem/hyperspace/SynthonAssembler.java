@@ -337,7 +337,7 @@ public class SynthonAssembler {
 
             //results.add( Pair.of( assembly_i , parts_as_array ) );
             results.add( new ExpandedCombinatorialHit( assembly_i.getIDCode() , api ) );
-            System.out.println("AssembledMol: Smiles: " + HyperspaceUtils.idcodeToSmiles(assembly_i.getIDCode()) );
+            //System.out.println("AssembledMol: Smiles: " + HyperspaceUtils.idcodeToSmiles(assembly_i.getIDCode()) );
         }
 
         return results;

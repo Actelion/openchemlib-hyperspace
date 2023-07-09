@@ -1828,7 +1828,9 @@ public class SynthonSpace implements Serializable {
                     List<CombinatorialHit> expanded_hits_i                    = Collections.synchronizedList(new ArrayList<>() ); // synchonrized not needed..
                     List<SplitPatternWithConnectorProximityPruningStatistics> output_statistics_i = Collections.synchronizedList(new ArrayList<>() );  // synchonrized not needed..
                     findExpandedHits_forSplitPattern_withConnProximityMatching(space,cdh,mol,si,num_connectors,max_fragments,max_hits,rxns_to_omit,expanded_hits_i,output_statistics_i);
-                    receiver.addCombinatorialHits(expanded_hits_i,output_statistics_i);
+                    if(!expanded_hits_i.isEmpty()) {
+                        receiver.addCombinatorialHits(expanded_hits_i, output_statistics_i);
+                    }
                 }
             };
             tasks_sss.add(main_pool.submit(r_initialhits_and_expansion));

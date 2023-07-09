@@ -4,7 +4,6 @@ import com.actelion.research.chem.IsomericSmilesCreator;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.StereoMolecule;
 import com.idorsia.research.chem.hyperspace.*;
-import com.idorsia.research.chem.hyperspace.gui.HyperspaceSearchGUI;
 import com.idorsia.research.chem.hyperspace.io.SynthonSpaceParser2;
 import com.idorsia.research.chem.hyperspace.io.SynthonSpaceParser;
 import com.idorsia.research.chem.hyperspace.util.ConnectedPairSampler;
@@ -48,7 +47,6 @@ public class TestSSS {
         SynthonSpace sspace = null;
         try {
             sspace = SynthonSpaceParser2.parseBuildingBlocks(f_synthonspace, "FragFp", 2, 3);
-
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -67,7 +65,10 @@ public class TestSSS {
             }
 
             String arguments[] = new String[] {"hyperspace_test_config.json"};
-            HyperspaceSearchGUI.main(arguments);
+
+            // TODO re-establish this functionality somewhere
+            // maybe then reference gui2 or something..
+            //HyperspaceSearchGUI.main(arguments);
 
             return;
         }

@@ -2,7 +2,6 @@ package com.idorsia.research.chem.hyperspace.importer;
 
 import com.actelion.research.chem.IsomericSmilesCreator;
 import org.apache.commons.lang3.tuple.Pair;
-import tech.molecules.leet.chem.ChemUtils;
 
 import java.io.*;
 import java.util.*;

@@ -4,6 +4,9 @@ import com.actelion.research.chem.IsomericSmilesCreator;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.gui.JDrawPanel;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
+import com.actelion.research.gui.editor.GenericEditorArea;
+import com.actelion.research.gui.editor.SwingEditorArea;
+import com.actelion.research.gui.editor.SwingEditorPanel;
 
 import javax.swing.*;
 import java.awt.*;
@@ -14,7 +17,8 @@ import java.awt.event.ActionListener;
 
 public class JExtendedDrawPanel extends JPanel  {
 
-    private JDrawPanel mDrawPanel;
+    //private JDrawPanel mDrawPanel;
+    private SwingEditorPanel mDrawPanel;
 
     private JPanel     mTop;
     private JPanel     mTop_Right;
@@ -31,7 +35,7 @@ public class JExtendedDrawPanel extends JPanel  {
 
         StereoMolecule mi = new StereoMolecule();
         mi.setFragment(true);
-        this.mDrawPanel = new JDrawPanel(mi);
+        this.mDrawPanel = new SwingEditorPanel(mi);//new JDrawPanel(mi);
 
         this.setLayout(new BorderLayout());
         this.add(this.mDrawPanel, BorderLayout.CENTER);
@@ -66,7 +70,7 @@ public class JExtendedDrawPanel extends JPanel  {
         copy_idcode.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                String idc = mDrawPanel.getDrawArea().getMolecule().getIDCode();
+                String idc = mDrawPanel.getDrawArea().getMolecule().getIDCode();//mDrawPanel.getDrawArea().getMolecule().getIDCode();
                 StringSelection stringSelection = new StringSelection(idc);
 
                 Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -87,7 +91,7 @@ public class JExtendedDrawPanel extends JPanel  {
     }
 
 
-    public JDrawPanel getDrawPanel() {
+    public SwingEditorPanel getDrawPanel() {
         return this.mDrawPanel;
     }
 

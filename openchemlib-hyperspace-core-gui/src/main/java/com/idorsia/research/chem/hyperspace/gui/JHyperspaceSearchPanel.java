@@ -4,6 +4,9 @@ import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.gui.JDrawArea;
 import com.actelion.research.gui.JDrawPanel;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
+import com.actelion.research.gui.editor.GenericEditorArea;
+import com.actelion.research.gui.editor.SwingEditorArea;
+import com.actelion.research.gui.editor.SwingEditorPanel;
 import com.idorsia.research.chem.hyperspace.gui.search.JSearchProviderListPanel;
 
 import javax.swing.*;
@@ -62,12 +65,12 @@ public class JHyperspaceSearchPanel extends JPanel {
         return this.jp_searchproviders;
     }
 
-    public JDrawPanel getDrawPanel() {
+    public SwingEditorPanel getDrawPanel() {
         return this.jdp_draw.getDrawPanel();
     }
 
 
-    public static void initDrawContextMenu(JDrawArea da) {
+    public static void initDrawContextMenu(GenericEditorArea da) {
         //da.setComponentPopupMenu(new );
         //JPopupMenu pm_a = new JPopupMenu();
         //pm_a

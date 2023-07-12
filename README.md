@@ -1,3 +1,5 @@
+[![Java CI with Maven](https://github.com/Actelion/openchemlib-hyperspace/actions/workflows/maven.yml/badge.svg)](https://github.com/Actelion/openchemlib-hyperspace/actions/workflows/maven.yml)
+
 # openchemlib-hyperspace
 Cheminformatics tools, workflows and pipelines for substructure search, virtual screening and data analysis
 

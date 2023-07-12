@@ -33,7 +33,7 @@ public class SubstructureSearchTask extends SwingWorker<List<SynthonSpace.Combin
         };
 
         CachedDescriptorProvider cdp = new CachedDescriptorProvider("FragFp");
-        SubstructureSearchHelper.run_substructure_search_streaming_01(this.space,cdp,query,Runtime.getRuntime().availableProcessors(),true,false,receiver);
+        SubstructureSearchHelper.run_substructure_search_streaming_01_withBridgedBondsExpansion(this.space,cdp,query,Runtime.getRuntime().availableProcessors(),true,false,receiver);
 
         return new ArrayList<>();
     }

@@ -65,9 +65,11 @@ public class RealTimeExpandingSearchResultModel {
                 Runnable ri = new Runnable() {
                     @Override
                     public void run() {
+                        if(moleculeOrder.size()>maxExpandedHits) {return;}
                         List<SynthonAssembler.ExpandedCombinatorialHit> exp_hits = SynthonAssembler.expandCombinatorialHit(fchi,1024);
                         List<String> new_molecules = new ArrayList<>();
                         synchronized(assembledMolecules2) {
+                            if(moleculeOrder.size()>maxExpandedHits) {return;}
                             List<String> processed = new ArrayList<>();
                             for(SynthonAssembler.ExpandedCombinatorialHit xi : exp_hits) {
                                 String processed_idcode = processResultStructure(xi.assembled_idcode);
@@ -83,6 +85,7 @@ public class RealTimeExpandingSearchResultModel {
                         SwingUtilities.invokeLater(new Runnable(){
                             @Override
                             public void run() {
+                                if(moleculeOrder.size()>maxExpandedHits) {return;}
                                 // update internal table model..
                                 int size_old = moleculeOrder.size();
                                 moleculeOrder.addAll( new ArrayList<>( final_new_molecules ) );
@@ -93,7 +96,10 @@ public class RealTimeExpandingSearchResultModel {
                         fireResultsChanged();
                     }
                 };
-                expansionThreadPool.submit(ri);
+
+                if(moleculeOrder.size()<maxExpandedHits) {
+                    expansionThreadPool.submit(ri);
+                }
                 //ri.setPriority(Thread.MIN_PRIORITY);
                 //ri.start();
             }
@@ -170,7 +176,7 @@ public class RealTimeExpandingSearchResultModel {
     private List<RealTimeExpandingSearchResultModelListener> listeners = new ArrayList<>();
 
     private RealTimeExpandingTableModel tableModel = new RealTimeExpandingTableModel();
-    public TableModel getTableModel() {
+    public RealTimeExpandingTableModel getTableModel() {
         return tableModel;
     }
 
@@ -218,7 +224,19 @@ public class RealTimeExpandingSearchResultModel {
         public void resultsChanged();
     }
 
-    private class RealTimeExpandingTableModel extends AbstractTableModel {
+    public class RealTimeExpandingTableModel extends AbstractTableModel {
+
+        public String getStructureData(int row) {
+            return moleculeOrder.get(row);
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            switch(column){
+                case 0: return "Structure";
+            }
+            return null;
+        }
 
         @Override
         public int getRowCount() {

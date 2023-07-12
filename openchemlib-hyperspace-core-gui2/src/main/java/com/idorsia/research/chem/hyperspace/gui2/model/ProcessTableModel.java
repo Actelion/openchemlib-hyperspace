@@ -30,6 +30,14 @@ public class ProcessTableModel {
         tableModelSearches.fireTableChanged(new TableModelEvent(tableModel));
     }
 
+    public void removeTask(SwingWorker task) {
+        //SwingUtilities.invokeLater(new Runnable() {
+        taskList.remove(task);
+        tableModel.fireTableChanged(new TableModelEvent(this.tableModel));
+        tableModelSearches.fireTableChanged(new TableModelEvent(tableModel));
+        //});
+    }
+
     public TableModel getTableModel() {
         return this.tableModel;
     }
@@ -63,6 +71,15 @@ public class ProcessTableModel {
         return new ArrayList<>( this.taskList.stream().filter( xi -> xi instanceof SubstructureSearchTask ).map( xi -> (SubstructureSearchTask) xi).collect(Collectors.toList()) );
     }
 
+    public void removePastSearch(SubstructureSearchTask ti) {
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                taskList.remove(ti);
+            }
+        });
+    }
+
     public class TableModelOnlySearches extends AbstractTableModel {
         @Override
         public int getRowCount() {
@@ -72,6 +89,17 @@ public class ProcessTableModel {
         @Override
         public int getColumnCount() {
             return 3;
+        }
+
+
+        @Override
+        public String getColumnName(int column) {
+            switch(column) {
+                case 0: return "Query";
+                case 1: return "State";
+                case 2: return "Hits";
+            }
+            return null;
         }
 
         @Override

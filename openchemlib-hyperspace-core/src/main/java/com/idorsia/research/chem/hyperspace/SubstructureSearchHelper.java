@@ -249,6 +249,27 @@ public class SubstructureSearchHelper {
     }
 
 
+    /**
+     * Same as the other function, but expands bridged bonds and runs the queries one after the other.
+     *
+     * @param space
+     * @param cdp
+     * @param mi
+     * @param threads
+     * @param fillIncompleteMappings
+     * @param omitRxnsWithHitsFromLowerSplitNumber
+     * @param receiver
+     */
+    public static void run_substructure_search_streaming_01_withBridgedBondsExpansion(SynthonSpace space, CachedDescriptorProvider cdp, StereoMolecule mi, int threads, boolean fillIncompleteMappings, boolean omitRxnsWithHitsFromLowerSplitNumber, SynthonSpace.CombinatorialHitReceiver receiver) throws Exception {
+        List<StereoMolecule> expandedQueries = expandBridgedSearches(mi);
+
+        for(StereoMolecule qi : expandedQueries) {
+            if(Thread.interrupted()) {return;}
+            System.out.println("[INFO] next bridge expansion query: "+qi.getIDCode());
+            run_substructure_search_streaming_01(space,cdp,qi,threads,fillIncompleteMappings,omitRxnsWithHitsFromLowerSplitNumber,receiver);
+        }
+    }
+
 
     /**
      *
@@ -294,6 +315,8 @@ public class SubstructureSearchHelper {
         System.out.println("sss: 1split -> done");
 
         System.out.println("sss: 2split -> start");
+        if(Thread.interrupted()) {return;}
+
         space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 2, 3,
                 (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
                     @Override
@@ -316,6 +339,7 @@ public class SubstructureSearchHelper {
 //                });
 //        System.out.println("sss: 2split -> done");
         System.out.println("sss: 3split -> start");
+        if(Thread.interrupted()) {return;}
         space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 3, 4,
                 (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
                     @Override

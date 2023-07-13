@@ -54,56 +54,78 @@ public class RealTimeExpandingSearchResultModel {
         this.processResultsChanged();
     }
 
+    private RealTimeExpandingSearchResultModel getThis() {
+        return this;
+    }
+
     private void processResultsChanged() {
-        synchronized(assembledMolecules2) {
-            List<SynthonSpace.CombinatorialHit> all_hits = new ArrayList<>(resultModel.getHits());
-            all_hits.removeAll( assembledMolecules2.keySet() );
-            for(SynthonSpace.CombinatorialHit chi : all_hits) {
-                // immediately put placeholder for molecules, such that the line above works..
-                assembledMolecules2.put(chi,new ArrayList<>());
-                SynthonSpace.CombinatorialHit fchi = chi;
-                Runnable ri = new Runnable() {
-                    @Override
-                    public void run() {
-                        if(moleculeOrder.size()>maxExpandedHits) {return;}
-                        List<SynthonAssembler.ExpandedCombinatorialHit> exp_hits = SynthonAssembler.expandCombinatorialHit(fchi,1024);
-                        List<String> new_molecules = new ArrayList<>();
-                        synchronized(assembledMolecules2) {
-                            if(moleculeOrder.size()>maxExpandedHits) {return;}
-                            List<String> processed = new ArrayList<>();
-                            for(SynthonAssembler.ExpandedCombinatorialHit xi : exp_hits) {
-                                String processed_idcode = processResultStructure(xi.assembled_idcode);
-                                assembledMolecules.put(processed_idcode,fchi);
-                                processed.add(processed_idcode);
-                            }
-                            //new_molecules = new ArrayList<>(exp_hits.stream().map(ci -> ci.assembled_idcode).collect(Collectors.toList()));
-                            new_molecules = processed;
-                            assembledMolecules2.put(fchi,
-                                    new_molecules);
-                        }
-                        List<String> final_new_molecules = new_molecules;
-                        SwingUtilities.invokeLater(new Runnable(){
+        // we may end up here from edt.. therefore do this
+        // async..
+        Thread tri = new Thread() {
+            @Override
+            public void run() {
+                synchronized(assembledMolecules2) {
+                    long tsa = System.currentTimeMillis();
+                    //System.out.println("monitor asm2 entered");
+                    List<SynthonSpace.CombinatorialHit> all_hits = new ArrayList<>(resultModel.getHits());
+                    all_hits.removeAll( assembledMolecules2.keySet() );
+                    for(SynthonSpace.CombinatorialHit chi : all_hits) {
+                        // immediately put placeholder for molecules, such that the line above works..
+                        assembledMolecules2.put(chi,new ArrayList<>());
+                        SynthonSpace.CombinatorialHit fchi = chi;
+                        Runnable ri = new Runnable() {
                             @Override
                             public void run() {
                                 if(moleculeOrder.size()>maxExpandedHits) {return;}
-                                // update internal table model..
-                                int size_old = moleculeOrder.size();
-                                moleculeOrder.addAll( new ArrayList<>( final_new_molecules ) );
-                                int size_new = moleculeOrder.size();
-                                tableModel.fireTableRowsInserted(size_old,size_new);
+                                List<SynthonAssembler.ExpandedCombinatorialHit> exp_hits = SynthonAssembler.expandCombinatorialHit(fchi,1024);
+                                List<String> new_molecules = new ArrayList<>();
+                                synchronized(assembledMolecules2) {
+                                    if(moleculeOrder.size()>maxExpandedHits) {return;}
+                                    List<String> processed = new ArrayList<>();
+                                    for(SynthonAssembler.ExpandedCombinatorialHit xi : exp_hits) {
+                                        String processed_idcode = processResultStructure(xi.assembled_idcode);
+                                        assembledMolecules.put(processed_idcode,fchi);
+                                        processed.add(processed_idcode);
+                                    }
+                                    //new_molecules = new ArrayList<>(exp_hits.stream().map(ci -> ci.assembled_idcode).collect(Collectors.toList()));
+                                    new_molecules = processed;
+                                    assembledMolecules2.put(fchi,
+                                            new_molecules);
+                                }
+                                List<String> final_new_molecules = new_molecules;
+                                SwingUtilities.invokeLater(new Runnable(){
+                                    @Override
+                                    public void run() {
+                                        //System.out.println("SwingEDT: enter");
+                                        long tsa = System.currentTimeMillis();
+                                        if(moleculeOrder.size()>maxExpandedHits) {return;}
+                                        // update internal table model..
+                                        int size_old = moleculeOrder.size();
+                                        moleculeOrder.addAll( new ArrayList<>( final_new_molecules ) );
+                                        int size_new = moleculeOrder.size();
+                                        tableModel.fireTableRowsInserted(size_old,size_new);
+                                        //System.out.println("SwingEDT: leave, time= "+(System.currentTimeMillis()-tsa));
+                                    }
+                                });
+                                fireResultsChanged();
                             }
-                        });
-                        fireResultsChanged();
-                    }
-                };
+                        };
 
-                if(moleculeOrder.size()<maxExpandedHits) {
-                    expansionThreadPool.submit(ri);
+                        if(moleculeOrder.size()<maxExpandedHits) {
+                            if(getThis().expansionThreadPool==null || getThis().expansionThreadPool.isShutdown() ) {
+                                getThis().restartThreadpool();
+                            }
+                            expansionThreadPool.submit(ri);
+                        }
+                        //ri.setPriority(Thread.MIN_PRIORITY);
+                        //ri.start();
+                    }
+                    //System.out.println("monitor asm2 left, time= "+(tsa-System.currentTimeMillis()));
                 }
-                //ri.setPriority(Thread.MIN_PRIORITY);
-                //ri.start();
+
             }
-        }
+        };
+        tri.start();
     }
 
     // Create a ThreadPoolExecutor with 4 threads
@@ -144,9 +166,9 @@ public class RealTimeExpandingSearchResultModel {
                     moleculeOrder.clear();
                     assembledMolecules.clear();
                     assembledMolecules2.clear();
-                    processResultsChanged();
                 }
             });
+            processResultsChanged();
         }
     }
 
@@ -212,9 +234,9 @@ public class RealTimeExpandingSearchResultModel {
                 xi.hit_fragments.values().stream().mapToLong(x->(long)x.size()).reduce((x,y)->x*y).getAsLong()).sum();
 
         long numShown = 0;
-        synchronized(assembledMolecules2) {
-            numShown = this.moleculeOrder.size();
-        }
+        //synchronized(assembledMolecules2) {
+        numShown = this.moleculeOrder.size();
+        //}
         String ri = String.format("Results: %6d  Showing: %6d", resultsTotal, numShown);
         return ri;
     }
@@ -254,6 +276,18 @@ public class RealTimeExpandingSearchResultModel {
         }
     }
 
+    public void shutdownThreadpool() {
+        this.expansionThreadPool.shutdown();
+    }
 
+    public void restartThreadpool() {
+        this.expansionThreadPool.shutdown();
+        this.initExpansionThreadPool();
+    }
 
+    @Override
+    protected void finalize() throws Throwable {
+        super.finalize();
+        shutdownThreadpool();
+    }
 }

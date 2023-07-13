@@ -40,8 +40,12 @@ public class RealTimeExpandingHitsView extends JPanel {
     }
 
     public void setModel(RealTimeExpandingSearchResultModel resultModel) {
-        this.resultModel = resultModel;
-        this.reinit();
+        if(this.resultModel != resultModel) {
+            this.resultModel.shutdownThreadpool();
+            this.resultModel = resultModel;
+            this.resultModel.restartThreadpool();
+            this.reinit();
+        }
     }
 
     public RealTimeExpandingSearchResultModel getModel() {

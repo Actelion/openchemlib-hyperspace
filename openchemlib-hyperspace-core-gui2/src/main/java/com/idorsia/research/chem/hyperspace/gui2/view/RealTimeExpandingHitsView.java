@@ -133,6 +133,7 @@ public class RealTimeExpandingHitsView extends JPanel {
             });
         }
         this.initMouseContextMenu();
+        SwingUtilities.updateComponentTreeUI(this);
     }
 
     public JPanel getPanelTopRight() {

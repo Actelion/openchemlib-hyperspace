@@ -15,10 +15,7 @@ import javax.swing.table.TableModel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 
 public class RealTimeExpandingSearchResultModel {
 
@@ -58,6 +55,8 @@ public class RealTimeExpandingSearchResultModel {
         return this;
     }
 
+    private final List<Future> expansionTasks = Collections.synchronizedList(new ArrayList<>());
+
     private void processResultsChanged() {
         // we may end up here from edt.. therefore do this
         // async..
@@ -83,6 +82,7 @@ public class RealTimeExpandingSearchResultModel {
                                     if(moleculeOrder.size()>maxExpandedHits) {return;}
                                     List<String> processed = new ArrayList<>();
                                     for(SynthonAssembler.ExpandedCombinatorialHit xi : exp_hits) {
+                                        if(Thread.interrupted()) {break;}
                                         String processed_idcode = processResultStructure(xi.assembled_idcode);
                                         assembledMolecules.put(processed_idcode,fchi);
                                         processed.add(processed_idcode);
@@ -115,7 +115,10 @@ public class RealTimeExpandingSearchResultModel {
                             if(getThis().expansionThreadPool==null || getThis().expansionThreadPool.isShutdown() ) {
                                 getThis().restartThreadpool();
                             }
-                            expansionThreadPool.submit(ri);
+                            Future fExp = expansionThreadPool.submit(ri);
+                            synchronized(expansionTasks) {
+                                expansionTasks.add(fExp);
+                            }
                         }
                         //ri.setPriority(Thread.MIN_PRIORITY);
                         //ri.start();
@@ -132,6 +135,17 @@ public class RealTimeExpandingSearchResultModel {
     private ThreadPoolExecutor expansionThreadPool;
 
     private void initExpansionThreadPool() {
+        if(!expansionTasks.isEmpty()) {
+            List<Future> allTasks = new ArrayList<>();
+            synchronized(expansionTasks) {
+                allTasks = new ArrayList<>(expansionTasks);
+            }
+            for(Future fi : allTasks) {
+                fi.cancel(true);
+                expansionTasks.remove(fi);
+            }
+        }
+
         expansionThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(2);
 
         // Set the lowest priority for each thread
@@ -277,6 +291,13 @@ public class RealTimeExpandingSearchResultModel {
     }
 
     public void shutdownThreadpool() {
+        if(!expansionTasks.isEmpty()) {
+            List<Future> allTasks = new ArrayList<>(expansionTasks);
+            for(Future fi : allTasks) {
+                fi.cancel(true);
+                expansionTasks.remove(fi);
+            }
+        }
         this.expansionThreadPool.shutdown();
     }
 

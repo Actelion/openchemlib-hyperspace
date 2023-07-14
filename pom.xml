@@ -32,7 +32,7 @@
         <!--<maven.compiler.target>1.8</maven.compiler.target>-->
         <!--<maven.compiler.release>8</maven.compiler.release>-->
         <!--<maven.compiler.release>8</maven.compiler.release>-->
-        <revision>2.1.35-SNAPSHOT</revision>
+        <revision>2.1.36-SNAPSHOT</revision>
         <!--<maven.compiler.source>${java.version}</maven.compiler.source>-->
         <!--<maven.compiler.target>${java.version}</maven.compiler.target>-->
     </properties>

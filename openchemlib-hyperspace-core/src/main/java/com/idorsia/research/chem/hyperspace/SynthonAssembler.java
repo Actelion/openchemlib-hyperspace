@@ -306,7 +306,7 @@ public class SynthonAssembler {
         current_assemblies.add(new ArrayList<>());
 
         for(int zi=0;zi<frag_sets.size();zi++) {
-            if(Thread.interrupted()) {return new ArrayList<>();}
+            if(Thread.currentThread().isInterrupted()) {return new ArrayList<>();}
             List<List<SynthonSpace.FragId>> next_assemblies = new ArrayList<>();
             for( List<SynthonSpace.FragId> ca : current_assemblies) {
                 if(next_assemblies.size()>=max_expanded) {break;}
@@ -325,7 +325,7 @@ public class SynthonAssembler {
         List<ExpandedCombinatorialHit> results = new ArrayList<>();
         IDCodeParser icp = new IDCodeParser();
         for(List<SynthonSpace.FragId> api : current_assemblies) {
-            if(Thread.interrupted()) {return results;}
+            if(Thread.currentThread().isInterrupted()) {return results;}
 
             List<StereoMolecule> parts     = new ArrayList<>();
             List<String>         parts_ids = new ArrayList<>();

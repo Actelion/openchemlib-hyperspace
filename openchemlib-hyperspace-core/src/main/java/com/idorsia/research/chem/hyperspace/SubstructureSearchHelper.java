@@ -264,7 +264,7 @@ public class SubstructureSearchHelper {
         List<StereoMolecule> expandedQueries = expandBridgedSearches(mi);
 
         for(StereoMolecule qi : expandedQueries) {
-            if(Thread.interrupted()) {return;}
+            if(Thread.currentThread().isInterrupted()) {return;}
             System.out.println("[INFO] next bridge expansion query: "+qi.getIDCode());
             run_substructure_search_streaming_01(space,cdp,qi,threads,fillIncompleteMappings,omitRxnsWithHitsFromLowerSplitNumber,receiver);
         }
@@ -315,7 +315,7 @@ public class SubstructureSearchHelper {
         System.out.println("sss: 1split -> done");
 
         System.out.println("sss: 2split -> start");
-        if(Thread.interrupted()) {return;}
+        if(Thread.currentThread().isInterrupted()) {return;}
 
         space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 2, 3,
                 (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
@@ -339,7 +339,7 @@ public class SubstructureSearchHelper {
 //                });
 //        System.out.println("sss: 2split -> done");
         System.out.println("sss: 3split -> start");
-        if(Thread.interrupted()) {return;}
+        if(Thread.currentThread().isInterrupted()) {return;}
         space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 3, 4,
                 (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
                     @Override

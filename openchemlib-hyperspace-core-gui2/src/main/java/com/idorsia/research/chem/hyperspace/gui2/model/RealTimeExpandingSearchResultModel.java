@@ -82,7 +82,7 @@ public class RealTimeExpandingSearchResultModel {
                                     if(moleculeOrder.size()>maxExpandedHits) {return;}
                                     List<String> processed = new ArrayList<>();
                                     for(SynthonAssembler.ExpandedCombinatorialHit xi : exp_hits) {
-                                        if(Thread.interrupted()) {break;}
+                                        if(Thread.currentThread().isInterrupted()) {break;}
                                         String processed_idcode = processResultStructure(xi.assembled_idcode);
                                         assembledMolecules.put(processed_idcode,fchi);
                                         processed.add(processed_idcode);

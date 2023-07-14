@@ -1837,7 +1837,7 @@ public class SynthonSpace implements Serializable {
                 }
             };
             tasks_sss.add(main_pool.submit(r_initialhits_and_expansion));
-            if(Thread.interrupted()) {
+            if(Thread.currentThread().isInterrupted()) {
                 tasks_sss.stream().forEach( xi -> xi.cancel(true) );
                 main_pool.shutdown();
                 break;
@@ -1853,7 +1853,7 @@ public class SynthonSpace implements Serializable {
         int cnt_fc = 0;
         for(Future f_i : tasks_sss) {
             try {
-                if(Thread.interrupted()) {
+                if(Thread.currentThread().isInterrupted()) {
                     f_i.cancel(true);
                 }
                 f_i.get();
@@ -1979,7 +1979,7 @@ public class SynthonSpace implements Serializable {
             //int[] numbers_of_connectors = possible_rxns.stream().mapToInt(
             //                ri -> space.getRxn(ri).num_connectors ).distinct().toArray();
             for(int zi=0;zi<possible_rxns.size();zi++) {
-                if(Thread.interrupted()) {return;}
+                if(Thread.currentThread().isInterrupted()) {return;}
                 //int nc = numbers_of_connectors[zi];
                 String ri = possible_rxns.get(zi);
                 int nc = space.getRxn(ri).num_connectors;
@@ -2048,7 +2048,7 @@ public class SynthonSpace implements Serializable {
         int total_enumerated_sss_performed = 0;
 
         for(String rxn : possible_rxn_mappings.keySet()) {
-            if(Thread.interrupted()) {return;}
+            if(Thread.currentThread().isInterrupted()) {return;}
 
             if(true && logLevel_findExpandedHits_forSplitPattern_withConnProximityMatching > 0 ) { // debug output:
                 System.out.println("All Matchings:");
@@ -2075,7 +2075,7 @@ public class SynthonSpace implements Serializable {
 
                     // now we iterate over the fragments and see if we find matching ones   // TODO: think about sorting, biggest or smallest first??
                     for( Integer split_idx : mpi.keySet().stream().sorted().collect(Collectors.toList())) {
-                        if(Thread.interrupted()) {return;}
+                        if(Thread.currentThread().isInterrupted()) {return;}
                         FragType fti = mpi.get(split_idx).getLeft();
                         BitSet bsi = mpi.get(split_idx).getRight();
 
@@ -2094,7 +2094,7 @@ public class SynthonSpace implements Serializable {
                             int info_num_structures_searches = 0;
                             boolean found_frag_hit = false;
                             for(BitSet ss_bsi : supersets_bsi) {
-                                if(Thread.interrupted()) {return;}
+                                if(Thread.currentThread().isInterrupted()) {return;}
                                 if (space.substructure_searchers_sorted_by_connector_fp.get(fti).containsKey(ss_bsi)) {
                                     ffi.setFragment(true);
                                     info_num_structures_searches+=space.substructure_searchers_sorted_by_connector_fp.get(fti).get(ss_bsi).mIDs.keySet().size(); // only for info/debug
@@ -2537,7 +2537,7 @@ public class SynthonSpace implements Serializable {
         // Correct filtering:
         List<String> rxns = new ArrayList<>();
         for(List<Integer> rxn_cc : space.rxns_by_connector_counts.keySet() ) {
-            if(Thread.interrupted()) {return new HashMap<>();}
+            if(Thread.currentThread().isInterrupted()) {return new HashMap<>();}
 
             ArrayList<Integer> rxci = new ArrayList<>(rxn_cc);
             // try to assign smallest first
@@ -2572,7 +2572,7 @@ public class SynthonSpace implements Serializable {
 
         Map<String,List<Map<FragType,Integer>>> current_partial_matchings = initial_partial_matchings;
         while( matching_possible && (frag_idx<split_result.fragments.length) ) {
-            if(Thread.interrupted()) {return new HashMap<>();}
+            if(Thread.currentThread().isInterrupted()) {return new HashMap<>();}
             BitSet conn_fpi = cdp.getFP_cached( createConnectorProximalFragment( split_result.fragments[frag_idx] , CONNECTOR_REGION_SIZE ) );
             stored_conn_fps.put(frag_idx,conn_fpi);
 
@@ -2583,7 +2583,7 @@ public class SynthonSpace implements Serializable {
                 // try to extend the existing mappings:
                 List<Map<FragType,Integer>> extended_maps = new ArrayList<>();
                 for(Map<FragType,Integer> pmap_i : current_partial_matchings.get(rxi)){
-                    if(Thread.interrupted()) {return new HashMap<>();}
+                    if(Thread.currentThread().isInterrupted()) {return new HashMap<>();}
 
                     // compute available frags
                     Set<FragType> available = new HashSet<>(space.fragment_type_map.get(rxi).values());
@@ -2613,7 +2613,7 @@ public class SynthonSpace implements Serializable {
             Map<String,List<Map<Integer,Pair<FragType,BitSet>>>> result = new HashMap<>();
 
             for(String rxi : current_partial_matchings.keySet()) {
-                if(Thread.interrupted()) {return new HashMap<>();}
+                if(Thread.currentThread().isInterrupted()) {return new HashMap<>();}
                 result.put(rxi,new ArrayList<>());
                 for( Map<FragType,Integer> map_i : current_partial_matchings.get(rxi)) {
                     //Map<FragType,BitSet> map_2_i = new HashMap<>();
@@ -2719,9 +2719,12 @@ public class SynthonSpace implements Serializable {
                     }
                 }
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
+                System.out.println("Interrupted");
+                tasks.stream().forEach( xi -> xi.cancel(true) );
+
             } catch (ExecutionException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
             }
         }
         if(logLevel_findCandidates>0) {
@@ -2777,6 +2780,10 @@ public class SynthonSpace implements Serializable {
                     System.out.println("[Exception] Could not find frag for frag fp.. this is strange..");
                 }
                 for(SynthonSpace.FragId fid: frags) {
+                    if(Thread.currentThread().isInterrupted()) {
+                        return new ArrayList<>();
+                    }
+
                     StereoMolecule sm = new StereoMolecule();
                     icp.parse(sm,fid.idcode);
                     // subset test..

@@ -1256,6 +1256,7 @@ public class SynthonSpace implements Serializable {
                 }
             }
             catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 e.printStackTrace();
             } catch (ExecutionException e) {
                 e.printStackTrace();
@@ -1366,6 +1367,7 @@ public class SynthonSpace implements Serializable {
                     }
                 }
                 catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     e.printStackTrace();
                 } catch (ExecutionException e) {
                     e.printStackTrace();
@@ -1650,6 +1652,7 @@ public class SynthonSpace implements Serializable {
                     }
                 }
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 e.printStackTrace();
             } catch (ExecutionException e) {
                 e.printStackTrace();
@@ -1745,6 +1748,7 @@ public class SynthonSpace implements Serializable {
                    }
                }
            } catch (InterruptedException e) {
+               Thread.currentThread().interrupt();
                e.printStackTrace();
            } catch (ExecutionException e) {
                e.printStackTrace();
@@ -1854,7 +1858,8 @@ public class SynthonSpace implements Serializable {
         for(Future f_i : tasks_sss) {
             try {
                 if(Thread.currentThread().isInterrupted()) {
-                    f_i.cancel(true);
+                    //f_i.cancel(true);
+                    tasks_sss.stream().forEach( xi -> xi.cancel(true) );
                 }
                 f_i.get();
                 if(logLevel_findCandidates>0) {
@@ -1864,6 +1869,7 @@ public class SynthonSpace implements Serializable {
                     }
                 }
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 System.out.println("Task interrupted");
                 // try shutdown..
                 tasks_sss.stream().forEach( xi -> xi.cancel(true) );
@@ -2703,6 +2709,10 @@ public class SynthonSpace implements Serializable {
             Future fi = main_pool.submit(runnable_ri);
             tasks.add(fi);
         }
+
+        // required?
+        main_pool.shutdown();
+
         // wait for pool:
         if(logLevel_findCandidates>0) {
             System.out.println("[SCB] Start screening building blocks:+\n");
@@ -2710,6 +2720,11 @@ public class SynthonSpace implements Serializable {
 
         int cnt_fc = 0;
         for(Future f_i : tasks) {
+            if(Thread.currentThread().isInterrupted()) {
+                tasks.stream().forEach(xi -> xi.cancel(true) );
+                main_pool.shutdown();
+                return new ArrayList();
+            }
             try {
                 f_i.get();
                 if(logLevel_findCandidates>0) {
@@ -2719,21 +2734,24 @@ public class SynthonSpace implements Serializable {
                     }
                 }
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 //e.printStackTrace();
                 System.out.println("Interrupted");
                 tasks.stream().forEach( xi -> xi.cancel(true) );
+                main_pool.shutdown();
 
             } catch (ExecutionException e) {
+                try {
+                    main_pool.shutdown();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
                 //e.printStackTrace();
             }
         }
         if(logLevel_findCandidates>0) {
             System.out.println("\n[SCB] Start screening building blocks: Done!");
         }
-
-        // required?
-        main_pool.shutdown();
-
 
         return hits;
     }

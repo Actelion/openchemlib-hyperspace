@@ -315,7 +315,9 @@ public class SubstructureSearchHelper {
         System.out.println("sss: 1split -> done");
 
         System.out.println("sss: 2split -> start");
-        if(Thread.currentThread().isInterrupted()) {return;}
+        if(Thread.currentThread().isInterrupted()) {
+            return;
+        }
 
         space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 2, 3,
                 (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {

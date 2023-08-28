@@ -26,11 +26,13 @@
     <properties>
         <!--<java.version>1.8</java.version>-->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
         <!--<maven.compiler.source>1.8</maven.compiler.source>-->
         <!--<maven.compiler.target>1.8</maven.compiler.target>-->
         <!--<maven.compiler.release>8</maven.compiler.release>-->
-        <maven.compiler.release>8</maven.compiler.release>
-        <revision>2.0.9-SNAPSHOT</revision>
+        <!--<maven.compiler.release>8</maven.compiler.release>-->
+        <revision>2.1.36-SNAPSHOT</revision>
         <!--<maven.compiler.source>${java.version}</maven.compiler.source>-->
         <!--<maven.compiler.target>${java.version}</maven.compiler.target>-->
     </properties>
@@ -42,7 +44,7 @@
         <module>openchemlib-hyperspace-cli</module>
         <module>openchemlib-hyperspace-test</module>
         <module>openchemlib-hyperspace-tools</module>
-        <module>openchemlib-hyperspace-virtualmemory</module>
+        <module>openchemlib-hyperspace-core-gui2</module>
         <!--<module>hyperspace-shared</module>-->
     </modules>
 
@@ -57,7 +59,8 @@
                 <artifactId>openchemlib</artifactId>
                 <!--<version>2022.11.2</version>-->
                 <!--<version>2022.9.1</version>-->
-                <version>2022.12.3</version>
+                <!--<version>2022.12.3</version>-->
+                <version>2023.6.2</version>
                 <!--<scope>compile</scope>-->
             </dependency>
             <dependency>

@@ -517,6 +517,7 @@ public class FastSubstructureSearcher implements Serializable {
             }
 
             for (String fid : frags) {
+                if(Thread.currentThread().isInterrupted()) {return new ArrayList<>();}
                 StereoMolecule sm = new StereoMolecule();
                 icp.parse(sm, fid);
                 // subset test..

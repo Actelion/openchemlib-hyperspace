@@ -211,18 +211,62 @@ public class SubstructureSearchHelper {
                         fp_mapping.put(0,Pair.of(fti_a, fp_molecule));
                         frag_map.put(fti_a,all_matching_fragids);
                     }
-//                    else {
-//                        // put all fragments into combinatorial hit:
-//                        frag_map.put( fti , new ArrayList<>( space.getSynthonSet(fti_a.rxn_id,ftii) ) );
-//                        // put empty bitset into fp_mapping
-//                        fp_mapping.put( other_splits_cnt , Pair.of( fti , new BitSet( space.getBits() ) ) );
-//                        other_splits_cnt++;
-//                    }
+                    else {
+                        // put all fragments into combinatorial hit:
+                        frag_map.put( fti , new ArrayList<>( space.getSynthonSet(fti_a.rxn_id,ftii) ) );
+                        // put empty bitset into fp_mapping
+                        fp_mapping.put( other_splits_cnt , Pair.of( fti , new BitSet( space.getBits() ) ) );
+                        other_splits_cnt++;
+                    }
                 }
                 SynthonSpace.CombinatorialHit hit_bb_ci = new SynthonSpace.CombinatorialHit(fti_a.rxn_id, frag_map, sri, fp_mapping);
                 //hits_bbs_as_combinatorial_hits.add(hit_bb_ci);
                 receiver.addCombinatorialHits(Collections.singletonList(hit_bb_ci),Collections.singletonList(null));
             }
+        }
+    }
+
+    public static void expandIncompleteHits(SynthonSpace space, CachedDescriptorProvider cdp, List<SynthonSpace.CombinatorialHit> incomplete_hits) {
+        //List<SynthonSpace.CombinatorialHit> hits_bbs_as_combinatorial_hits = new ArrayList<>();
+        //Set<String> discovered_rxns = new HashSet<>();
+
+        if(!incomplete_hits.isEmpty()) {
+            //BitSet fp_molecule = cdp.getFP_cached(mi);
+
+            for (SynthonSpace.CombinatorialHit hit : incomplete_hits) {
+
+                // 1. check if hit is incomplete
+                List<SynthonSpace.FragType> fts = new ArrayList<>( space.getFragTypes( hit.rxn ).values());
+                fts.removeAll( hit.hit_fragments.keySet() );
+                if(!fts.isEmpty()) {
+                    // OK we have to expand..
+                    for(SynthonSpace.FragType fti : fts) {
+                        hit.hit_fragments.put( fti , space.getSynthonSet(hit.rxn,fti.frag) );
+                    }
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Same as the other function, but expands bridged bonds and runs the queries one after the other.
+     *
+     * @param space
+     * @param cdp
+     * @param mi
+     * @param threads
+     * @param fillIncompleteMappings
+     * @param omitRxnsWithHitsFromLowerSplitNumber
+     * @param receiver
+     */
+    public static void run_substructure_search_streaming_01_withBridgedBondsExpansion(SynthonSpace space, CachedDescriptorProvider cdp, StereoMolecule mi, int threads, boolean fillIncompleteMappings, boolean omitRxnsWithHitsFromLowerSplitNumber, SynthonSpace.CombinatorialHitReceiver receiver) throws Exception {
+        List<StereoMolecule> expandedQueries = expandBridgedSearches(mi);
+
+        for(StereoMolecule qi : expandedQueries) {
+            if(Thread.currentThread().isInterrupted()) {return;}
+            System.out.println("[INFO] next bridge expansion query: "+qi.getIDCode());
+            run_substructure_search_streaming_01(space,cdp,qi,threads,fillIncompleteMappings,omitRxnsWithHitsFromLowerSplitNumber,receiver);
         }
     }
 
@@ -261,6 +305,9 @@ public class SubstructureSearchHelper {
                 (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
                     @Override
                     public void addCombinatorialHits(List<SynthonSpace.CombinatorialHit> hi, List<SynthonSpace.SplitPatternWithConnectorProximityPruningStatistics> stats) {
+                        if(fillIncompleteMappings) {
+                            expandIncompleteHits(space, cdp, hi);
+                        }
                         discovered_rxns.addAll(hi.stream().map(xi -> xi.rxn).collect(Collectors.toList()));
                         receiver.addCombinatorialHits(hi,stats);
                     }
@@ -268,25 +315,33 @@ public class SubstructureSearchHelper {
         System.out.println("sss: 1split -> done");
 
         System.out.println("sss: 2split -> start");
-        space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 1, 2,
-                (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
-                    @Override
-                    public void addCombinatorialHits(List<SynthonSpace.CombinatorialHit> hi, List<SynthonSpace.SplitPatternWithConnectorProximityPruningStatistics> stats) {
-                        discovered_rxns.addAll(hi.stream().map(xi -> xi.rxn).collect(Collectors.toList()));
-                        receiver.addCombinatorialHits(hi,stats);
-                    }
-                });
-        System.out.println("sss: 2split -> done");
+        if(Thread.currentThread().isInterrupted()) {
+            return;
+        }
+
         space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 2, 3,
                 (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
                     @Override
                     public void addCombinatorialHits(List<SynthonSpace.CombinatorialHit> hi, List<SynthonSpace.SplitPatternWithConnectorProximityPruningStatistics> stats) {
+                        if(fillIncompleteMappings) {
+                            expandIncompleteHits(space, cdp, hi);
+                        }
                         discovered_rxns.addAll(hi.stream().map(xi -> xi.rxn).collect(Collectors.toList()));
                         receiver.addCombinatorialHits(hi,stats);
                     }
                 });
         System.out.println("sss: 2split -> done");
+//        space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 2, 3,
+//                (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
+//                    @Override
+//                    public void addCombinatorialHits(List<SynthonSpace.CombinatorialHit> hi, List<SynthonSpace.SplitPatternWithConnectorProximityPruningStatistics> stats) {
+//                        discovered_rxns.addAll(hi.stream().map(xi -> xi.rxn).collect(Collectors.toList()));
+//                        receiver.addCombinatorialHits(hi,stats);
+//                    }
+//                });
+//        System.out.println("sss: 2split -> done");
         System.out.println("sss: 3split -> start");
+        if(Thread.currentThread().isInterrupted()) {return;}
         space.findExpandedHits_withConnProximityMatching_streaming(space, cdp, mi, 3, 4,
                 (omitRxnsWithHitsFromLowerSplitNumber ? discovered_rxns : new HashSet<>()), 1000, threads, new SynthonSpace.CombinatorialHitReceiver() {
                     @Override

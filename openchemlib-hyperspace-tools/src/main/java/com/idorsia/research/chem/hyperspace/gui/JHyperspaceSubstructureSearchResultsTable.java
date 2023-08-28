@@ -1,8 +1,5 @@
 package com.idorsia.research.chem.hyperspace.gui;
 
-import com.actelion.research.chem.IDCodeParser;
-import com.actelion.research.chem.StereoMolecule;
-import com.idorsia.research.chem.hyperspace.HyperspaceUtils;
 import com.idorsia.research.chem.hyperspace.SynthonAssembler;
 import com.idorsia.research.chem.hyperspace.SynthonSpace;
 
@@ -253,14 +250,16 @@ public class JHyperspaceSubstructureSearchResultsTable extends JPanel {
     }
 
     private void initTableGraphics() {
-        this.jt_left.getColumnModel().getColumn(2).setCellRenderer(new SubstanceFragmentRenderer());
-        this.jt_left.getColumnModel().getColumn(3).setCellRenderer(new SubstanceFragmentRenderer());
-        this.jt_left.getColumnModel().getColumn(4).setCellRenderer(new SubstanceFragmentRenderer());
+        // TODO: use something different..
 
-        this.jt_right.getColumnModel().getColumn(0).setCellRenderer(new SubstanceFragmentRenderer());
-        this.jt_right.getColumnModel().getColumn(1).setCellRenderer(new SubstanceFragmentRenderer());
-        this.jt_right.getColumnModel().getColumn(2).setCellRenderer(new SubstanceFragmentRenderer());
-        this.jt_right.getColumnModel().getColumn(3).setCellRenderer(new SubstanceFragmentRenderer());
+//        this.jt_left.getColumnModel().getColumn(2).setCellRenderer(new SubstanceFragmentRenderer());
+//        this.jt_left.getColumnModel().getColumn(3).setCellRenderer(new SubstanceFragmentRenderer());
+//        this.jt_left.getColumnModel().getColumn(4).setCellRenderer(new SubstanceFragmentRenderer());
+//
+//        this.jt_right.getColumnModel().getColumn(0).setCellRenderer(new SubstanceFragmentRenderer());
+//        this.jt_right.getColumnModel().getColumn(1).setCellRenderer(new SubstanceFragmentRenderer());
+//        this.jt_right.getColumnModel().getColumn(2).setCellRenderer(new SubstanceFragmentRenderer());
+//        this.jt_right.getColumnModel().getColumn(3).setCellRenderer(new SubstanceFragmentRenderer());
     }
 
     private void initListeners() {

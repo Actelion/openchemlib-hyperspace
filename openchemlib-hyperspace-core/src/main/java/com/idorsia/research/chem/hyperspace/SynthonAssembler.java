@@ -4,6 +4,7 @@ import com.actelion.research.chem.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class SynthonAssembler {
     static int       logLevel_assemble = 0;
@@ -296,7 +297,7 @@ public class SynthonAssembler {
     /**
      *
      * @param hi
-     * @return first element is idcode of assembled hit. in the second element, the first
+     * @return
      */
     public static List<ExpandedCombinatorialHit> expandCombinatorialHit(SynthonSpace.CombinatorialHit hi, int max_expanded) {
         List<List<SynthonSpace.FragId>> frag_sets =  new ArrayList<>( hi.hit_fragments.values() );
@@ -305,6 +306,7 @@ public class SynthonAssembler {
         current_assemblies.add(new ArrayList<>());
 
         for(int zi=0;zi<frag_sets.size();zi++) {
+            if(Thread.currentThread().isInterrupted()) {return new ArrayList<>();}
             List<List<SynthonSpace.FragId>> next_assemblies = new ArrayList<>();
             for( List<SynthonSpace.FragId> ca : current_assemblies) {
                 if(next_assemblies.size()>=max_expanded) {break;}
@@ -323,6 +325,8 @@ public class SynthonAssembler {
         List<ExpandedCombinatorialHit> results = new ArrayList<>();
         IDCodeParser icp = new IDCodeParser();
         for(List<SynthonSpace.FragId> api : current_assemblies) {
+            if(Thread.currentThread().isInterrupted()) {return results;}
+
             List<StereoMolecule> parts     = new ArrayList<>();
             List<String>         parts_ids = new ArrayList<>();
             for( SynthonSpace.FragId fid : api ) {
@@ -337,12 +341,65 @@ public class SynthonAssembler {
 
             //results.add( Pair.of( assembly_i , parts_as_array ) );
             results.add( new ExpandedCombinatorialHit( assembly_i.getIDCode() , api ) );
-            System.out.println("AssembledMol: Smiles: " + HyperspaceUtils.idcodeToSmiles(assembly_i.getIDCode()) );
+            //System.out.println("AssembledMol: Smiles: " + HyperspaceUtils.idcodeToSmiles(assembly_i.getIDCode()) );
         }
 
         return results;
     }
 
+    public static ExpandedCombinatorialHit expandAssembly(List<SynthonSpace.FragId> api) {
+        List<StereoMolecule> parts     = new ArrayList<>();
+        List<String>         parts_ids = new ArrayList<>();
+        IDCodeParser icp = new IDCodeParser();
+        for( SynthonSpace.FragId fid : api ) {
+            parts_ids.add(fid.fragment_id);
+            StereoMolecule mpi = new StereoMolecule();
+            icp.parse(mpi,fid.idcode);
+            parts.add(mpi);
+        }
+
+        StereoMolecule parts_as_array[] = parts.toArray(new StereoMolecule[parts.size()]);
+        StereoMolecule assembly_i = SynthonAssembler.assembleSynthons(parts);
+
+        //results.add( Pair.of( assembly_i , parts_as_array ) );
+        return new ExpandedCombinatorialHit( assembly_i.getIDCode() , api );
+        //System.out.println("AssembledMol: Smiles: " + HyperspaceUtils.idcodeToSmiles(assembly_i.getIDCode()) );
+    }
+
+    public static void expandCombinatorialHit(SynthonSpace.CombinatorialHit hi, Consumer<ExpandedCombinatorialHit> hitConsumer, long max_expanded) {
+        List<List<SynthonSpace.FragId>> frag_sets =  new ArrayList<>( hi.hit_fragments.values() );
+
+        long cnt = 0;
+
+        if(frag_sets.size()==2) {
+            for(SynthonSpace.FragId fa : frag_sets.get(0)) {
+                for(SynthonSpace.FragId fb : frag_sets.get(1)) {
+                    List<SynthonSpace.FragId> frags = new ArrayList<>();
+                    frags.add(fa); frags.add(fb);
+                    hitConsumer.accept(expandAssembly(frags));
+                    if( cnt++ >= max_expanded) {break;}
+                }
+            }
+        }
+        else if(frag_sets.size()==3) {
+            for(SynthonSpace.FragId fa : frag_sets.get(0)) {
+                for(SynthonSpace.FragId fb : frag_sets.get(1)) {
+                    for(SynthonSpace.FragId fc : frag_sets.get(2)) {
+                        List<SynthonSpace.FragId> frags = new ArrayList<>();
+                        frags.add(fa);
+                        frags.add(fb);
+                        frags.add(fc);
+                        hitConsumer.accept(expandAssembly(frags));
+                        if( cnt++ >= max_expanded) {break;}
+                    }
+                }
+            }
+        }
+        else {
+            throw new RuntimeException("Not supported");
+        }
+
+    }
 
 
 

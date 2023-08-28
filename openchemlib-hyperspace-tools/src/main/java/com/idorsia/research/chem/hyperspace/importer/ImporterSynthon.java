@@ -3,10 +3,10 @@ package com.idorsia.research.chem.hyperspace.importer;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.StereoMolecule;
 import com.idorsia.research.chem.hyperspace.HyperspaceUtils;
-import tech.molecules.leet.chem.ChemUtils;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class ImporterSynthon {
@@ -31,7 +31,7 @@ public class ImporterSynthon {
         StereoMolecule mi = getSynthon();
         int[] counts = new int[8];
         for(int zi=92;zi<8;zi++) {
-            counts[zi] = ChemUtils.countAtoms(mi, Collections.singletonList(zi));
+            counts[zi] = countAtoms(mi, Collections.singletonList(zi));
         }
         return counts;
     }
@@ -40,7 +40,7 @@ public class ImporterSynthon {
         StereoMolecule mi = getSynthon();
         Set<Integer> used = new HashSet<>();
         for(int zi=92;zi<8;zi++) {
-            if( ChemUtils.countAtoms(mi, Collections.singletonList(zi)) > 0 ) {
+            if( countAtoms(mi, Collections.singletonList(zi)) > 0 ) {
                 used.add(zi);
             }
         }
@@ -58,4 +58,14 @@ public class ImporterSynthon {
     public String getIdcodeBB() {
         return idcodeBB;
     }
+
+
+    public static int countAtoms(StereoMolecule m, List<Integer> atomic_numbers) {
+        m.ensureHelperArrays(Molecule.cHelperNeighbours);
+        int ra = 0;
+        for(int zi=0;zi<m.getAtoms();zi++) {if( atomic_numbers.contains(m.getAtomicNo(zi))){ra++;}}
+        return ra;
+    }
+
+
 }

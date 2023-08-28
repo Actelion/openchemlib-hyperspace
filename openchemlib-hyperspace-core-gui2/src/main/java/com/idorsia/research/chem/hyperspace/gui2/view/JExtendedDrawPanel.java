@@ -1,11 +1,8 @@
-package com.idorsia.research.chem.hyperspace.gui;
+package com.idorsia.research.chem.hyperspace.gui2.view;
+
 
 import com.actelion.research.chem.IsomericSmilesCreator;
 import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.gui.JDrawPanel;
-import com.actelion.research.gui.clipboard.ClipboardHandler;
-import com.actelion.research.gui.editor.GenericEditorArea;
-import com.actelion.research.gui.editor.SwingEditorArea;
 import com.actelion.research.gui.editor.SwingEditorPanel;
 
 import javax.swing.*;
@@ -15,16 +12,16 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
-public class JExtendedDrawPanel extends JPanel  {
+public class JExtendedDrawPanel extends JPanel {
 
     //private JDrawPanel mDrawPanel;
     private SwingEditorPanel mDrawPanel;
 
-    private JPanel     mTop;
-    private JPanel     mTop_Right;
+    private JPanel mTop;
+    private JPanel mTop_Right;
 
-    private JMenuBar   jmb_Main;
-    private JMenu      jm_Tools;
+    private JMenuBar jmb_Main;
+    private JMenu jm_Tools;
 
     public JExtendedDrawPanel() {
         reinit();
@@ -44,8 +41,8 @@ public class JExtendedDrawPanel extends JPanel  {
         this.mTop_Right = new JPanel();
 
         this.mTop.setLayout(new BorderLayout());
-        this.add(mTop,BorderLayout.NORTH);
-        this.mTop.add(this.mTop_Right,BorderLayout.EAST);
+        this.add(mTop, BorderLayout.NORTH);
+        this.mTop.add(this.mTop_Right, BorderLayout.EAST);
 
         // init Menu
         initToolsMenu();
@@ -58,9 +55,8 @@ public class JExtendedDrawPanel extends JPanel  {
     private void initToolsMenu() {
         this.jm_Tools = new JMenu("Tools");
         JMenu export_expanded = new JMenu("Export..");
-        JMenuItem copy_idcode  = new JMenuItem("Copy IDCode");
-        JMenuItem copy_smiles  = new JMenuItem("Copy Smiles");
-
+        JMenuItem copy_idcode = new JMenuItem("Copy IDCode");
+        JMenuItem copy_smiles = new JMenuItem("Copy Smiles");
 
 
         this.jm_Tools.add(export_expanded);
@@ -96,7 +92,5 @@ public class JExtendedDrawPanel extends JPanel  {
     }
 
     private class JExtendedDrawPanelBar {
-
     }
-
 }

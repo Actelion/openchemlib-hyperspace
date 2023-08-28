@@ -78,6 +78,11 @@
             <scope>compile</scope>
         </dependency>
         <dependency>
+            <groupId>com.formdev</groupId>
+            <artifactId>flatlaf</artifactId>
+            <version>3.1.1</version>
+        </dependency>
+        <dependency>
             <groupId>org.pushing-pixels</groupId>
             <artifactId>radiance-substance</artifactId>
             <version>3.5.1</version>

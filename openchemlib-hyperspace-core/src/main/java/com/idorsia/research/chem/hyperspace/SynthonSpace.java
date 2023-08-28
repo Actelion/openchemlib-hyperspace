@@ -32,6 +32,9 @@ public class SynthonSpace implements Serializable {
     private static int logLevel_hitExpansion   = 1;
     private static int logLevel_findCandidates = 1;
 
+
+    private static int logLevel_findExpandedHits_forSplitPattern_withConnProximityMatching = 0;
+
     //private final int BITS = 512;
     protected int BITS = 1024;
 
@@ -1253,6 +1256,7 @@ public class SynthonSpace implements Serializable {
                 }
             }
             catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 e.printStackTrace();
             } catch (ExecutionException e) {
                 e.printStackTrace();
@@ -1363,6 +1367,7 @@ public class SynthonSpace implements Serializable {
                     }
                 }
                 catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     e.printStackTrace();
                 } catch (ExecutionException e) {
                     e.printStackTrace();
@@ -1647,6 +1652,7 @@ public class SynthonSpace implements Serializable {
                     }
                 }
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 e.printStackTrace();
             } catch (ExecutionException e) {
                 e.printStackTrace();
@@ -1742,6 +1748,7 @@ public class SynthonSpace implements Serializable {
                    }
                }
            } catch (InterruptedException e) {
+               Thread.currentThread().interrupt();
                e.printStackTrace();
            } catch (ExecutionException e) {
                e.printStackTrace();
@@ -1828,11 +1835,20 @@ public class SynthonSpace implements Serializable {
                     List<CombinatorialHit> expanded_hits_i                    = Collections.synchronizedList(new ArrayList<>() ); // synchonrized not needed..
                     List<SplitPatternWithConnectorProximityPruningStatistics> output_statistics_i = Collections.synchronizedList(new ArrayList<>() );  // synchonrized not needed..
                     findExpandedHits_forSplitPattern_withConnProximityMatching(space,cdh,mol,si,num_connectors,max_fragments,max_hits,rxns_to_omit,expanded_hits_i,output_statistics_i);
-                    receiver.addCombinatorialHits(expanded_hits_i,output_statistics_i);
+                    if(!expanded_hits_i.isEmpty()) {
+                        receiver.addCombinatorialHits(expanded_hits_i, output_statistics_i);
+                    }
                 }
             };
             tasks_sss.add(main_pool.submit(r_initialhits_and_expansion));
+            if(Thread.currentThread().isInterrupted()) {
+                tasks_sss.stream().forEach( xi -> xi.cancel(true) );
+                main_pool.shutdown();
+                break;
+            }
         }
+
+        main_pool.shutdown();
 
         // wait for pool:
         if(logLevel_findCandidates>0) {
@@ -1841,8 +1857,9 @@ public class SynthonSpace implements Serializable {
         int cnt_fc = 0;
         for(Future f_i : tasks_sss) {
             try {
-                if(Thread.interrupted()) {
-                    f_i.cancel(true);
+                if(Thread.currentThread().isInterrupted()) {
+                    //f_i.cancel(true);
+                    tasks_sss.stream().forEach( xi -> xi.cancel(true) );
                 }
                 f_i.get();
                 if(logLevel_findCandidates>0) {
@@ -1852,9 +1869,15 @@ public class SynthonSpace implements Serializable {
                     }
                 }
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
+                System.out.println("Task interrupted");
+                // try shutdown..
+                tasks_sss.stream().forEach( xi -> xi.cancel(true) );
+                main_pool.shutdown();
+                break;
+                //e.printStackTrace();
             } catch (ExecutionException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
             }
         }
         if(logLevel_findCandidates>0) {
@@ -1929,7 +1952,7 @@ public class SynthonSpace implements Serializable {
         //Map<String,List<Map<FragType,BitSet>>> possible_rxn_mappings = computeConnectorProximityPruningMatchedVariants(space,cdh,split_result);
         Map<String,List<Map<Integer,Pair<FragType,BitSet>>>> possible_rxn_mappings = computeConnectorProximityPruningMatchedVariants(space,cdh,split_result,rxns_to_omit);
 
-        if(true) {
+        if(true && logLevel_findExpandedHits_forSplitPattern_withConnProximityMatching > 0 ) {
             if(possible_rxn_mappings.values().stream().mapToInt(vi -> vi.size()).sum() > 0 ) {
                 System.out.println("Rxn Matchings found!");
                 System.out.println("Split: "+split_result.toString());
@@ -1962,6 +1985,7 @@ public class SynthonSpace implements Serializable {
             //int[] numbers_of_connectors = possible_rxns.stream().mapToInt(
             //                ri -> space.getRxn(ri).num_connectors ).distinct().toArray();
             for(int zi=0;zi<possible_rxns.size();zi++) {
+                if(Thread.currentThread().isInterrupted()) {return;}
                 //int nc = numbers_of_connectors[zi];
                 String ri = possible_rxns.get(zi);
                 int nc = space.getRxn(ri).num_connectors;
@@ -2015,7 +2039,9 @@ public class SynthonSpace implements Serializable {
                         }
                     }
                     unique_connector_splits.removeAll(to_prune);
-                    System.out.println("LargestFrag Heuristic removed "+to_prune.size()+" / "+(to_prune.size()+unique_connector_splits.size())+" UniqueConnector Splits");
+                    if( logLevel_findExpandedHits_forSplitPattern_withConnProximityMatching > 1 ) {
+                        System.out.println("LargestFrag Heuristic removed " + to_prune.size() + " / " + (to_prune.size() + unique_connector_splits.size()) + " UniqueConnector Splits");
+                    }
                 }
 
                 //unique_splits_for_reactions_with_n_connectors.put( nc , unique_connector_splits );
@@ -2028,8 +2054,9 @@ public class SynthonSpace implements Serializable {
         int total_enumerated_sss_performed = 0;
 
         for(String rxn : possible_rxn_mappings.keySet()) {
+            if(Thread.currentThread().isInterrupted()) {return;}
 
-            if(true) { // debug output:
+            if(true && logLevel_findExpandedHits_forSplitPattern_withConnProximityMatching > 0 ) { // debug output:
                 System.out.println("All Matchings:");
                 for(Map<Integer,Pair<FragType,BitSet>> mpi : possible_rxn_mappings.get(rxn)) {
                     for(Integer xfi : mpi.keySet().stream().sorted( Integer::compareTo ).collect(Collectors.toList())) {
@@ -2045,7 +2072,7 @@ public class SynthonSpace implements Serializable {
                 //for (StereoMolecule[] frags : unique_splits_for_reactions_with_n_connectors.get(ri_num_connis)) {
                 for (StereoMolecule[] frags : unique_splits_for_reaction.get(rxn)) {
                     total_labeled_connector_splits_processed++; // only for statistics
-                    if(true) {
+                    if(true && logLevel_findExpandedHits_forSplitPattern_withConnProximityMatching > 1) {
                         System.out.println("Split synthons to search: "+ Arrays.stream(frags).map( mii -> HyperspaceUtils.idcodeToSmiles(mii.getIDCode()) ).collect(Collectors.joining(".")) );
                         System.out.println("Split synthons to search (IDCODE)): "+Arrays.stream(frags).map( mii -> mii.getIDCode() ).collect(Collectors.joining(" : ")) );
                     }
@@ -2054,6 +2081,7 @@ public class SynthonSpace implements Serializable {
 
                     // now we iterate over the fragments and see if we find matching ones   // TODO: think about sorting, biggest or smallest first??
                     for( Integer split_idx : mpi.keySet().stream().sorted().collect(Collectors.toList())) {
+                        if(Thread.currentThread().isInterrupted()) {return;}
                         FragType fti = mpi.get(split_idx).getLeft();
                         BitSet bsi = mpi.get(split_idx).getRight();
 
@@ -2072,6 +2100,7 @@ public class SynthonSpace implements Serializable {
                             int info_num_structures_searches = 0;
                             boolean found_frag_hit = false;
                             for(BitSet ss_bsi : supersets_bsi) {
+                                if(Thread.currentThread().isInterrupted()) {return;}
                                 if (space.substructure_searchers_sorted_by_connector_fp.get(fti).containsKey(ss_bsi)) {
                                     ffi.setFragment(true);
                                     info_num_structures_searches+=space.substructure_searchers_sorted_by_connector_fp.get(fti).get(ss_bsi).mIDs.keySet().size(); // only for info/debug
@@ -2083,7 +2112,7 @@ public class SynthonSpace implements Serializable {
                                 }
                             }
                             total_enumerated_sss_performed+=info_num_structures_searches; // only for statistics
-                            if(true) { // full debug output..
+                            if(true && logLevel_findExpandedHits_forSplitPattern_withConnProximityMatching > 1) { // full debug output..
                                 String info_a = rxn+"_idc="+ffi.getIDCode()+"_fti="+fti.toString()+"_bsi="+bsi+" tot_ss_performed="+info_num_structures_searches;
                                 String str_all_info = info_a;
                                 if (found_frag_hit) {
@@ -2113,7 +2142,10 @@ public class SynthonSpace implements Serializable {
 
                     // now add a combinatorial hit in case that all frag types were found:
                     if (matching_frag_ids.keySet().stream().filter(ki -> matching_frag_ids.get(ki).size() > 0).count() == mpi.keySet().size()) {
-                        System.out.println("FULL_HIT! -> "+rxn+" -> "+matching_frag_ids);
+                        if(logLevel_findExpandedHits_forSplitPattern_withConnProximityMatching > 1 ) {
+                            System.out.println("FULL_HIT! -> " + rxn + " -> " + matching_frag_ids);
+                        }
+
                         expanded_hits.add(new CombinatorialHit(rxn, matching_frag_ids, split_result, mpi));
                     }
 
@@ -2511,6 +2543,8 @@ public class SynthonSpace implements Serializable {
         // Correct filtering:
         List<String> rxns = new ArrayList<>();
         for(List<Integer> rxn_cc : space.rxns_by_connector_counts.keySet() ) {
+            if(Thread.currentThread().isInterrupted()) {return new HashMap<>();}
+
             ArrayList<Integer> rxci = new ArrayList<>(rxn_cc);
             // try to assign smallest first
             boolean is_ok = true;
@@ -2544,6 +2578,7 @@ public class SynthonSpace implements Serializable {
 
         Map<String,List<Map<FragType,Integer>>> current_partial_matchings = initial_partial_matchings;
         while( matching_possible && (frag_idx<split_result.fragments.length) ) {
+            if(Thread.currentThread().isInterrupted()) {return new HashMap<>();}
             BitSet conn_fpi = cdp.getFP_cached( createConnectorProximalFragment( split_result.fragments[frag_idx] , CONNECTOR_REGION_SIZE ) );
             stored_conn_fps.put(frag_idx,conn_fpi);
 
@@ -2554,6 +2589,8 @@ public class SynthonSpace implements Serializable {
                 // try to extend the existing mappings:
                 List<Map<FragType,Integer>> extended_maps = new ArrayList<>();
                 for(Map<FragType,Integer> pmap_i : current_partial_matchings.get(rxi)){
+                    if(Thread.currentThread().isInterrupted()) {return new HashMap<>();}
+
                     // compute available frags
                     Set<FragType> available = new HashSet<>(space.fragment_type_map.get(rxi).values());
                     available.removeAll(pmap_i.keySet());
@@ -2582,6 +2619,7 @@ public class SynthonSpace implements Serializable {
             Map<String,List<Map<Integer,Pair<FragType,BitSet>>>> result = new HashMap<>();
 
             for(String rxi : current_partial_matchings.keySet()) {
+                if(Thread.currentThread().isInterrupted()) {return new HashMap<>();}
                 result.put(rxi,new ArrayList<>());
                 for( Map<FragType,Integer> map_i : current_partial_matchings.get(rxi)) {
                     //Map<FragType,BitSet> map_2_i = new HashMap<>();
@@ -2671,6 +2709,10 @@ public class SynthonSpace implements Serializable {
             Future fi = main_pool.submit(runnable_ri);
             tasks.add(fi);
         }
+
+        // required?
+        main_pool.shutdown();
+
         // wait for pool:
         if(logLevel_findCandidates>0) {
             System.out.println("[SCB] Start screening building blocks:+\n");
@@ -2678,6 +2720,11 @@ public class SynthonSpace implements Serializable {
 
         int cnt_fc = 0;
         for(Future f_i : tasks) {
+            if(Thread.currentThread().isInterrupted()) {
+                tasks.stream().forEach(xi -> xi.cancel(true) );
+                main_pool.shutdown();
+                return new ArrayList();
+            }
             try {
                 f_i.get();
                 if(logLevel_findCandidates>0) {
@@ -2687,18 +2734,24 @@ public class SynthonSpace implements Serializable {
                     }
                 }
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
+                //e.printStackTrace();
+                System.out.println("Interrupted");
+                tasks.stream().forEach( xi -> xi.cancel(true) );
+                main_pool.shutdown();
+
             } catch (ExecutionException e) {
-                e.printStackTrace();
+                try {
+                    main_pool.shutdown();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+                //e.printStackTrace();
             }
         }
         if(logLevel_findCandidates>0) {
             System.out.println("\n[SCB] Start screening building blocks: Done!");
         }
-
-        // required?
-        main_pool.shutdown();
-
 
         return hits;
     }
@@ -2745,6 +2798,10 @@ public class SynthonSpace implements Serializable {
                     System.out.println("[Exception] Could not find frag for frag fp.. this is strange..");
                 }
                 for(SynthonSpace.FragId fid: frags) {
+                    if(Thread.currentThread().isInterrupted()) {
+                        return new ArrayList<>();
+                    }
+
                     StereoMolecule sm = new StereoMolecule();
                     icp.parse(sm,fid.idcode);
                     // subset test..

@@ -357,6 +357,8 @@ public class HyperspaceSearchGUI {
         this.f_main.validate();
     }
 
+    public JFrame getFrame() {return this.f_main;}
+
     public static HyperspaceSearchGUI getGUI() {
         return gui;
     }

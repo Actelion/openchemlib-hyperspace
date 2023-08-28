@@ -42,6 +42,7 @@
         <module>openchemlib-hyperspace-cli</module>
         <module>openchemlib-hyperspace-test</module>
         <module>openchemlib-hyperspace-tools</module>
+        <module>openchemlib-hyperspace-virtualmemory</module>
         <!--<module>hyperspace-shared</module>-->
     </modules>
 

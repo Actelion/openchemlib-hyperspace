@@ -1,10 +1,10 @@
 {
   "ServiceProviders": [
     {"ServiceName":  "TEST Space SSS", "ServiceProvider":  "HyperspaceSSS",
-      "Config": { "SpaceName": "TEST Space" , "File": "test_mode_ffp.data" , "MaxNumberOfThreads": -1 }
+      "Config": { "SpaceName": "TEST Space" , "File": "test_FragFp.data" , "MaxNumberOfThreads": -1 }
     },
     {"ServiceName":  "TEST Space Similarity", "ServiceProvider":  "HyperspaceSimilarity",
-    "Config": { "SpaceName": "TEST Space" , "File": "test_mode_ffp_similarity3.data" , "MaxNumberOfThreads": -1 }
+    "Config": { "SpaceName": "TEST Space" , "File": "test_FragFp_similarity3.data" , "MaxNumberOfThreads": -1 }
     }
   ]    
 }

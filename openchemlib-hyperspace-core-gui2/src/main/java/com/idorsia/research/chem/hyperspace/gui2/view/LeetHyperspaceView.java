@@ -13,6 +13,11 @@ public class LeetHyperspaceView extends AbstractLeetHyperspaceView {
 
     private LeetHyperspaceModel model;
 
+    private JPanel pLeft;
+    private JPanel pRight;
+    private JTabbedPane tpLeftTop;
+    private JPanel pLeftBottom;
+
     private JPanel pSynthonSpaceView;
     private JPanel pProcssTableView;
     private JPanel pEditorView;
@@ -27,17 +32,35 @@ public class LeetHyperspaceView extends AbstractLeetHyperspaceView {
 
     private void reinit() {
         this.removeAll();
-        this.setLayout(new GridLayout(2,2));
+        this.setLayout(new GridLayout(1,2));
+        //this.setLayout(new BorderLayout());
+
+
+        pLeft = new JPanel(); pLeft.setLayout(new BorderLayout());
+        pRight = new JPanel(); pRight.setLayout(new BorderLayout());
+        tpLeftTop = new JTabbedPane();
+        pLeftBottom = new JPanel(); pLeftBottom.setLayout(new BorderLayout());
+
+        this.add(pLeft);
+        this.add(pRight);
+
+        pLeft.add(tpLeftTop,BorderLayout.NORTH);
+        pLeft.add(pLeftBottom,BorderLayout.CENTER);
 
         pSynthonSpaceView = new JPanel(); pSynthonSpaceView.setLayout(new BorderLayout());
         pProcssTableView  = new JPanel(); pProcssTableView.setLayout(new BorderLayout());
         pEditorView       = new JPanel(); pEditorView.setLayout(new BorderLayout());
         pCombiResultView  = new JPanel(); pCombiResultView.setLayout(new BorderLayout());
 
-        this.add(pSynthonSpaceView);
-        this.add(pProcssTableView);
-        this.add(pEditorView);
-        this.add(pCombiResultView);
+        tpLeftTop.addTab("Editor",pEditorView);
+        tpLeftTop.addTab("Synthon Space",pSynthonSpaceView);
+        pLeftBottom.add(pProcssTableView,BorderLayout.CENTER);
+        pRight.add(pCombiResultView,BorderLayout.CENTER);
+
+        //this.add(pSynthonSpaceView);
+        //this.add(pProcssTableView);
+        //this.add(pEditorView);
+        //this.add(pCombiResultView);
 
         ProcessTableView processTableView = new ProcessTableView(model.getProcessTableModel());
         this.pProcssTableView.add(processTableView,BorderLayout.CENTER);

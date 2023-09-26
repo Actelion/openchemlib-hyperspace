@@ -114,6 +114,8 @@ public class RealTimeExpandingHitsView extends JPanel {
         //ChemistryCellRenderer ccr = new ChemistryCellRenderer(new Dimension(120,120));
 
         this.table.setRowHeight(120);
+        //this.table.setRowHeight(400);
+        this.table.getColumnModel().getColumn(1).setCellRenderer(new HitDataRenderer());
         if(this.resultModel!=null) {
             ccr.setHighlightedFragment(resultModel.getCombinatorialSearchResultModel().getQuery());
             this.table.getColumnModel().getColumn(0).setCellRenderer(ccr);

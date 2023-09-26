@@ -1,5 +1,6 @@
 package com.idorsia.research.chem.hyperspace.gui2.model;
 
+import com.idorsia.research.chem.hyperspace.gui2.task.HyperspaceTask;
 import com.idorsia.research.chem.hyperspace.gui2.task.SubstructureSearchTask;
 
 import javax.swing.*;
@@ -59,7 +60,7 @@ public class ProcessTableModel {
         public Object getValueAt(int rowIndex, int columnIndex) {
             SwingWorker ti = taskList.get(rowIndex);
             switch(columnIndex) {
-                case 0: return "Task";
+                case 0: return (ti instanceof HyperspaceTask) ? ((HyperspaceTask)ti).getName() :"Task";
                 case 1: return ti.getState();
                 case 2: return ti.getProgress();
             }

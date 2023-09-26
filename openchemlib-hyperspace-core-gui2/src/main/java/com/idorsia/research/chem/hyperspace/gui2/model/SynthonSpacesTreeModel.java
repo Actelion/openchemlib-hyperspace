@@ -17,7 +17,7 @@ public class SynthonSpacesTreeModel implements LeetHyperspaceModel.LeetHyperspac
     private class SynthonSpaceListRootNode implements TreeNode {
         @Override
         public TreeNode getChildAt(int childIndex) {
-            return new SynthonSpaceTreeNode(model.getSynthonSpaces().get(childIndex));
+            return new LoadedSynthonSpaceTreeNode(model.getSynthonSpaces().get(childIndex));
         }
 
         @Override

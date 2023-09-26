@@ -26,6 +26,11 @@ public class ProcessTableView extends JPanel {
         table = new JTable(model.getTableModel());
         JScrollPane scrollPane = new JScrollPane(table);
         add(scrollPane, BorderLayout.CENTER);
+
+        table.getColumnModel().getColumn(1).setPreferredWidth(60);
+        table.getColumnModel().getColumn(1).setMaxWidth(60);
+        table.getColumnModel().getColumn(2).setPreferredWidth(60);
+        table.getColumnModel().getColumn(2).setMaxWidth(60);
     }
 
 

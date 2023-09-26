@@ -26,6 +26,8 @@ public class RealTimeExpandingSearchResultModel {
 
     private ConcurrentHashMap<String, SynthonSpace.CombinatorialHit> assembledMolecules;
 
+    private ConcurrentHashMap<String, SynthonAssembler.ExpandedCombinatorialHit> assembledMoleculesExpHits;
+
     // this one is also used for synchronization of computation
     private ConcurrentHashMap<SynthonSpace.CombinatorialHit, List<String>> assembledMolecules2;
 
@@ -39,6 +41,7 @@ public class RealTimeExpandingSearchResultModel {
 
         this.assembledMolecules  = new ConcurrentHashMap<>();
         this.assembledMolecules2 = new ConcurrentHashMap<>();
+        this.assembledMoleculesExpHits = new ConcurrentHashMap<>();
 
         this.initExpansionThreadPool();
         this.initCoordinateInventor();
@@ -99,6 +102,7 @@ public class RealTimeExpandingSearchResultModel {
                                             }
                                             String processed_idcode = processResultStructure(xi.assembled_idcode);
                                             assembledMolecules.put(processed_idcode, fchi);
+                                            assembledMoleculesExpHits.put(processed_idcode, xi);
                                             processed.add(processed_idcode);
                                         }
                                         //new_molecules = new ArrayList<>(exp_hits.stream().map(ci -> ci.assembled_idcode).collect(Collectors.toList()));
@@ -283,10 +287,13 @@ public class RealTimeExpandingSearchResultModel {
             return moleculeOrder.get(row);
         }
 
+        private boolean showSynthons = true;
+
         @Override
         public String getColumnName(int column) {
             switch(column){
                 case 0: return "Structure";
+                case 1: return "Synthons";
             }
             return null;
         }
@@ -298,12 +305,31 @@ public class RealTimeExpandingSearchResultModel {
 
         @Override
         public int getColumnCount() {
-            return 1;
+            if(showSynthons) {
+                return 2;
+            }
+            else {
+                return 1;
+            }
         }
 
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
-            return moleculeOrder.get(rowIndex);
+            String idc = moleculeOrder.get(rowIndex);
+            switch (columnIndex) {
+                case 0:
+                    return moleculeOrder.get(rowIndex);
+                case 1:
+                    try{
+                        return assembledMoleculesExpHits.get(idc);
+                    }
+                    catch(Exception ex) {
+                        ex.printStackTrace();
+                    }
+                    return null;
+            }
+            // we should not end up here
+            return null;
         }
     }
 

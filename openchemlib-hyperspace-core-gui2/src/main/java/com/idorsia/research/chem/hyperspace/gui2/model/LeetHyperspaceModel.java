@@ -9,7 +9,7 @@ import java.util.List;
 
 public class LeetHyperspaceModel {
 
-    private List<SynthonSpace> spaces = new ArrayList<>();
+    private List<LoadedSynthonSpace> spaces = new ArrayList<>();
 
     private ProcessTableModel  processTableModel;
 
@@ -25,13 +25,13 @@ public class LeetHyperspaceModel {
         synthonSpacesTreeModel = new SynthonSpacesTreeModel(this);
     }
 
-    public void addSynthonSpace(SynthonSpace si) {
-        this.spaces.add(si);
+    public void addSynthonSpace(LoadedSynthonSpace space) {
+        this.spaces.add( space );
         fireSynthonSpacesChanged();
     }
 
 
-    public List<SynthonSpace> getSynthonSpaces() {
+    public List<LoadedSynthonSpace> getSynthonSpaces() {
         return this.spaces;
     }
 

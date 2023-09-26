@@ -2,6 +2,7 @@ package com.idorsia.research.chem.hyperspace.gui2.task;
 
 import com.idorsia.research.chem.hyperspace.SynthonSpace;
 import com.idorsia.research.chem.hyperspace.gui2.model.LeetHyperspaceModel;
+import com.idorsia.research.chem.hyperspace.gui2.model.LoadedSynthonSpace;
 import org.apache.commons.io.input.CountingInputStream;
 
 import javax.swing.*;
@@ -10,7 +11,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.zip.GZIPInputStream;
 
-public class LoadSynthonSpaceTask extends SwingWorker<SynthonSpace,Double> {
+public class LoadSynthonSpaceTask extends SwingWorker<SynthonSpace,Double> implements HyperspaceTask {
 
     private LeetHyperspaceModel model;
     //private LeetHyperspaceView  view;
@@ -21,6 +22,11 @@ public class LoadSynthonSpaceTask extends SwingWorker<SynthonSpace,Double> {
         this.model = model;
         //this.view = view;
         this.filepath = filepath;
+    }
+
+    @Override
+    public String getName() {
+        return "Load space "+ (new File(filepath)).getName();
     }
 
     public SwingWorker getThisWorker() {return this;}
@@ -99,7 +105,9 @@ public class LoadSynthonSpaceTask extends SwingWorker<SynthonSpace,Double> {
     @Override
     protected void done() {
         try {
-            model.addSynthonSpace(this.get());
+            this.setProgress(100);
+            String name = (new File(this.filepath)).getName();
+            model.addSynthonSpace( new LoadedSynthonSpace(this.get(),name));
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } catch (ExecutionException e) {

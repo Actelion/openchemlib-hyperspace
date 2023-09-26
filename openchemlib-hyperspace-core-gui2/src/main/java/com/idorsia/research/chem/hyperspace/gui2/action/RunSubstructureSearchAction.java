@@ -20,8 +20,8 @@ public class RunSubstructureSearchAction extends AbstractLeetHyperspaceAction {
 
     protected CombinatorialSearchResultModel resultModel;
 
-    public RunSubstructureSearchAction(LeetHyperspaceModel model, AbstractLeetHyperspaceView view, SynthonSpace space, Supplier<StereoMolecule> query) {
-        super("Run Substructure Search", null, model, view);
+    public RunSubstructureSearchAction(LeetHyperspaceModel model, AbstractLeetHyperspaceView view, SynthonSpace space, String spaceName, Supplier<StereoMolecule> query) {
+        super("Substructure ["+spaceName+"]", null, model, view);
         this.space = space;
         this.query = query;
         this.resultModel = new CombinatorialSearchResultModel(new StereoMolecule());

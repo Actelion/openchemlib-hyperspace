@@ -10,7 +10,7 @@ import javax.swing.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SubstructureSearchTask extends SwingWorker<List<SynthonSpace.CombinatorialHit>,List<SynthonSpace.CombinatorialHit>> {
+public class SubstructureSearchTask extends SwingWorker<List<SynthonSpace.CombinatorialHit>,List<SynthonSpace.CombinatorialHit>> implements HyperspaceTask {
 
 
     private SynthonSpace space;
@@ -21,6 +21,11 @@ public class SubstructureSearchTask extends SwingWorker<List<SynthonSpace.Combin
         this.space = space;
         this.query = query;
         this.resultsModel = resultsModel;
+    }
+
+    @Override
+    public String getName() {
+        return "SSS: "+this.query.getIDCode();
     }
 
     @Override
@@ -58,4 +63,8 @@ public class SubstructureSearchTask extends SwingWorker<List<SynthonSpace.Combin
         return this.resultsModel;
     }
 
+    @Override
+    protected void done() {
+        this.setProgress(100);
+    }
 }

@@ -36,6 +36,11 @@ public class ImporterTool {
         int si_bb      = in.getSpecialFieldIndex("Building Block");
         int i_id       = in.getFieldIndex(idfield_name);
 
+        if(si_synthon<0 || si_bb < 0 || i_id < 0) {
+            System.out.println("[INFO] parsing error -> skip file: "+path);
+            return null;
+        }
+
         List<ImporterSynthon> synthons_unfiltered = new ArrayList<>();
         while(in.next()) {
             String idc_synthon = in.getSpecialFieldData(si_synthon);

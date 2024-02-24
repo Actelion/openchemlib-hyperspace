@@ -29,7 +29,8 @@ public class RealTimeExpandingSearchResultModel {
     private ConcurrentHashMap<String, SynthonAssembler.ExpandedCombinatorialHit> assembledMoleculesExpHits;
 
     // this one is also used for synchronization of computation
-    private ConcurrentHashMap<SynthonSpace.CombinatorialHit, List<String>> assembledMolecules2;
+    //private ConcurrentHashMap<SynthonSpace.CombinatorialHit, List<String>> assembledMolecules2;
+    private ConcurrentHashMap<HashableCombinatorialHit,List<String>> assembledMolecules2;
 
     // this defines the row order of the table model
     // !! ONLY ACCESS / MANIPULATE FROM WITHIN swing event handling threaad !!
@@ -61,7 +62,36 @@ public class RealTimeExpandingSearchResultModel {
 
     private final List<Future> expansionTasks = Collections.synchronizedList(new ArrayList<>());
 
+    public static class HashableCombinatorialHit {
+        public final SynthonSpace.CombinatorialHit hit;
+        public final String hashString;
+        public final int hash;
+        public HashableCombinatorialHit(SynthonSpace.CombinatorialHit hit) {
+            this.hit = hit;
+            this.hashString = computeHashString();
+            this.hash = this.hashString.hashCode();
+        }
+        private String computeHashString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("srf:");
+            sb.append(Arrays.stream(hit.sri.fragments).map(xi -> xi.getIDCode()).collect(Collectors.joining(";")));
+            sb.append("ff:"+this.hit.hit_fragments.entrySet().stream().sorted((x,y)->x.getKey().compareTo(y.getKey())).map( xi -> "["+xi.getKey().toString()+":"+  xi.getValue().parallelStream().map( fi -> fi.idcode ).collect(Collectors.joining(","))+"]").collect(Collectors.joining("::")));
+            return sb.toString();
+        }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            HashableCombinatorialHit that = (HashableCombinatorialHit) o;
+            return this.hashString.equals(that.hashString);
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
+    }
 
     private void processResultsChanged() {
         // we may end up here from edt.. therefore do this
@@ -73,15 +103,17 @@ public class RealTimeExpandingSearchResultModel {
                     long tsa = System.currentTimeMillis();
                     //System.out.println("monitor asm2 entered");
                     List<SynthonSpace.CombinatorialHit> all_hits = new ArrayList<>(resultModel.getHits());
-                    all_hits.removeAll( assembledMolecules2.keySet() );
+                    all_hits.removeAll( assembledMolecules2.keySet().stream().map(xi->xi.hit).collect(Collectors.toList()) );
                     for(SynthonSpace.CombinatorialHit chi_unsplit : all_hits) {
+                        //!!!!! FOR STORING INTO THE DATASTRUCTURES WE HAVE TO USE chi_unsplit!!!!!
+                        // immediately put placeholder for molecules, such that the line above works..
+                        HashableCombinatorialHit fchi_unsplit = new HashableCombinatorialHit(chi_unsplit);
+                        assembledMolecules2.put( fchi_unsplit , new ArrayList<>());
+
                         List<SynthonSpace.CombinatorialHit> chi_split = splitCombinatorialHit_01(chi_unsplit);
                         for (SynthonSpace.CombinatorialHit chi : chi_split) {
 
-                            // immediately put placeholder for molecules, such that the line above works..
-                            assembledMolecules2.put(chi, new ArrayList<>());
-                            SynthonSpace.CombinatorialHit fchi = chi;
-
+                            //SynthonSpace.CombinatorialHit fchi = chi;
 
                             Runnable ri = new Runnable() {
                                 @Override
@@ -89,7 +121,7 @@ public class RealTimeExpandingSearchResultModel {
                                     if (moleculeOrder.size() > maxExpandedHits) {
                                         return;
                                     }
-                                    List<SynthonAssembler.ExpandedCombinatorialHit> exp_hits = SynthonAssembler.expandCombinatorialHit(fchi, 1024);
+                                    List<SynthonAssembler.ExpandedCombinatorialHit> exp_hits = SynthonAssembler.expandCombinatorialHit(chi, 1024);
                                     List<String> new_molecules = new ArrayList<>();
                                     synchronized (assembledMolecules2) {
                                         if (moleculeOrder.size() > maxExpandedHits) {
@@ -101,14 +133,15 @@ public class RealTimeExpandingSearchResultModel {
                                                 break;
                                             }
                                             String processed_idcode = processResultStructure(xi.assembled_idcode);
-                                            assembledMolecules.put(processed_idcode, fchi);
+                                            assembledMolecules.put(processed_idcode, fchi_unsplit.hit);
                                             assembledMoleculesExpHits.put(processed_idcode, xi);
                                             processed.add(processed_idcode);
                                         }
                                         //new_molecules = new ArrayList<>(exp_hits.stream().map(ci -> ci.assembled_idcode).collect(Collectors.toList()));
                                         new_molecules = processed;
-                                        assembledMolecules2.put(fchi,
-                                                new_molecules);
+                                        //assembledMolecules2.put(fchi,
+                                        //        new_molecules);
+                                        assembledMolecules2.get(fchi_unsplit).addAll(new_molecules);
                                     }
                                     List<String> final_new_molecules = new_molecules;
                                     SwingUtilities.invokeLater(new Runnable() {

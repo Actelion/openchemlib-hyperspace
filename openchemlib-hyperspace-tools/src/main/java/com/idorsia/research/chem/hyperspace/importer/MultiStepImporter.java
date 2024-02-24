@@ -58,14 +58,14 @@ public class MultiStepImporter {
                 return name.endsWith(".dwar");
             }
         });
-        File dwB = dwB_all[0];
+
         ImporterSynthonReaction rB = null;
         try {
+            File dwB = dwB_all[0];
             rB = ImporterTool.importSynthonReaction( Collections.singletonList(dwB.getAbsolutePath()),idfield_name);
         } catch (Exception e) {
             e.printStackTrace();
         }
-
 
         ConcreteMultiStepSynthonReaction r_A = new ConcreteMultiStepSynthonReaction(rA,new ConnectorRemap());
         ConcreteMultiStepSynthonReaction r_B = new ConcreteMultiStepSynthonReaction(rB,new ConnectorRemap());

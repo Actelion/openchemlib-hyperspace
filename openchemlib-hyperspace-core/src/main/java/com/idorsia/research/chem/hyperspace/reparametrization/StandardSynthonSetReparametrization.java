@@ -15,6 +15,15 @@ public class StandardSynthonSetReparametrization implements SynthonSetReparametr
     private boolean completeRingSystem = true;
     private int distance = 4;
 
+    public StandardSynthonSetReparametrization() {
+
+    }
+
+    public StandardSynthonSetReparametrization(boolean completeRingSystem, int distance) {
+        this.completeRingSystem = completeRingSystem;
+        this.distance = distance;
+    }
+
     @Override
     public StereoMolecule processSynthon(StereoMolecule mi) {
         StereoMolecule mi2 = new StereoMolecule(mi);

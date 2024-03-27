@@ -8,10 +8,7 @@ import com.idorsia.research.chem.hyperspace.*;
 import org.apache.commons.io.input.CountingInputStream;
 import org.apache.commons.lang3.tuple.Pair;
 
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -40,7 +37,19 @@ public class RealizedRxnReparametrization {
         public boolean considerScaffold(List<Pair<String,List<SynthonSpace.FragId>>> scaffoldParts);
     }
 
-    public List<SynthonSpaceScaffold> enumerateCombinatorialScaffolds(ScaffoldEnumerationCriterion scaffoldEnumerationCriterion) {
+    public static class EnumerationResult {
+        public final List<SynthonSpaceScaffold> enumeratedScaffolds;
+        public final long covered;
+        public final long skipped;
+
+        public EnumerationResult(List<SynthonSpaceScaffold> enumeratedScaffolds, long covered, long skipped) {
+            this.enumeratedScaffolds = enumeratedScaffolds;
+            this.covered = covered;
+            this.skipped = skipped;
+        }
+    }
+
+    public EnumerationResult enumerateCombinatorialScaffolds(ScaffoldEnumerationCriterion scaffoldEnumerationCriterion) {
         List<SynthonSpaceScaffold> scaffolds = new ArrayList<>();
         List<List<Pair<String,List<SynthonSpace.FragId>>>> scaffoldParts = new ArrayList<>();
         for( RealizedSynthonSetReparametrization.SynthonSetAnalysis ai : analysis.values()) {
@@ -48,16 +57,24 @@ public class RealizedRxnReparametrization {
         }
         List<List<Pair<String,List<SynthonSpace.FragId>>>> tuples = generateTuples( scaffoldParts );
 
+        long skipped_structures = 0;
+        long covered_structures = 0;
+
+
         for( List<Pair<String,List<SynthonSpace.FragId>>> scaffold_i : tuples ) {
+            long scaffold_num_structures = scaffold_i.stream().mapToLong( xi -> xi.getRight().size() ).reduce( (x,y) -> x*y ).getAsLong();
+
             boolean consider = true;
             if( scaffoldEnumerationCriterion!=null ) {
                 consider = scaffoldEnumerationCriterion.considerScaffold(scaffold_i);
             }
             if(!consider) {
                 System.out.println("Skip scaffold..");
+                skipped_structures += scaffold_num_structures;
                 continue;
             }
             else {
+                covered_structures += scaffold_num_structures;
                 System.out.println("Construct scaffold.. size="+scaffold_i.stream().mapToLong(xi -> xi.getRight().size()).reduce((x,y)->x*y)+" , "+scaffold_i.stream().map(xi -> ""+xi.getRight().size()).reduce((x,y)->x+","+y));
                 List<StereoMolecule> scaffoldParts_i = scaffold_i.stream().map( xi -> HyperspaceUtils.parseIDCode(xi.getKey())).collect(Collectors.toList());
                 StereoMolecule reactedScaffold = SynthonReactor.react(scaffoldParts_i);
@@ -66,12 +83,13 @@ public class RealizedRxnReparametrization {
                     System.out.println("[WARN] assembly incomplete..");
                 }
                 String rxn_i = scaffold_i.get(0).getRight().get(0).rxn_id;
+                // NOTE: set "cheap" to false to store actual synthons
                 if(scaffold_i.size()==2) {
                     SynthonSpaceScaffold scaffoldData_i = new SynthonSpaceScaffold(rxn_i, reactedScaffold.getIDCode(),
                             scaffoldParts_i.get(0).getIDCode(),scaffoldParts_i.get(1).getIDCode(),"",
                             scaffold_i.get(0).getRight().stream().map(xi -> xi.idcode).collect(Collectors.toList()),
                             scaffold_i.get(1).getRight().stream().map(xi -> xi.idcode).collect(Collectors.toList()),
-                            new ArrayList<>());
+                            new ArrayList<>(),true);
                     scaffolds.add(scaffoldData_i);
                 }
                 else if (scaffold_i.size()==3) {
@@ -79,13 +97,19 @@ public class RealizedRxnReparametrization {
                             scaffoldParts_i.get(0).getIDCode(),scaffoldParts_i.get(1).getIDCode(),scaffoldParts_i.get(2).getIDCode(),
                             scaffold_i.get(0).getRight().stream().map(xi -> xi.idcode).collect(Collectors.toList()),
                             scaffold_i.get(1).getRight().stream().map(xi -> xi.idcode).collect(Collectors.toList()),
-                            scaffold_i.get(2).getRight().stream().map(xi -> xi.idcode).collect(Collectors.toList()));
+                            scaffold_i.get(2).getRight().stream().map(xi -> xi.idcode).collect(Collectors.toList()),
+                            true);
                     scaffolds.add(scaffoldData_i);
                 }
             }
         }
 
-        return scaffolds;
+
+        System.out.println("Num scaffolds: "+scaffolds.size());
+        System.out.println("Structures covered: "+covered_structures + " "+ ( 100.0*covered_structures / (covered_structures+skipped_structures))+"%" );
+        System.out.println("Structures skipped: "+skipped_structures + " "+ ( 100.0*skipped_structures / (covered_structures+skipped_structures))+"%" );
+
+        return new EnumerationResult(scaffolds,covered_structures,skipped_structures);
     }
 
     private static <T> List<List<T>>  generateTuples(List<List<T>> lists) {
@@ -158,6 +182,7 @@ public class RealizedRxnReparametrization {
             }
             num_frags_processed.add(analysis.pfrags.keySet().size());
             this.analysis.put(fzi,analysis);
+
             //int limit = 32;
             //if(space.getFragTypes(rxn).keySet().size()>=3) { limit = 24;}
             // take the limit:
@@ -172,10 +197,15 @@ public class RealizedRxnReparametrization {
         System.out.println("Products proc.  "+ num_frags_processed.stream().mapToLong( vi -> vi.longValue() ).reduce( (a,b) -> a*b ) );
     }
 
+    public void clearAnalysis() {
+        this.analysis = new HashMap<>();
+    }
+
 
     public static void main(String args[]) {
         //String inputfile = "v2_s2_32k_FragFp.data";
-        String inputfile = "s2_small_01_FragFp.data";
+        //String inputfile = "C:\\dev\\spaces\\s2_small_01_FragFp.data";
+        String inputfile = "C:\\dev\\spaces\\v2_s2_32k_FragFp.data";
 
         ObjectInputStream in = null;
         SynthonSpace space = null;
@@ -197,28 +227,47 @@ public class RealizedRxnReparametrization {
         System.out.println("Loaded space: "+space.getSpaceInfoString());
         List<SynthonSpaceScaffold> scaffolds = new ArrayList<>();
 
+        long coveredStructures = 0;
+        long skippedStructures = 0;
+
         for(String rxn_id : space.getRxnIds()) {
             SynthonSetReparametrization synthonSetReparametrization = new StandardSynthonSetReparametrization(true, 3);
             RxnReparametrization standardReparametrization = new RxnReparametrization(space, rxn_id, synthonSetReparametrization);
             RealizedRxnReparametrization reparametrization = new RealizedRxnReparametrization(standardReparametrization, space, rxn_id);
             try {
                 reparametrization.processSynthonSets(12);
-                List<SynthonSpaceScaffold> scaffolds_i = reparametrization.enumerateCombinatorialScaffolds(new ScaffoldEnumerationCriterion() {
+                EnumerationResult result_i = reparametrization.enumerateCombinatorialScaffolds(new ScaffoldEnumerationCriterion() {
                     @Override
                     public boolean considerScaffold(List<Pair<String, List<SynthonSpace.FragId>>> scaffoldParts) {
                         return scaffoldParts.stream().filter(xi -> xi.getRight().size() > 8).collect(Collectors.toList()).size() >= 2;
                         //return true;
                     }
                 });
+                reparametrization.clearAnalysis(); // to save memory
+
+                List<SynthonSpaceScaffold> scaffolds_i = result_i.enumeratedScaffolds;
                 scaffolds.addAll(scaffolds_i);
+                coveredStructures += result_i.covered;
+                skippedStructures += result_i.skipped;
                 System.out.println("mkay");
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
         System.out.println("Analysis: total scaffolds returned: "+scaffolds.size());
-        for(SynthonSpaceScaffold sci : scaffolds) {
-            System.out.println(sci.toCSV_short());
+        System.out.println("Covered structures "+coveredStructures + "  " + (100.0*coveredStructures / (skippedStructures+coveredStructures)));
+        System.out.println("Skipped structures "+skippedStructures + "  " + (100.0*skippedStructures / (skippedStructures+coveredStructures)));
+
+        try {
+            BufferedWriter out_scf = new BufferedWriter(new FileWriter("output_scaffolds.csv"));
+            out_scf.write("scf[idcode],scf_murcko[idcode],scf_noexit[idcode],s1[idcode],s2[idcode],s3[idcode],vs1,vs2,vs3,vtot,rxn"+"\n");
+            for (SynthonSpaceScaffold sci : scaffolds) {
+                out_scf.write(sci.toCSV_short()+"\n");
+            }
+            out_scf.flush();
+            out_scf.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 

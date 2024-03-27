@@ -7,12 +7,12 @@
     <parent>
         <groupId>com.idorsia.research</groupId>
         <artifactId>openchemlib-hyperspace</artifactId>
-        <version>2.2.1</version>
+        <version>2.2.2</version>
     </parent>
 
     <!--<groupId>com.idorsia.research</groupId>-->
     <artifactId>openchemlib-hyperspace-tools</artifactId>
-    <version>2.2.1</version><!--<version>${revision}</version>-->
+    <version>2.2.2</version><!--<version>${revision}</version>-->
     <packaging>jar</packaging>
     <!--<version>1.2-SNAPSHOT</version>-->
 
@@ -34,7 +34,7 @@
         <dependency>
             <groupId>com.idorsia.research</groupId>
             <artifactId>openchemlib-hyperspace-core</artifactId>
-            <version>2.2.1</version><!--<version>${revision}</version>-->
+            <version>2.2.2</version><!--<version>${revision}</version>-->
             <scope>compile</scope>
         </dependency>
 <!--        <dependency>-->
@@ -60,7 +60,7 @@
         <dependency>
             <groupId>com.idorsia.research</groupId>
             <artifactId>openchemlib-hyperspace-sar</artifactId>
-            <version>2.2.1</version><!--<version>${revision}</version>-->
+            <version>2.2.2</version><!--<version>${revision}</version>-->
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -119,5 +119,12 @@
         </plugins>
     </build>
 
+    <repositories>
+        <repository>
+            <id>github</id>
+            <name>GitHub Idorsia Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/Actelion/openchemlib-hyperspace</url>
+        </repository>
+    </repositories>
 
 </project>

@@ -8,6 +8,7 @@ import com.idorsia.research.chem.hyperspace.gui2.model.LeetHyperspaceModel;
 import com.idorsia.research.chem.hyperspace.gui2.model.RealTimeExpandingSearchResultModel;
 import com.idorsia.research.chem.hyperspace.gui2.task.SubstructureSearchTask;
 import com.idorsia.research.chem.hyperspace.gui2.view.AbstractLeetHyperspaceView;
+import com.idorsia.research.chem.hyperspace.gui2.view.CombinatorialHitsView;
 import com.idorsia.research.chem.hyperspace.gui2.view.RealTimeExpandingHitsView;
 
 import java.awt.event.ActionEvent;
@@ -33,9 +34,9 @@ public class RunSubstructureSearchAction extends AbstractLeetHyperspaceAction {
         mq.ensureHelperArrays(Molecule.cHelperCIP);
         this.resultModel = new CombinatorialSearchResultModel(mq);
         RealTimeExpandingSearchResultModel expandingResultModel = new RealTimeExpandingSearchResultModel(resultModel,32000);
-        //CombinatorialHitsView resultView = new CombinatorialHitsView(resultModel);
+        CombinatorialHitsView resultView = new CombinatorialHitsView(resultModel);
         RealTimeExpandingHitsView resultView2 = new RealTimeExpandingHitsView(expandingResultModel);
-        //getView().addResultsView(resultView);
+        getView().addResultsView(resultView);
         getView().addResultsView(resultView2);
         SubstructureSearchTask ti = new SubstructureSearchTask(space,mq,resultModel);
         getModel().addTask(ti);

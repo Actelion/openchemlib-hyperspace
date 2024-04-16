@@ -111,7 +111,7 @@ public class LoadSynthonSpaceTask extends SwingWorker<SynthonSpace,Double> imple
     protected void process(List<Double> chunks) {
         // Update the GUI with the progress values received
         double latestProgress = chunks.get(chunks.size() - 1);
-        this.setProgress(  (int)(100.0*latestProgress) );
+        this.setProgress(  Math.min( 100, Math.max(0, (int) (100.0*latestProgress))) );
     }
 
     @Override

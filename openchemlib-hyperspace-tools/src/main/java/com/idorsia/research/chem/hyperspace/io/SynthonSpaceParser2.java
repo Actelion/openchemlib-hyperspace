@@ -278,7 +278,7 @@ public class SynthonSpaceParser2 {
                  //File f = new File(space_name +"_" +mode +"_similarity3"+".data");
                  File f = null;
                  if(outputDirectory == null) {
-                     f = new File(space_name +"_" +mode +".data");
+                     f = new File(space_name +"_" +mode +"_similarity3" + ".data");
                  }
                  else {
                      f = new File(outputDirectory + File.separator + space_name + "_" + mode+ "_similarity3" + ".data");

@@ -7,8 +7,10 @@ import org.apache.commons.io.input.CountingInputStream;
 
 import javax.swing.*;
 import java.io.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
 public class LoadSynthonSpaceTask extends SwingWorker<SynthonSpace,Double> implements HyperspaceTask {
@@ -75,6 +77,16 @@ public class LoadSynthonSpaceTask extends SwingWorker<SynthonSpace,Double> imple
 
             System.out.println("Loaded space: "+space.getSpaceInfoString());
 
+            if(true) {
+                for( String rxnid : space.getRxnIds()) {
+                    SynthonSpace finalSpace = space;
+                    List<SynthonSpace.FragType> ssets = new ArrayList<>(space.getFragTypes(rxnid).values());
+                    long size = ssets.stream().mapToLong(xi -> finalSpace.getSynthonSet(rxnid,xi.frag).size() ).reduce( (x,y) -> x*y ).getAsLong();
+                    boolean billionClubRxn = (size >= 1e9);
+                    System.out.println(rxnid+" -> " + ((billionClubRxn)?"[!!BILLION+!!]":"") + size + " : "+ssets.stream().map(xi -> ""+finalSpace.getSynthonSet(rxnid,xi.frag).size() ).collect(Collectors.joining("x")));
+                }
+            }
+
             //setStatus(AbstractSearchProvider.SearchProviderStatus.READY); // we do this in the SearchProvider..
             //setProcessStatus(AbstractHyperspaceProcess.ProcessStatus.DONE);
 
@@ -99,7 +111,7 @@ public class LoadSynthonSpaceTask extends SwingWorker<SynthonSpace,Double> imple
     protected void process(List<Double> chunks) {
         // Update the GUI with the progress values received
         double latestProgress = chunks.get(chunks.size() - 1);
-        this.setProgress(  (int)(100.0*latestProgress) );
+        this.setProgress(  Math.min( 100, Math.max(0, (int) (100.0*latestProgress))) );
     }
 
     @Override

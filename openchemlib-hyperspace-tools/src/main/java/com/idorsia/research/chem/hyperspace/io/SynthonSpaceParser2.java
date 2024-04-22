@@ -213,10 +213,18 @@ public class SynthonSpaceParser2 {
         String path = args[0];
         String space_name = args[1];
         String mode = args[2];
-        int threads = Integer.parseInt(args[3]);
+        int threads = -1;
+        if(args.length > 3) {
+            threads = Integer.parseInt(args[3]);
+        }
         initREALSpace(path,space_name,mode,threads);
     }
-     public static void initREALSpace(String path, String space_name, String mode, int threads) {
+
+    public static void initREALSpace(String path, String space_name, String mode, int threads) {
+        initREALSpace(path,space_name,mode,threads,null);
+    }
+
+     public static void initREALSpace(String path, String space_name, String mode, int threads, String outputDirectory) {
 
         //process_files(path,space_name,mode,threads,4);
         File file = new File(path);
@@ -231,7 +239,13 @@ public class SynthonSpaceParser2 {
         // then write to file:
         try {
             System.out.println("Start writing the output!");
-            File f = new File(space_name +"_" +mode +".data");
+            File f = null;
+            if(outputDirectory == null) {
+                f = new File(space_name +"_" +mode +".data");
+            }
+            else {
+                f = new File(outputDirectory + File.separator + space_name + "_" + mode + ".data");
+            }
             System.out.println("Into File: "+f.getName());
             if(false) {
                 BufferedWriter out = new BufferedWriter(new FileWriter(f));
@@ -261,7 +275,15 @@ public class SynthonSpaceParser2 {
 
              try {
                  System.out.println("Start writing the output!");
-                 File f = new File(space_name +"_" +mode +"_similarity3"+".data");
+                 //File f = new File(space_name +"_" +mode +"_similarity3"+".data");
+                 File f = null;
+                 if(outputDirectory == null) {
+                     f = new File(space_name +"_" +mode +"_similarity3" + ".data");
+                 }
+                 else {
+                     f = new File(outputDirectory + File.separator + space_name + "_" + mode+ "_similarity3" + ".data");
+                 }
+
                  System.out.println("Into File: "+f.getName());
                  if(false) {
                      BufferedWriter out = new BufferedWriter(new FileWriter(f));

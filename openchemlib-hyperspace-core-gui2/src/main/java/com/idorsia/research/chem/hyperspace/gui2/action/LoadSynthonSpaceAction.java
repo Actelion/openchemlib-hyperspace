@@ -18,7 +18,10 @@ public class LoadSynthonSpaceAction extends AbstractLeetHyperspaceAction {
     public void actionPerformed(ActionEvent e) {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setDialogTitle("Select a File");
-
+        String userDirectory = System.getProperty("user.dir");
+        if(userDirectory!=null) {
+            fileChooser.setCurrentDirectory(new File(userDirectory));
+        }
         int selection = fileChooser.showOpenDialog(null);
 
         if (selection == JFileChooser.APPROVE_OPTION) {

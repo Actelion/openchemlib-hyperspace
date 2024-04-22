@@ -14,6 +14,10 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 public class HitExpander {
@@ -44,10 +48,30 @@ public class HitExpander {
         return exp_hits_i;
     }
 
+    /**
+     *
+     * @param hi
+     * @param max_expanded
+     * @param numThreads if -1 it uses Runtime.availableProcessors threads
+     * @return
+     */
+    public static List<SimpleExpandedHit> expandSimpleHit_Parallel(SimpleCombinatorialHit hi, int max_expanded, int numThreads) {
+        String synthon_rxn = hi.rxnId;
+        List<SimpleExpandedHit> exp_hits_i = new ArrayList<>();
+        if( hi.synthons.length==2) {
+            exp_hits_i = expandCombiHits2_Parallel(hi.synthons[0],hi.synthons[1],max_expanded,numThreads);
+        }
+        else if( hi.synthons.length==3) {
+            exp_hits_i = expandCombiHits3_Parallel(hi.synthons[0],hi.synthons[1],hi.synthons[2],max_expanded,numThreads);
+        }
+
+        return exp_hits_i;
+    }
+
 
     public static List<SimpleExpandedHit> expandCombiHits2(SimpleSynthon[] ma, SimpleSynthon[] mb, int max_expanded) {
         List<SimpleExpandedHit> expanded = new ArrayList<>();
-        IDCodeParser icp = new IDCodeParser();
+        //IDCodeParser icp = new IDCodeParser();
         List<StereoMolecule> mol_a = Arrays.stream(ma).map(si -> HyperspaceUtils.parseIDCode(si.idcode)).collect(Collectors.toList());
         List<StereoMolecule> mol_b = Arrays.stream(mb).map(si -> HyperspaceUtils.parseIDCode(si.idcode)).collect(Collectors.toList());
         for(int zi=0;zi<ma.length;zi++) {
@@ -67,9 +91,11 @@ public class HitExpander {
         }
         return expanded;
     }
+
+
     public static List<SimpleExpandedHit> expandCombiHits3(SimpleSynthon[] ma, SimpleSynthon[] mb, SimpleSynthon[] mc, int max_expanded) {
         List<SimpleExpandedHit> expanded = new ArrayList<>();
-        IDCodeParser icp = new IDCodeParser();
+        //IDCodeParser icp = new IDCodeParser();
         List<StereoMolecule> mol_a = Arrays.stream(ma).map(si -> HyperspaceUtils.parseIDCode(si.idcode)).collect(Collectors.toList());
         List<StereoMolecule> mol_b = Arrays.stream(mb).map(si -> HyperspaceUtils.parseIDCode(si.idcode)).collect(Collectors.toList());
         List<StereoMolecule> mol_c = Arrays.stream(mc).map(si -> HyperspaceUtils.parseIDCode(si.idcode)).collect(Collectors.toList());
@@ -91,6 +117,103 @@ public class HitExpander {
                 }
             }
         }
+        return expanded;
+    }
+
+
+    public static List<SimpleExpandedHit> expandCombiHits2_Parallel(SimpleSynthon[] ma, SimpleSynthon[] mb, int max_expanded, int threads) {
+        // Initialize the ExecutorService with a fixed thread pool. Adjust the pool size as needed.
+        int numThreads = (threads > 0) ? threads : Runtime.getRuntime().availableProcessors();
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+
+        List<Future<SimpleExpandedHit>> futureList = new ArrayList<>();
+        List<StereoMolecule> mol_a = Arrays.stream(ma).parallel().map(si -> HyperspaceUtils.parseIDCode(si.idcode)).collect(Collectors.toList());
+        List<StereoMolecule> mol_b = Arrays.stream(mb).parallel().map(si -> HyperspaceUtils.parseIDCode(si.idcode)).collect(Collectors.toList());
+
+        for (int zi = 0; zi < ma.length; zi++) {
+            for (int zj = 0; zj < mb.length; zj++) {
+                final int finalZi = zi;
+                final int finalZj = zj;
+                // Submit callable tasks to the executor
+                Callable<SimpleExpandedHit> task = () -> {
+                    List<StereoMolecule> assembly = Arrays.asList(mol_a.get(finalZi), mol_b.get(finalZj));
+                    StereoMolecule assembled = SynthonReactor.react(assembly);
+                    SimpleSynthon[] synthons_i = new SimpleSynthon[]{ma[finalZi], mb[finalZj]};
+                    return new SimpleExpandedHit(assembled.getIDCode(), assembled.getIDCoordinates(), synthons_i);
+                };
+                // Early exit check before task submission to avoid unnecessary task submissions.
+                if (futureList.size() >= max_expanded) {
+                    break;
+                }
+                futureList.add(executor.submit(task));
+            }
+        }
+
+        List<SimpleExpandedHit> expanded = new ArrayList<>();
+        // Collect and process results
+        for (Future<SimpleExpandedHit> future : futureList) {
+            try {
+                SimpleExpandedHit hit = future.get(); // This call blocks until the task is complete.
+                expanded.add(hit);
+                if (expanded.size() >= max_expanded) {
+                    break;
+                }
+            } catch (Exception e) {
+                // Handle exceptions appropriately
+                e.printStackTrace();
+            }
+        }
+        executor.shutdown(); // Shutdown the executor service
+        return expanded;
+    }
+
+    public static List<SimpleExpandedHit> expandCombiHits3_Parallel(SimpleSynthon[] ma, SimpleSynthon[] mb, SimpleSynthon[] mc, int max_expanded, int threads) {
+        // Initialize the ExecutorService with a fixed thread pool. Adjust the pool size as needed.
+        int numThreads = (threads > 0) ? threads : Runtime.getRuntime().availableProcessors();
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+
+        List<Future<SimpleExpandedHit>> futureList = new ArrayList<>();
+        List<StereoMolecule> mol_a = Arrays.stream(ma).parallel().map(si -> HyperspaceUtils.parseIDCode(si.idcode)).collect(Collectors.toList());
+        List<StereoMolecule> mol_b = Arrays.stream(mb).parallel().map(si -> HyperspaceUtils.parseIDCode(si.idcode)).collect(Collectors.toList());
+        List<StereoMolecule> mol_c = Arrays.stream(mc).parallel().map(si -> HyperspaceUtils.parseIDCode(si.idcode)).collect(Collectors.toList());
+
+        for (int zi = 0; zi < ma.length; zi++) {
+            for (int zj = 0; zj < mb.length; zj++) {
+                for (int zk = 0; zj < mb.length; zk++) {
+                    final int finalZi = zi;
+                    final int finalZj = zj;
+                    final int finalZk = zk;
+                    // Submit callable tasks to the executor
+                    Callable<SimpleExpandedHit> task = () -> {
+                        List<StereoMolecule> assembly = Arrays.asList(mol_a.get(finalZi), mol_b.get(finalZj), mol_c.get(finalZk));
+                        StereoMolecule assembled = SynthonReactor.react(assembly);
+                        SimpleSynthon[] synthons_i = new SimpleSynthon[]{ma[finalZi], mb[finalZj], mc[finalZk]};
+                        return new SimpleExpandedHit(assembled.getIDCode(), assembled.getIDCoordinates(), synthons_i);
+                    };
+                    // Early exit check before task submission to avoid unnecessary task submissions.
+                    if (futureList.size() >= max_expanded) {
+                        break;
+                    }
+                    futureList.add(executor.submit(task));
+                }
+            }
+        }
+
+        List<SimpleExpandedHit> expanded = new ArrayList<>();
+        // Collect and process results
+        for (Future<SimpleExpandedHit> future : futureList) {
+            try {
+                SimpleExpandedHit hit = future.get(); // This call blocks until the task is complete.
+                expanded.add(hit);
+                if (expanded.size() >= max_expanded) {
+                    break;
+                }
+            } catch (Exception e) {
+                // Handle exceptions appropriately
+                e.printStackTrace();
+            }
+        }
+        executor.shutdown(); // Shutdown the executor service
         return expanded;
     }
 

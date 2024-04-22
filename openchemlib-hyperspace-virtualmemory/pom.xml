@@ -5,13 +5,13 @@
     <parent>
         <artifactId>openchemlib-hyperspace</artifactId>
         <groupId>com.idorsia.research</groupId>
-        <version>dev-SNAPSHOT</version>
+        <version>2.2.5</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <!--<groupId>com.idorsia.research</groupId>-->
     <artifactId>openchemlib-hyperspace-virtualmemory</artifactId>
-    <version>${revision}</version>
+    <version>2.2.5</version>
     <packaging>jar</packaging>
     <!--<version>1.2-SNAPSHOT</version>-->
 
@@ -33,7 +33,7 @@
         <dependency>
             <groupId>com.idorsia.research</groupId>
             <artifactId>openchemlib-hyperspace-core</artifactId>
-            <version>${revision}</version>
+            <version>2.2.5</version><!--<version>${revision}</version>-->
             <scope>compile</scope>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.rocksdb/rocksdbjni -->

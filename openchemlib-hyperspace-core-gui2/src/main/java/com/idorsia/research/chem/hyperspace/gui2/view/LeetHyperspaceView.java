@@ -21,7 +21,9 @@ public class LeetHyperspaceView extends AbstractLeetHyperspaceView {
     private JPanel pSynthonSpaceView;
     private JPanel pProcssTableView;
     private JPanel pEditorView;
-    private JPanel pCombiResultView;
+    private JTabbedPane tpCombiResultView;
+    private JPanel pCombiResultViewA;
+    private JPanel pCombiResultViewB;
 
 
     public LeetHyperspaceView(LeetHyperspaceModel model) {
@@ -50,12 +52,17 @@ public class LeetHyperspaceView extends AbstractLeetHyperspaceView {
         pSynthonSpaceView = new JPanel(); pSynthonSpaceView.setLayout(new BorderLayout());
         pProcssTableView  = new JPanel(); pProcssTableView.setLayout(new BorderLayout());
         pEditorView       = new JPanel(); pEditorView.setLayout(new BorderLayout());
-        pCombiResultView  = new JPanel(); pCombiResultView.setLayout(new BorderLayout());
+        tpCombiResultView = new JTabbedPane();
+        pCombiResultViewA  = new JPanel(); pCombiResultViewA.setLayout(new BorderLayout());
+        pCombiResultViewB  = new JPanel(); pCombiResultViewB.setLayout(new BorderLayout());
+        tpCombiResultView.addTab("Combinatorial",pCombiResultViewA);
+        tpCombiResultView.addTab("Enumerated",pCombiResultViewB);
 
         tpLeftTop.addTab("Editor",pEditorView);
         tpLeftTop.addTab("Synthon Space",pSynthonSpaceView);
         pLeftBottom.add(pProcssTableView,BorderLayout.CENTER);
-        pRight.add(pCombiResultView,BorderLayout.CENTER);
+        //pRight.add(pCombiResultView,BorderLayout.CENTER);
+        pRight.add(tpCombiResultView,BorderLayout.CENTER);
 
         //this.add(pSynthonSpaceView);
         //this.add(pProcssTableView);
@@ -81,14 +88,14 @@ public class LeetHyperspaceView extends AbstractLeetHyperspaceView {
     }
 
     public void addResultsView(CombinatorialHitsView view) {
-        this.pCombiResultView.removeAll();
-        this.pCombiResultView.add(view, BorderLayout.CENTER);
+        this.pCombiResultViewA.removeAll();
+        this.pCombiResultViewA.add(view, BorderLayout.CENTER);
         SwingUtilities.updateComponentTreeUI(this);
     }
 
     public void addResultsView(RealTimeExpandingHitsView view) {
-        this.pCombiResultView.removeAll();
-        this.pCombiResultView.add(view, BorderLayout.CENTER);
+        this.pCombiResultViewB.removeAll();
+        this.pCombiResultViewB.add(view, BorderLayout.CENTER);
         SwingUtilities.updateComponentTreeUI(this);
     }
 

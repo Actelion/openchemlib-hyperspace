@@ -23,6 +23,7 @@ public class SynthonSpaceView extends JPanel {
         this.tree = new JTree(model.getSynthonSpacesTreeModel().getTreeModel());
         this.scrollPane = new JScrollPane(this.tree);
         this.add(this.scrollPane,BorderLayout.CENTER);
+        this.tree.setCellRenderer(new SynthonTreeCellRenderer());
     }
 
 

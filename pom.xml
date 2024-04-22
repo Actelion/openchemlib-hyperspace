@@ -46,6 +46,7 @@
         <module>openchemlib-hyperspace-tools</module>
         <module>openchemlib-hyperspace-core-gui2</module>
         <module>openchemlib-hyperspace-virtualmemory</module>
+        <module>openchemlib-hyperspace-server</module>
         <!--<module>hyperspace-shared</module>-->
     </modules>
 
@@ -207,9 +208,9 @@
         </snapshots>
     </repository>
     </repositories>-->
+$
 
-    <!--
-    <repositories>
+    <!--<repositories>
         <repository>
             <id>snapshots-repo</id>
             <url>https://oss.sonatype.org/content/repositories/snapshots</url>
@@ -234,7 +235,7 @@
             <releases><enabled>false</enabled></releases>
             <snapshots><enabled>true</enabled></snapshots>
         </repository>
-    </repositories>
-    -->
+    </repositories>-->
+
 
 </project>

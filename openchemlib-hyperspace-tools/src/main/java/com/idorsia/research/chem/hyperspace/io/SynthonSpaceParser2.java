@@ -67,7 +67,7 @@ public class SynthonSpaceParser2 {
 
         linesProcessed = 0;
 
-        BufferedReader in = new BufferedReader(new FileReader(file));
+        BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8));
 
         Thread t_progress_monitor = new Thread() {
             @Override

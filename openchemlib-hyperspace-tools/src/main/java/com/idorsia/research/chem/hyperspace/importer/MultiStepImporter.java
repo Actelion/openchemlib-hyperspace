@@ -4,6 +4,9 @@ import com.actelion.research.chem.IsomericSmilesCreator;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -225,7 +228,7 @@ public class MultiStepImporter {
         }
 
         try {
-            BufferedWriter out = new BufferedWriter(new FileWriter(new File(str_output)));
+            BufferedWriter out = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(Paths.get(str_output)), StandardCharsets.UTF_8));
             List<String> parts_header = new ArrayList<>();
             parts_header.add("smiles");
             parts_header.add("synthon");

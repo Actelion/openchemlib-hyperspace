@@ -14,9 +14,7 @@ import com.actelion.research.chem.descriptor.DescriptorHandler;
 import com.actelion.research.chem.descriptor.DescriptorHandlerStandard2DFactory;
 import com.idorsia.research.chem.hyperspace.descriptor.DescriptorHandlerLongFFP1024_plus;
 import com.idorsia.research.chem.hyperspace.descriptor.DescriptorHandlerPPCore;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.commons.lang3.tuple.Triple;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -26,7 +24,12 @@ import java.util.stream.Collectors;
 
 public class SynthonSpace implements Serializable {
 
-    private static final long SerialVersionUID=228844663377L;
+//  private static final long serialVersionUID = -2403328748368046092L; // used to build the Synple Space
+
+    private static final long serialVersionUID = 7998782098981994277L;  // // added 17-May-2024, TLS, this was used de-facto before, but it depends on Compiler
+
+    // private static final long SerialVersionUID=228844663377L;   // Original, but was never used, because capital 'S' is wrong!
+
     //private int logLevel = 0;
 
     private static int logLevel_hitExpansion   = 1;

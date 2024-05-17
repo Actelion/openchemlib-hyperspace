@@ -15,17 +15,20 @@ package com.idorsia.research.chem.hyperspace;
  */
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public class LSHProvider implements Serializable {
+//    private static final long serialVersionUID = 5245800001065670825L;  // temporarily used for Synple
+    private static final long serialVersionUID = -1958435657855323807L;   // // added 17-May-2024, TLS, evidently used historically
 
     private int logLevel = 0;
 

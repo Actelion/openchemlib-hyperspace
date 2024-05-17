@@ -65,6 +65,9 @@ public class BitSetTree implements Serializable {
     }
 
     public static final class Node implements Serializable {
+//        private static final long serialVersionUID = 6612754111018245823L;  // temporarily used for Synple
+        private static final long serialVersionUID = -6432137482703457104L;   // added 17-May-2024, TLS, evidently used historically
+
         // if -1, then this is a leaf
         public int bit;
 

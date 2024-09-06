@@ -208,7 +208,7 @@ public class HyperspaceEngine {
                 allowed_rxns);
         //explorer.screen_default(3, 3, );
 
-        Function<Integer,Integer> f_initial_dist = (Integer bits) ->  new Integer( (int) Math.ceil(  ((double)bits.intValue()) * (1.0-min_tanimoto_sim_initial) ) + 2 );
+        Function<Integer,Integer> f_initial_dist = (Integer bits) -> Integer.valueOf( (int) Math.ceil(  ((double)bits.intValue()) * (1.0-min_tanimoto_sim_initial) ) + 2 );
 
         Random r = new Random();
         List<SynthonSpaceSimilarityExplorer.SimilarityHit> hits = new ArrayList<>();

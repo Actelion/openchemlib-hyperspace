@@ -2556,7 +2556,7 @@ public class SynthonSpace implements Serializable {
                 Optional<Integer> oi = rxci.stream().filter( ci -> ci >= sci ).sorted().findFirst();
                 is_ok &= oi.isPresent();
                 if(!is_ok){break;}
-                rxci.remove(new Integer(sci));
+                rxci.remove(Integer.valueOf(sci));
             }
             if(is_ok) {
                 rxns.addAll(space.rxns_by_connector_counts.get(rxn_cc));

@@ -1,12 +1,9 @@
 package com.idorsia.research.chem.hyperspace;
 
-import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.StereoMolecule;
-import javafx.concurrent.Task;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.sql.SQLOutput;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
@@ -22,9 +19,7 @@ import java.util.stream.Collectors;
 
 
 public class SynthonSimilaritySpace3 extends SynthonSpace {
-
-
-
+    private static final long serialVersionUID=-6086861375445546115L; // de-facto this one was used before without being declared; TLS 24Nov2024
 
     public static class TopoConstraints {
         /**
@@ -149,14 +144,13 @@ public class SynthonSimilaritySpace3 extends SynthonSpace {
 
     }
 
-
-
-
     /**
      * connectors is a bitset with bit 0 for U, 1 for Np, and so on
      * connDistances is
      */
     public static class TopoInfo implements Comparable<TopoInfo> , Serializable {
+        private static final long serialVersionUID=5858522386029176779L; // de-facto this one was used before without being declared; TLS 24Nov2024
+
         public final BitSet connectors;
         public final List<Integer> connDistances;
         public final int size;
@@ -361,7 +355,9 @@ public class SynthonSimilaritySpace3 extends SynthonSpace {
      * this.mFastSimlaritySearchers
      *
      */
-    private Object lock_WriteFSS = new Serializable(){};
+    private Object lock_WriteFSS = new Serializable(){
+        private static final long serialVersionUID=-2738007941611619814L; // de-facto this one was used before without being declared; TLS 24Nov2024
+    };
 
     public SynthonSimilaritySpace3(SynthonSpace ss_space) {
         //this.cache_FPs = ss_space.cache_FPs;
@@ -497,7 +493,4 @@ public class SynthonSimilaritySpace3 extends SynthonSpace {
         num_synthon_sets_processed = num_synthon_sets;
         progress.accept(1.0);
     }
-
-
-
 }

@@ -73,6 +73,8 @@ public class SynthonSpace implements Serializable {
     //Map<String,Map<Integer,Map<BitSet,String>>> descriptors_sorted = new HashMap<>();
 
     public static final class FragType implements Serializable , Comparable<FragType> {
+        private static final long serialVersionUID=8823035317778495954L;    // suid was missing, but this was the de-facto one; TLS 24Nov2024
+
         public final String rxn_id;
         public final int frag;
         public final int hash;
@@ -114,7 +116,8 @@ public class SynthonSpace implements Serializable {
 
 
     public static final class FragId implements Serializable {
-        private static final long SerialVersionUID=1116644677324L;
+//        private static final long SerialVersionUID=1116644677324L; was never used because of the capital 'S'
+        private static final long serialVersionUID=-2241584156545278143L; // de-facto this one was used and now added; TLS 24Nov2024
 
         public final String rxn_id;
         public final int frag;
@@ -252,7 +255,8 @@ public class SynthonSpace implements Serializable {
 
 
     public static class RxnId implements Serializable {
-        private static final long SerialVersionUID=7773366551928L;
+        //        private static final long SerialVersionUID=7773366551928L; was never used because of the capital 'S'
+        private static final long serialVersionUID=-1052460726830723567L; // de-facto this one was used before without being declared; TLS 24Nov2024
 
         public final String id;
         public final int num_connectors;

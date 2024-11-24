@@ -1067,9 +1067,9 @@ public class LSHProvider implements Serializable {
         }
     }
 
-
-
     static class RPLSHFunction implements LSHFunction , Serializable {
+        private static final long serialVersionUID=-5567530831074257650L; // de-facto this one was used before without being declared; TLS 24Nov2024
+
         public final int M;
         public final BitSet P;
         public final int[] multipliers;
@@ -1155,8 +1155,4 @@ public class LSHProvider implements Serializable {
         double a_and_b = shared_bits.cardinality();
         return a_and_b / a_or_b;
     }
-
-
-
-
 }

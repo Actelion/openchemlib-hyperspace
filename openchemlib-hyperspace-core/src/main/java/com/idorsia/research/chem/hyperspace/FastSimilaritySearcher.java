@@ -2,7 +2,6 @@ package com.idorsia.research.chem.hyperspace;
 
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.descriptor.DescriptorHandler;
-import com.actelion.research.chem.descriptor.DescriptorHandlerLongFFP512;
 import com.idorsia.research.chem.hyperspace.descriptor.MyDescriptorResolver;
 import com.idorsia.research.chem.hyperspace.outofmemory.OutOfMemoryStringToStringMap;
 import org.apache.commons.io.LineIterator;
@@ -25,6 +24,7 @@ import java.util.stream.Collectors;
 
 
 public class FastSimilaritySearcher implements Serializable {
+    private static final long serialVersionUID=5684337949738686781L; // de-facto this one was used before without being declared; TLS 24Nov2024
 
     private int BITS = 512;
 

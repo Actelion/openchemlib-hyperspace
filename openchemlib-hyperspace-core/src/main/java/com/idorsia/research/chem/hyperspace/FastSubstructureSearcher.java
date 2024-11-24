@@ -4,11 +4,8 @@ import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.SSSearcher;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.descriptor.DescriptorHandler;
-import com.actelion.research.chem.descriptor.DescriptorHandlerFFP512;
 import com.actelion.research.chem.descriptor.DescriptorHandlerLongFFP512;
-import com.idorsia.research.chem.hyperspace.descriptor.DescriptorHandlerLongFFP1024_plus;
 import com.idorsia.research.chem.hyperspace.descriptor.MyDescriptorResolver;
-import com.idorsia.research.chem.hyperspace.outofmemory.MergeSortExternal;
 import com.idorsia.research.chem.hyperspace.outofmemory.OutOfMemoryStringToStringMap;
 
 import java.io.*;
@@ -43,7 +40,7 @@ import java.util.stream.Collectors;
  */
 
 public class FastSubstructureSearcher implements Serializable {
-
+    private static final long serialVersionUID=5892111385553006799L; // de-facto this one was used before without being declared; TLS 24Nov2024
 
     private int BITS = 512;
 

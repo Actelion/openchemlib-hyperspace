@@ -4,7 +4,6 @@ import com.actelion.research.calc.ProgressController;
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.io.DWARFileCreator;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 
@@ -432,8 +431,8 @@ public class SubstructureSearchHelper {
         }
 
 
-        int qf_any_bond_type = Molecule.cBondQFSingle | Molecule.cBondQFDouble |
-                Molecule.cBondQFTriple | Molecule.cBondQFDelocalized;
+        int qf_any_bond_type = Molecule.cBondTypeSingle | Molecule.cBondTypeDouble |
+                Molecule.cBondTypeTriple | Molecule.cBondTypeDelocalized;
 
         mi.deleteBond(bond);
         int last = a1;

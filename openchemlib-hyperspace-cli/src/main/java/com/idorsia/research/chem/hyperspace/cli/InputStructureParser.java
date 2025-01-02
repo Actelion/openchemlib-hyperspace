@@ -2,6 +2,7 @@ package com.idorsia.research.chem.hyperspace.cli;
 
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.Molecule;
+import com.actelion.research.chem.SmilesParser;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.io.DWARFileParser;
 import com.idorsia.research.chem.hyperspace.HyperspaceUtils;
@@ -32,6 +33,10 @@ public class InputStructureParser {
         if( inputFile.toLowerCase().endsWith(".idc") || inputFile.toLowerCase().endsWith(".txt") ) {
             System.out.println("[INFO] input= "+inputFile+" -> parse idcodes");
             return parseIDC(inputFile);
+        }
+        if( inputFile.toLowerCase().endsWith(".smi") ) {
+            System.out.println("[INFO] input= "+inputFile+" -> parse smiles");
+            return parseSMILES(inputFile);
         }
         // last resort, also try to parse idcodes..
         return parseIDC(inputFile);
@@ -70,6 +75,34 @@ public class InputStructureParser {
 
         System.out.println("[INFO] Done parsing dwar file, parsed "+structures.size()+" molecules");
         return structures;
+    }
+
+    public static List<StereoMolecule> parseSMILES(String inputFile) {
+        System.out.println("[INFO] Parse smiles: "+inputFile);
+        List<StereoMolecule> structures = new ArrayList<>();
+        SmilesParser parser = new SmilesParser();
+        try(FileReader f_in = new FileReader(inputFile)) {
+            BufferedReader in = new BufferedReader(f_in);
+            String line = null;
+            while( (line=in.readLine()) != null ) {
+                try {
+                    StereoMolecule mi = new StereoMolecule();
+                    parser.parse(mi, line.trim());
+                    mi.ensureHelperArrays(Molecule.cHelperCIP);
+                    mi.setFragment(true);
+                    structures.add(mi);
+                }
+                catch(Exception ex) {
+                    System.out.println("[WARN] Could not parse input line: "+line+" -> skip");
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        System.out.println("[INFO] Parse smiles: done, parsed structures: "+structures.size());
+
+        return structures;
+
     }
 
     public static List<StereoMolecule> parseIDC(String inputFile) {

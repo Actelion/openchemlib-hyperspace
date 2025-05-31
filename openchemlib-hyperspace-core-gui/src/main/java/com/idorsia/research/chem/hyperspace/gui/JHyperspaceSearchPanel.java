@@ -1,11 +1,7 @@
 package com.idorsia.research.chem.hyperspace.gui;
 
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.gui.JDrawArea;
-import com.actelion.research.gui.JDrawPanel;
 import com.actelion.research.gui.clipboard.ClipboardHandler;
 import com.actelion.research.gui.editor.GenericEditorArea;
-import com.actelion.research.gui.editor.SwingEditorArea;
 import com.actelion.research.gui.editor.SwingEditorPanel;
 import com.idorsia.research.chem.hyperspace.gui.search.JSearchProviderListPanel;
 

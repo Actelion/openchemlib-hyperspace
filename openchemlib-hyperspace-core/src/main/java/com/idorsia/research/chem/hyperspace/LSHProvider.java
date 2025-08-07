@@ -1150,7 +1150,7 @@ public class LSHProvider implements Serializable {
         BitSet all_bits    = (BitSet) a.clone();
         BitSet shared_bits = (BitSet) a.clone();
         all_bits.or(b);
-
+        shared_bits.and(b);
         double a_or_b = all_bits.cardinality();
         double a_and_b = shared_bits.cardinality();
         return a_and_b / a_or_b;

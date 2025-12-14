@@ -2111,7 +2111,8 @@ public class SynthonSpace implements Serializable {
                                 if (space.substructure_searchers_sorted_by_connector_fp.get(fti).containsKey(ss_bsi)) {
                                     ffi.setFragment(true);
                                     info_num_structures_searches+=space.substructure_searchers_sorted_by_connector_fp.get(fti).get(ss_bsi).mIDs.keySet().size(); // only for info/debug
-                                    List<String> hits_i = space.substructure_searchers_sorted_by_connector_fp.get(fti).get(ss_bsi).findSubstructure(cdh, ffi, 200); // TODO: parametrize max_hits parameter
+                                                  // Changed max_hits from 200 to 1000, because in some cases only a subset of the real hits were returned, TLS 14-Dec-2025
+                                    List<String> hits_i = space.substructure_searchers_sorted_by_connector_fp.get(fti).get(ss_bsi).findSubstructure(cdh, ffi, 1000); // TODO: parametrize max_hits parameter
                                     //resolved_ids = space.substructure_searchers_sorted_by_connector_fp.get(fti).get(ss_bsi).resolveIdcodeToIDs(hits);
                                     Map<String,List<String>> resolved_ids_i = space.substructure_searchers_sorted_by_connector_fp.get(fti).get(ss_bsi).resolveIdcodeToIDs(hits_i);
                                     resolved_ids.putAll(resolved_ids_i);

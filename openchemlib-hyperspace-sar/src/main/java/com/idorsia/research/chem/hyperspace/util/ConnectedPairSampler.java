@@ -194,7 +194,7 @@ public class ConnectedPairSampler {
             int queryFeatures = 0;
             queryFeatures |= (minAtoms << Molecule.cBondQFBridgeMinShift);
             queryFeatures |= (atomSpan << Molecule.cBondQFBridgeSpanShift);
-            queryFeatures &= ~Molecule.cBondQFAllBondTypes;
+            //queryFeatures &= ~Molecule.cBondQFAllBondTypes; // hmm.. does not exist anymore? Maybe check..
 
             mi.setBondQueryFeature(bond,queryFeatures,true);
         }

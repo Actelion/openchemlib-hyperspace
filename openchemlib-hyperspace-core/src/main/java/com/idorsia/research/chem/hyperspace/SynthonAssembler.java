@@ -144,7 +144,6 @@ public class SynthonAssembler {
         m_parts.get(0).ensureHelperArrays(Molecule.cHelperCIP);
         StereoMolecule assembled_pre = new StereoMolecule(m_parts.get(0));
         assembled_pre.ensureHelperArrays(StereoMolecule.cHelperCIP);
-        assembled_pre.ensureHelperArrays(StereoMolecule.cHelperNeighbours);
 
         //for(int zi=1;zi<m_parts.size();zi++) {
         for(int zi=1;zi<m_parts.size();zi++) {
@@ -155,10 +154,8 @@ public class SynthonAssembler {
 
 //            m_parts.get(0).addFragment(m_parts.get(zi), 0, atom_map);
 //            m_parts.get(0).ensureHelperArrays(StereoMolecule.cHelperCIP);
-//            m_parts.get(0).ensureHelperArrays(StereoMolecule.cHelperNeighbours);
             assembled_pre.addFragment(m_parts.get(zi), 0, atom_map);
             assembled_pre.ensureHelperArrays(StereoMolecule.cHelperCIP);
-            assembled_pre.ensureHelperArrays(StereoMolecule.cHelperNeighbours);
 
             if(logLevel_assemble>0) {
                 System.out.println( HyperspaceUtils.idcodeToSmiles(assembled_pre.getIDCode()) );

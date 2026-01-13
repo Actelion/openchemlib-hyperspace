@@ -5,7 +5,6 @@ import com.actelion.research.calc.combinatorics.CombinationGenerator;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.SmilesParser;
 import com.actelion.research.chem.StereoMolecule;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.Serializable;
 import java.util.*;
@@ -440,7 +439,7 @@ public class SynthonShredder {
 
         public String toString() {
             String smiles =  "Smiles= "+ Arrays.stream(this.fragments).map( fi -> HyperspaceUtils.idcodeToSmiles(fi.getIDCode()) ).collect(Collectors.joining(".")) ;
-            String idc    =  "idcode= "+Arrays.stream(this.fragments).map( fi -> HyperspaceUtils.idcodeToSmiles(fi.getIDCode()) ).collect(Collectors.joining(" ::: "));
+            String idc    =  "idcode= "+Arrays.stream(this.fragments).map( fi -> fi.getIDCode() ).collect(Collectors.joining(" ::: "));
             return smiles+" ;; "+idc;
         }
     }

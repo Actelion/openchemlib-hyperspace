@@ -145,7 +145,7 @@ public class SynthonSpace implements Serializable {
         public FragId(String rxn_id, int frag, StereoMolecule sm, String fragment_id, BitSet fp, BitSet fp_non_unique_connectors) {
             this.rxn_id = rxn_id;
             this.frag = frag;
-            this.idcode = ""+new String( sm.getIDCode() );
+            this.idcode = sm.getIDCode();
             this.fragment_id = fragment_id;
             this.fp = fp;
             this.fp_non_unique_connectors = fp_non_unique_connectors;
@@ -1727,7 +1727,7 @@ public class SynthonSpace implements Serializable {
 
        List<Future> tasks_initialhits = new ArrayList<>();
 
-       for(int[] si : splits) {
+        for(int[] si : splits) {
            final int num_connectors = num_splits+1; // this we should also fix at the beginning..
            //findInitialHits_forSplitPattern(space,cdh,mol,si,num_connectors,max_fragments,max_hits,initial_hits,initial_hits_sorted);
 
@@ -1937,10 +1937,7 @@ public class SynthonSpace implements Serializable {
             return;
         }
 
-        StereoMolecule mi = new StereoMolecule(mol);
-        mi.ensureHelperArrays(StereoMolecule.cHelperCIP);
-
-        SynthonShredder.SplitResult split_result = SynthonShredder.trySplit(mi,split_pattern,max_fragments);
+        SynthonShredder.SplitResult split_result = SynthonShredder.trySplit(mol,split_pattern,max_fragments);
         if(split_result==null) {
             if(out_statistics!=null) {
                 out_statistics.add(new SplitPatternWithConnectorProximityPruningStatistics(false,new HashMap<>(),0,0));
@@ -2537,8 +2534,6 @@ public class SynthonSpace implements Serializable {
      * @return
      */
     public static Map<String,List<Map<Integer, Pair<FragType,BitSet>>>> computeConnectorProximityPruningMatchedVariants(SynthonSpace space, CachedDescriptorProvider cdp, SynthonShredder.SplitResult split_result, Set<String> rxns_to_omit) {
-
-
         // NOT_TODO: filter rxns by connector counts.. --> ACTUALLY, we cannot really filter based on
         // this, as we then miss partial hits. We have to select all reactions, that contain
         // a subset of the required connector counts.
@@ -2576,8 +2571,6 @@ public class SynthonSpace implements Serializable {
 
         Map<Integer,BitSet> stored_conn_fps = new HashMap<>(); // from frag-idx to stored conn-fp
 
-        Map<Integer,BitSet> stored_conn_fps_MATCHED = new HashMap<>(); // from frag-idx to the conn-fp
-
         boolean matching_possible = true;
 
         Map<String,List<Map<FragType,Integer>>> initial_partial_matchings = new HashMap<>(); // per rxn id.., map from fragtype to idx in split result
@@ -2587,7 +2580,7 @@ public class SynthonSpace implements Serializable {
         Map<String,List<Map<FragType,Integer>>> current_partial_matchings = initial_partial_matchings;
         while( matching_possible && (frag_idx<split_result.fragments.length) ) {
             if(Thread.currentThread().isInterrupted()) {return new HashMap<>();}
-            BitSet conn_fpi = cdp.getFP_cached( createConnectorProximalFragment( split_result.fragments[frag_idx] , CONNECTOR_REGION_SIZE ) );
+            BitSet conn_fpi = cdp.getFP_cached(createConnectorProximalFragment(split_result.fragments[frag_idx] , CONNECTOR_REGION_SIZE ) );
             stored_conn_fps.put(frag_idx,conn_fpi);
 
             matching_possible = false; // will be set to true, if we add extended partial mapping

@@ -31,6 +31,57 @@ You can now run substructure searches against the 30k structures.
 
 ![Hyperspace2 GUI](hyperspace2_gui_manual.png)
 
+## Synthon downsampling CLI
+
+After building the CLI module you can reduce large synthon sets (e.g. before downstream workflows) via the new `SynthonSpaceDownsamplingCLI`:
+
+```
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+    com.idorsia.research.chem.hyperspace.cli.SynthonSpaceDownsamplingCLI \
+    --spaceIn hyperspace.data \
+    --spaceOut hyperspace.downsampled.gz \
+    --maxCenters 8 \
+    --minSimilarity 0.75 \
+    --seed 13
+```
+
+`--spaceIn` expects a serialized `SynthonSpace`, and `--spaceOut` stores the `DownsampledSynthonSpace` side-car. The optional parameters configure the SkelSpheres-based k-centers routine (max representatives per synthon set, similarity cut-off, shuffling seed, connector grouping).
+
+## Query-aware seed finder CLI
+
+Given a downsampled synthon space you can launch the query-aware seed finder that assembles random molecules and filters them with PheSA:
+
+```
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+    com.idorsia.research.chem.hyperspace.cli.SynthonSeedFinderCLI \
+    --downsampled hyperspace.downsampled.gz \
+    --output hits.tsv \
+    --querySmiles "c1ccc(cc1)NC(=O)N" \
+    --attempts 5000 \
+    --minAtoms 20 \
+    --maxAtoms 60 \
+    --maxRotBonds 15 \
+    --minPhesa 0.65
+```
+
+Each TSV line contains the reaction id, the contributing synthon identifiers, the assembled IDCode, atom counts, rotatable bond counts, and the PheSA similarity.
+
+## Local beam optimization CLI
+
+Given a seed TSV (from the seed finder) you can run the local stochastic optimization routine. Supply either a downsampled synthon space (restricts swaps) or a full synthon space file:
+
+```
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+    com.idorsia.research.chem.hyperspace.cli.SynthonLocalOptimizerCLI \
+    --seeds seeds.tsv \
+    --output optimized.tsv \
+    --space my_space.data \
+    --querySmiles "c1ccc(cc1)NC(=O)N" \
+    --beam 10 --topL 100 --sampleNeighbors 10 --cap 2 --rounds 6 --patience 3 --minPhesa 0.65 --seedThreads 4 --log IMPROVEMENTS
+```
+
+The optimizer keeps a beam of the best assemblies while sampling top-L SkelSpheres neighbors per synthon, assembling each candidate, and rescoring with the 3D PheSA alignment. The output TSV mirrors the seed format with an additional `seedFragIds` column that records the starting tuple.
+
 
 
 # Build

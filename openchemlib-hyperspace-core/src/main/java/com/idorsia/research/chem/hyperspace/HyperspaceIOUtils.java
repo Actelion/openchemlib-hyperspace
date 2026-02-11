@@ -1,5 +1,6 @@
 package com.idorsia.research.chem.hyperspace;
 
+import com.idorsia.research.chem.hyperspace.downsampling.DownsampledSynthonSpace;
 import org.apache.commons.io.input.CountingInputStream;
 
 import java.io.*;
@@ -68,6 +69,22 @@ public class HyperspaceIOUtils {
         }
         catch(IOException ex) {
             ex.printStackTrace();
+        }
+    }
+
+    public static DownsampledSynthonSpace loadDownsampledSynthonSpace(String file) throws IOException {
+        try (ObjectInputStream in = new ObjectInputStream(new GZIPInputStream(new BufferedInputStream(new FileInputStream(file))))) {
+            return (DownsampledSynthonSpace) in.readObject();
+        } catch (ClassNotFoundException e) {
+            throw new IOException("Failed to deserialize DownsampledSynthonSpace", e);
+        }
+    }
+
+    public static void saveDownsampledSynthonSpace(DownsampledSynthonSpace space, String file) {
+        try (ObjectOutputStream out = new ObjectOutputStream(new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(file))))) {
+            out.writeObject(space);
+        } catch (IOException ex) {
+            throw new RuntimeException("Unable to store downsampled synthon space", ex);
         }
     }
 

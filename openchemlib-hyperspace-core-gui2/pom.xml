@@ -5,12 +5,12 @@
     <parent>
         <artifactId>openchemlib-hyperspace</artifactId>
         <groupId>com.idorsia.research</groupId>
-        <version>2.2.6-SNAPSHOT</version>
+        <version>2.3.1</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>openchemlib-hyperspace-core-gui2</artifactId>
-    <version>2.2.6-SNAPSHOT</version>
+    <version>2.3.1</version>
     <packaging>jar</packaging>
 
     <name>openchemlib-hyperspace-core-gui2</name>
@@ -26,7 +26,7 @@
         <dependency>
             <groupId>com.idorsia.research</groupId>
             <artifactId>openchemlib-hyperspace-core</artifactId>
-            <version>2.2.6-SNAPSHOT</version><!--<version>${revision}</version>-->
+            <version>2.3.1</version><!--<version>${revision}</version>-->
             <scope>compile</scope>
         </dependency>
         <dependency>

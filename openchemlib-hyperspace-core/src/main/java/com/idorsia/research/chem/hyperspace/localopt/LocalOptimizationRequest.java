@@ -60,6 +60,13 @@ public class LocalOptimizationRequest implements Serializable {
         return improvementTolerance;
     }
 
+    /**
+     * Generic accessor for the minimum score threshold (maps to minPhesaSimilarity by default).
+     */
+    public double getMinScoreThreshold() {
+        return minPhesaSimilarity;
+    }
+
     public long getRandomSeed() {
         return randomSeed;
     }

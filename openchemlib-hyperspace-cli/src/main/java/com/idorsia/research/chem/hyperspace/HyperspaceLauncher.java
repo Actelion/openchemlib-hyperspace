@@ -1,5 +1,8 @@
 package com.idorsia.research.chem.hyperspace;
 
+import com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceBuildCLI;
+import com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceImportCLI;
+import com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceProcessorCLI;
 import com.idorsia.research.chem.hyperspace.gui.HyperspaceSearchGUI;
 import com.idorsia.research.chem.hyperspace.gui.HyperspaceServer;
 import com.idorsia.research.chem.hyperspace.io.SynthonSpaceParser2;
@@ -15,7 +18,7 @@ public class HyperspaceLauncher {
      * SERVER (then it uses the HyperspaceServer)
      *
      */
-    public static void main(String args[]) {
+    public static void main(String args[]) throws Exception {
         String args2[] = new String[args.length-1];
         for(int zi=1;zi<args.length;zi++) {args2[zi-1]=args[zi];}
 
@@ -27,6 +30,18 @@ public class HyperspaceLauncher {
         }
         else if(args[0].equalsIgnoreCase("SERVER")) {
             HyperspaceServer.main(args2);
+        }
+        else if(args[0].equalsIgnoreCase("IMPORTSPACE")) {
+            RawSynthonSpaceImportCLI.main(args2);
+        }
+        else if(args[0].equalsIgnoreCase("BUILDSPACEFROMRAW")) {
+            RawSynthonSpaceBuildCLI.main(args2);
+        }
+        else if(args[0].equalsIgnoreCase("PROCESSRAWSPACE")) {
+            RawSynthonSpaceProcessorCLI.main(args2);
+        }
+        else if(args[0].equalsIgnoreCase("CONTINUOUSSCREENING")) {
+            com.idorsia.research.chem.hyperspace.cli.ContinuousScreeningCLI.main(args2);
         }
     }
 

@@ -1,9 +1,12 @@
 package com.idorsia.research.chem.hyperspace;
 
 import com.idorsia.research.chem.hyperspace.downsampling.DownsampledSynthonSpace;
+import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace;
+import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpaceIO;
 import org.apache.commons.io.input.CountingInputStream;
 
 import java.io.*;
+import java.nio.file.Path;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -80,12 +83,12 @@ public class HyperspaceIOUtils {
         }
     }
 
-    public static void saveDownsampledSynthonSpace(DownsampledSynthonSpace space, String file) {
-        try (ObjectOutputStream out = new ObjectOutputStream(new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(file))))) {
-            out.writeObject(space);
-        } catch (IOException ex) {
-            throw new RuntimeException("Unable to store downsampled synthon space", ex);
-        }
+    public static RawSynthonSpace loadRawSynthonSpace(String file) throws IOException {
+        return RawSynthonSpaceIO.read(Path.of(file));
+    }
+
+    public static void saveRawSynthonSpace(RawSynthonSpace space, String file) throws IOException {
+        RawSynthonSpaceIO.write(space, Path.of(file));
     }
 
 }

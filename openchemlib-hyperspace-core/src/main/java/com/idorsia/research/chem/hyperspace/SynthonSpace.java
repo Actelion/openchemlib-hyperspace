@@ -656,91 +656,7 @@ public class SynthonSpace implements Serializable {
      * @throws Exception
      */
     public static boolean ensureReactionIsOk(Map<Integer, List<Object>> molecules) throws Exception {
-
-        int connector_counts[]                      = new int[200];
-        Map<Integer,Integer>   connector_bond_types = new HashMap<>();
-
-        IDCodeParser icp = new IDCodeParser();
-
-        for(Integer ki : molecules.keySet()) {
-            Set<Integer> connector_set = null;
-
-            StereoMolecule template_i = null;
-            if(molecules.get(ki).iterator().next() instanceof StereoMolecule) {
-                template_i = (StereoMolecule) molecules.get(ki).iterator().next();
-            }
-            else if (molecules.get(ki).iterator().next() instanceof String) {
-                template_i = new StereoMolecule();
-                icp.parse(template_i, (String) molecules.get(ki).iterator().next() );
-            }
-            //molecules.get(ki).iterator().next();
-
-            connector_set = computeConnectorSet(template_i);
-            for(Integer ci : connector_set) { connector_counts[ci.intValue()]++;}
-
-            StereoMolecule mi = new StereoMolecule();
-            for(int mzi=0; mzi<molecules.get(ki).size(); mzi++) {
-                StereoMolecule mi_pre = null;
-                if( molecules.get(ki).get(mzi) == null ) {
-                    System.out.println("Null molecule object supplied -> skip");
-                    continue;
-                }
-                else if( molecules.get(ki).get(mzi) instanceof StereoMolecule) {
-                    mi_pre = (StereoMolecule) molecules.get(ki).get(mzi);
-                }
-                else if(molecules.get(ki).get(mzi) instanceof String) {
-                    mi_pre = new StereoMolecule();
-                    icp.parse(mi_pre, (String) molecules.get(ki).get(mzi) );
-                }
-                else {
-                    System.out.println("Incmpatible molecule object supplied -> skip");
-                    continue;
-                }
-                mi = mi_pre;
-
-            //for(StereoMolecule mi : molecules.get(ki)) {
-                Set<Integer> csi = computeConnectorSet(mi);
-                if(!connector_set.equals(csi)) {
-                    throw new Exception("Connector Set " + ki + " has inconsistent connectors");
-                }
-                Map<Integer,Integer> connector_pos = computeConnectorPositions(mi);
-                for(Integer cti : connector_pos.keySet()) {
-                    int cpi = connector_pos.get(cti);
-                    // check degree 1:
-                    if(mi.getConnAtoms(cpi)!=1) { throw new Exception( "Connector with degree != 1" ); }
-                    // check binding type:
-                    //int cbt = mi.getBondType( mi.getBond( cpi , mi.getConnAtom(cpi,0) ) );
-                    // check bond order:
-                    int cb_order = mi.getBondOrder( mi.getBond( cpi , mi.getConnAtom(cpi,0) ) );
-
-                    if( !connector_bond_types.containsKey( cti ) ) {
-                        connector_bond_types.put(cti , cb_order );
-                    }
-                    else {
-                        if( cb_order != connector_bond_types.get( cti )) {
-                            throw new Exception("Inconsistent bond order detected! "+ cb_order +" != "+connector_bond_types.get(cti));
-                        }
-                    }
-                }
-            }
-        }
-
-        int num_connectors = connector_bond_types.keySet().size();
-
-        // check that we have two connectors of each, and that they are starting at 92 and are ascending:
-        List<Integer> connectors = connector_bond_types.keySet().stream().sorted().collect(Collectors.toList());
-
-        if( connectors.get(0).intValue() != 92) { throw new Exception ("Smallest connector is not 92"); }
-        for(int zi=0;zi<connectors.size();zi++) {
-            if(connectors.get(zi) != 92+zi) {
-                throw new Exception( "Connectors are not ascending from 92: "+connectors.toString() );
-            }
-        }
-
-        for( int ci : connectors) {
-            if(connector_counts[ci] != 2) { throw new Exception("Found "+connector_counts[ci]+" connectors of type "+ci+ " instead of 2"); }
-        }
-
+        com.idorsia.research.chem.hyperspace.rawspace.SynthonReactionValidator.validate(molecules);
         return true;
     }
 
@@ -2956,6 +2872,10 @@ public class SynthonSpace implements Serializable {
         return mFP;
     }
 
+    public String getDescriptorHandlerShortName() {
+        return mDescriptorHandlerShortName;
+    }
+
 
 //    Map<String,BitSet> cache_FPs = new HashMap<>();
 //
@@ -3026,7 +2946,7 @@ public class SynthonSpace implements Serializable {
     }
 
 
-    private static DescriptorHandler<long[],StereoMolecule> resolveDescriptorHandlerFromName(String shortName) {
+    public static DescriptorHandler<long[],StereoMolecule> resolveDescriptorHandlerFromName(String shortName) {
         if(shortName.equals("FFP1024_plus_ffp")) {
             return new DescriptorHandlerLongFFP1024_plus("ffp");
         }

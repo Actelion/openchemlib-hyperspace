@@ -39,13 +39,78 @@ After building the CLI module you can reduce large synthon sets (e.g. before dow
 java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
     com.idorsia.research.chem.hyperspace.cli.SynthonSpaceDownsamplingCLI \
     --spaceIn hyperspace.data \
-    --spaceOut hyperspace.downsampled.gz \
+    --rawOut hyperspace_downsampled.rawspace.gz \
     --maxCenters 8 \
     --minSimilarity 0.75 \
     --seed 13
 ```
 
-`--spaceIn` expects a serialized `SynthonSpace`, and `--spaceOut` stores the `DownsampledSynthonSpace` side-car. The optional parameters configure the SkelSpheres-based k-centers routine (max representatives per synthon set, similarity cut-off, shuffling seed, connector grouping).
+`--spaceIn` expects a serialized `SynthonSpace`. The optional parameters configure the SkelSpheres-based k-centers routine (max representatives per synthon set, similarity cut-off, shuffling seed, connector grouping). If you point the CLI to a raw dump via `--rawIn toy.rawspace`, it now runs a native raw downsampler (`SkelSpheresKCentersRaw`) without hydratring a full `SynthonSpace`, then persists the representatives back into a new raw file alongside the existing metadata. Downsampled spaces are always emitted as raw dumps (plain `.rawspace` or compressed `.rawspace.gz`), so the same file can be reused by the seed finder, local optimizer, and any future processors.
+
+## Raw synthon space import CLI
+
+You can parse vendor TSV files (e.g. Enamine REAL) or folders of per-reaction CSV files into lightweight `RawSynthonSpace` dumps before running heavier tooling. While importing you may attach arbitrary descriptor tags via repeated `--descriptorTag FragFp` (or comma-separated lists); these tags are stored as metadata and describe which descriptor families the fragments are compatible with. Multiple tags are only supported when you write the raw JSON (i.e. without `--synthonOut/--similarityOut` in the same run).
+
+```
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+    com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceImportCLI \
+    --format enamine \
+    --input idorsia_toy_space_a.txt \
+    --spaceName toy \
+    --mode FragFp \
+    --threads 4 \
+    --rawOut toy.rawspace \
+    --synthonOut toy_FragFp.data
+```
+
+```
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+    com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceImportCLI \
+    --format csv \
+    --directory /data/new_space \
+    --spaceName newspace \
+    --mode FragFp \
+    --smilesColumn SMILES \
+    --idColumn bb1_parent_id \
+    --priceColumn Price \
+    --priceAttribute price.usd \
+    --synthonSetColumn SynthonSet \
+    --rawOut newspace.rawspace
+```
+
+The CSV mode (powered by `SynthonSpaceParser3`) assumes one file per reaction; each row provides a synthon SMILES plus metadata (IDs, optional price, optional synthon-set index). Column names are configurable via CLI flags, and numeric metadata such as prices are stored as fragment attributes inside the raw space, ready for downstream cost-aware workflows. `--mode` mirrors the descriptors understood by the parser (FragFp, PathFp, mode_pfp, mode_ffp, mode_ppcore). Besides the JSON dump you can optionally persist a `SynthonSpace` and/or similarity side-car in one go.
+
+## Process RawSynthonSpace
+
+Once a raw dump exists you can enrich it with additional metadata (e.g. precomputed descriptors) without leaving the lightweight format:
+
+You can store raw dumps either as human-readable `.rawspace` files or as compressed `.rawspace.gz`. The CLI automatically detects the extension when reading or writing files.
+
+```
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+    com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceProcessorCLI \
+    --rawIn toy.rawspace \
+    --rawOut toy_with_desc.rawspace.gz \
+    --descriptor FragFp \
+    --descriptor SkelSpheres \
+    --threads 8
+```
+
+`RawSynthonSpaceProcessorCLI` writes a new JSON file so the pristine import stays unchanged. Each requested descriptor is serialized per fragment (under `descriptor.<shortName>` attributes) and tagged in the raw metadata, enabling downstream workflows (seed finding, downsampling, 2D/3D optimizers) to operate directly on enriched raw dumps.
+
+## Build SynthonSpace from RawSynthonSpace
+
+Once a raw dump exists you can regenerate a full `SynthonSpace` or similarity space without re-parsing the vendor source:
+
+```
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+    com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceBuildCLI \
+    --rawIn toy.rawspace \
+    --synthonOut toy_FragFp.data \
+    --similarityOut toy_FragFp_similarity3.data
+```
+
+When materializing a `SynthonSpace` you must explicitly provide `--descriptor` (e.g. `FragFp`, `PathFp`, `mode_pfp`, `mode_ffp`, `mode_ppcore`). The build CLI recomputes the descriptor from the raw fragments for the chosen mode, so you can run it multiple times—once per descriptor tag—without re-parsing the vendor sources. Use `--bits` to override descriptor length and `--skipValidation` to bypass connector checks if the raw dump was already validated.
 
 ## Query-aware seed finder CLI
 
@@ -54,7 +119,7 @@ Given a downsampled synthon space you can launch the query-aware seed finder tha
 ```
 java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
     com.idorsia.research.chem.hyperspace.cli.SynthonSeedFinderCLI \
-    --downsampled hyperspace.downsampled.gz \
+    --raw hyperspace_downsampled.rawspace.gz \
     --output hits.tsv \
     --querySmiles "c1ccc(cc1)NC(=O)N" \
     --attempts 5000 \
@@ -82,7 +147,23 @@ java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
 
 The optimizer keeps a beam of the best assemblies while sampling top-L SkelSpheres neighbors per synthon, assembling each candidate, and rescoring with the 3D PheSA alignment. The output TSV mirrors the seed format with an additional `seedFragIds` column that records the starting tuple.
 
+## Continuous screening CLI
 
+If you prefer a single executable that samples seeds, optionally performs a lightweight optimization on the downsampled representatives, and continuously feeds the best candidates into the full optimizer, launch the continuous screening workflow:
+
+```
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+    com.idorsia.research.chem.hyperspace.cli.ContinuousScreeningCLI \
+    --rawFull hyperspace.rawspace.gz \
+    --rawDownsampled hyperspace_downsampled.rawspace.gz \
+    --querySmiles "c1ccc(cc1)NC(=O)N" \
+    --candidateThreshold 0.65 \
+    --fullThreads 8 \
+    --outputHits screening_hits.tsv \
+    --iterations 10000
+```
+
+By default the CLI keeps looping until the requested iteration budget is exhausted (use `--iterations -1` for an open-ended run). Add `--microEnabled` together with the `--micro*` parameters if you want a short downsampled-space LocalBeamOptimizer pass before scheduling the full optimization stage.
 
 # Build
 ## General

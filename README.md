@@ -42,10 +42,12 @@ java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
     --rawOut hyperspace_downsampled.rawspace.gz \
     --maxCenters 8 \
     --minSimilarity 0.75 \
-    --seed 13
+    --seed 13 \
+    --threads 4
 ```
 
 `--spaceIn` expects a serialized `SynthonSpace`. The optional parameters configure the SkelSpheres-based k-centers routine (max representatives per synthon set, similarity cut-off, shuffling seed, connector grouping). If you point the CLI to a raw dump via `--rawIn toy.rawspace`, it now runs a native raw downsampler (`SkelSpheresKCentersRaw`) without hydratring a full `SynthonSpace`, then persists the representatives back into a new raw file alongside the existing metadata. Downsampled spaces are always emitted as raw dumps (plain `.rawspace` or compressed `.rawspace.gz`), so the same file can be reused by the seed finder, local optimizer, and any future processors.
+`--threads` controls how many synthon sets are downsampled in parallel. For size-aware caps you can add `--sizeCapScale` and `--sizeCapOffset` to apply `ceil(scale * sqrt(n) + offset)` per set; the effective cap is `min(--maxCenters, sizeCap)` when both are provided.
 
 ## Raw synthon space import CLI
 
@@ -59,7 +61,7 @@ java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
     --spaceName toy \
     --mode FragFp \
     --threads 4 \
-    --rawOut toy.rawspace \
+    --rawOut toy.rawspace.gz \
     --synthonOut toy_FragFp.data
 ```
 
@@ -75,10 +77,10 @@ java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
     --priceColumn Price \
     --priceAttribute price.usd \
     --synthonSetColumn SynthonSet \
-    --rawOut newspace.rawspace
+    --rawOut newspace.rawspace.gz
 ```
 
-The CSV mode (powered by `SynthonSpaceParser3`) assumes one file per reaction; each row provides a synthon SMILES plus metadata (IDs, optional price, optional synthon-set index). Column names are configurable via CLI flags, and numeric metadata such as prices are stored as fragment attributes inside the raw space, ready for downstream cost-aware workflows. `--mode` mirrors the descriptors understood by the parser (FragFp, PathFp, mode_pfp, mode_ffp, mode_ppcore). Besides the JSON dump you can optionally persist a `SynthonSpace` and/or similarity side-car in one go.
+The CSV mode (powered by `SynthonSpaceParser3`) assumes one file per reaction; each row provides a synthon SMILES plus metadata (IDs, optional price, optional synthon-set index). Column names are configurable via CLI flags, and numeric metadata such as prices are stored as fragment attributes inside the raw space, ready for downstream cost-aware workflows. `--mode` mirrors the descriptors understood by the parser (FragFp, PathFp, mode_pfp, mode_ffp, mode_ppcore). Besides the JSON dump you can optionally persist a `SynthonSpace` and/or similarity side-car in one go. `--rawOut` is required and can point to either `.rawspace` or `.rawspace.gz` (compression is inferred from the extension).
 
 ## Process RawSynthonSpace
 
@@ -158,12 +160,17 @@ java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
     --rawDownsampled hyperspace_downsampled.rawspace.gz \
     --querySmiles "c1ccc(cc1)NC(=O)N" \
     --candidateThreshold 0.65 \
+    --fullMinSimilarity 0.6 \
     --fullThreads 8 \
+    --queueCapacity 1000 \
+    --progressSeconds 60 \
+    --reactionWeightExponent 1.0 \
+    --reactionMinWeight 0.01 \
     --outputHits screening_hits.tsv \
     --iterations 10000
 ```
 
-By default the CLI keeps looping until the requested iteration budget is exhausted (use `--iterations -1` for an open-ended run). Add `--microEnabled` together with the `--micro*` parameters if you want a short downsampled-space LocalBeamOptimizer pass before scheduling the full optimization stage.
+By default the CLI keeps looping until the requested iteration budget is exhausted (use `--iterations -1` for an open-ended run). `--fullMinSimilarity` controls the minimum PheSA similarity that a local-optimization candidate must reach to be reported. `--queueCapacity` controls how many sample+optimize jobs can wait in the executor queue before backpressure kicks in. `--progressSeconds` sets the interval for periodic progress logging (0 disables). `--reactionWeightExponent` dampens or amplifies reaction size weighting (1.0 = proportional to candidate count), and `--reactionMinWeight` sets the minimum weight fraction for small reactions. Add `--microEnabled` together with the `--micro*` parameters if you want a short downsampled-space LocalBeamOptimizer pass before scheduling the full optimization stage.
 
 # Build
 ## General

@@ -76,6 +76,15 @@ public class LocalBeamOptimizer {
             }
         }
 
+        if (request.isReportAllCandidates()) {
+            double reportThreshold = request.getMinPhesaSimilarity();
+            List<LocalOptimizationResult.BeamEntry> allCandidates = scoreCache.values().stream()
+                    .filter(entry -> entry.getScore() >= reportThreshold)
+                    .sorted(Comparator.comparingDouble(LocalOptimizationResult.BeamEntry::getScore).reversed())
+                    .collect(Collectors.toCollection(ArrayList::new));
+            return new LocalOptimizationResult(seed.getReactionId(), allCandidates, seed.getFragmentIds());
+        }
+
         return new LocalOptimizationResult(seed.getReactionId(), beam, seed.getFragmentIds());
     }
 

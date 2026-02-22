@@ -10,7 +10,6 @@ package com.idorsia.research.chem.hyperspace;
 import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.StereoMolecule;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -21,19 +20,11 @@ public class CachedStereoMoleculeProvider {
     public CachedStereoMoleculeProvider() {
     }
 
-    Map<Thread,IDCodeParser> parsers = new HashMap<>();
-    //private IDCodeParser icp = new IDCodeParser();
+    private final ThreadLocal<IDCodeParser> parser = ThreadLocal.withInitial(IDCodeParser::new);
 
     private StereoMolecule parse(String idcode) {
         StereoMolecule nm = new StereoMolecule();
-        Thread tc = Thread.currentThread();
-        if(parsers.containsKey(tc)) {
-            parsers.get(tc).parse(nm,idcode);
-            return nm;
-        }
-        IDCodeParser nicp = new IDCodeParser();
-        parsers.put(tc,nicp);
-        nicp.parse(nm,idcode);
+        parser.get().parse(nm, idcode);
         return nm;
     }
 

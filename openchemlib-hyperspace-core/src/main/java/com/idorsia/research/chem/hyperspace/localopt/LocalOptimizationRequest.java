@@ -11,7 +11,9 @@ public class LocalOptimizationRequest implements Serializable {
     private final int maxRounds;
     private final int patience;
     private final double minPhesaSimilarity;
+    private final double minScoreThreshold;
     private final double improvementTolerance;
+    private final boolean reportAllCandidates;
     private final long randomSeed;
     private final LocalOptimizationLogLevel logLevel;
 
@@ -23,7 +25,11 @@ public class LocalOptimizationRequest implements Serializable {
         this.maxRounds = builder.maxRounds;
         this.patience = builder.patience;
         this.minPhesaSimilarity = builder.minPhesaSimilarity;
+        this.minScoreThreshold = Double.isNaN(builder.minScoreThreshold)
+                ? builder.minPhesaSimilarity
+                : builder.minScoreThreshold;
         this.improvementTolerance = builder.improvementTolerance;
+        this.reportAllCandidates = builder.reportAllCandidates;
         this.randomSeed = builder.randomSeed;
         this.logLevel = builder.logLevel;
     }
@@ -60,11 +66,15 @@ public class LocalOptimizationRequest implements Serializable {
         return improvementTolerance;
     }
 
+    public boolean isReportAllCandidates() {
+        return reportAllCandidates;
+    }
+
     /**
      * Generic accessor for the minimum score threshold (maps to minPhesaSimilarity by default).
      */
     public double getMinScoreThreshold() {
-        return minPhesaSimilarity;
+        return minScoreThreshold;
     }
 
     public long getRandomSeed() {
@@ -87,7 +97,9 @@ public class LocalOptimizationRequest implements Serializable {
         private int maxRounds = 6;
         private int patience = 3;
         private double minPhesaSimilarity = 0.6;
+        private double minScoreThreshold = Double.NaN;
         private double improvementTolerance = 1e-4;
+        private boolean reportAllCandidates = false;
         private long randomSeed = 13L;
         private LocalOptimizationLogLevel logLevel = LocalOptimizationLogLevel.NONE;
 
@@ -126,8 +138,18 @@ public class LocalOptimizationRequest implements Serializable {
             return this;
         }
 
+        public Builder minScoreThreshold(double minScoreThreshold) {
+            this.minScoreThreshold = minScoreThreshold;
+            return this;
+        }
+
         public Builder improvementTolerance(double improvementTolerance) {
             this.improvementTolerance = improvementTolerance;
+            return this;
+        }
+
+        public Builder reportAllCandidates(boolean reportAllCandidates) {
+            this.reportAllCandidates = reportAllCandidates;
             return this;
         }
 

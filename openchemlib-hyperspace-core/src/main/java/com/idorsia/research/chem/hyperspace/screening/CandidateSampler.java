@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Produces random candidates from a downsampled synthon pool.
@@ -28,14 +29,33 @@ public final class CandidateSampler {
     private final Map<String, ReactionSampler> samplers = new ConcurrentHashMap<>();
     private final PheSAMolecule query;
     private final Config config;
+    private final LongAdder comparisonCounter;
+    private final ReactionSamplingTracker samplingTracker;
 
     public CandidateSampler(DownsampledSynthonSpace downsampledSpace,
                             PheSAMolecule query,
                             Config config) {
+        this(downsampledSpace, query, config, null, null);
+    }
+
+    public CandidateSampler(DownsampledSynthonSpace downsampledSpace,
+                            PheSAMolecule query,
+                            Config config,
+                            LongAdder comparisonCounter) {
+        this(downsampledSpace, query, config, comparisonCounter, null);
+    }
+
+    public CandidateSampler(DownsampledSynthonSpace downsampledSpace,
+                            PheSAMolecule query,
+                            Config config,
+                            LongAdder comparisonCounter,
+                            ReactionSamplingTracker samplingTracker) {
         this.query = query;
         this.config = config;
+        this.comparisonCounter = comparisonCounter;
+        this.samplingTracker = samplingTracker;
         downsampledSpace.getDownsampledSets().forEach((rxnId, sets) ->
-                samplers.put(rxnId, new ReactionSampler(rxnId, sets, config)));
+                samplers.put(rxnId, new ReactionSampler(rxnId, sets, config, comparisonCounter, samplingTracker)));
     }
 
     public ScreeningCandidate sample(String reactionId, Random rng) {
@@ -76,13 +96,19 @@ public final class CandidateSampler {
         private final ThreadLocal<ConformerSetGenerator> conformerGenerator =
                 ThreadLocal.withInitial(() -> new ConformerSetGenerator(1));
         private final Config config;
+        private final LongAdder comparisonCounter;
+        private final ReactionSamplingTracker samplingTracker;
 
         private ReactionSampler(String reactionId,
                                 Map<Integer, List<SynthonSpace.FragId>> synthonSets,
-                                Config config) {
+                                Config config,
+                                LongAdder comparisonCounter,
+                                ReactionSamplingTracker samplingTracker) {
             this.reactionId = reactionId;
             this.synthonSets = synthonSets;
             this.config = config;
+            this.comparisonCounter = comparisonCounter;
+            this.samplingTracker = samplingTracker;
             List<Integer> order = new ArrayList<>(synthonSets.keySet());
             order.sort(Comparator.naturalOrder());
             this.fragOrder = Collections.unmodifiableList(order);
@@ -95,6 +121,9 @@ public final class CandidateSampler {
             List<StereoMolecule> parts = new ArrayList<>(fragOrder.size());
             List<SynthonSpace.FragId> chosen = new ArrayList<>(fragOrder.size());
             for (long attempt = 0; attempt < config.attemptsPerReaction; attempt++) {
+                if (samplingTracker != null) {
+                    samplingTracker.recordAttempt(reactionId);
+                }
                 parts.clear();
                 chosen.clear();
                 boolean missing = false;
@@ -137,12 +166,18 @@ public final class CandidateSampler {
                     continue;
                 }
                 double similarity = handler.getSimilarity(query, descriptor);
+                if (comparisonCounter != null) {
+                    comparisonCounter.increment();
+                }
                 if (similarity < config.minSimilarity) {
                     continue;
                 }
                 List<String> fragmentIds = new ArrayList<>(chosen.size());
                 for (SynthonSpace.FragId fragId : chosen) {
                     fragmentIds.add(fragId.fragment_id);
+                }
+                if (samplingTracker != null) {
+                    samplingTracker.recordSuccess(reactionId);
                 }
                 return new ScreeningCandidate(reactionId,
                         fragmentIds,
@@ -173,5 +208,11 @@ public final class CandidateSampler {
             }
             return count;
         }
+    }
+
+    public interface ReactionSamplingTracker {
+        void recordAttempt(String reactionId);
+
+        void recordSuccess(String reactionId);
     }
 }

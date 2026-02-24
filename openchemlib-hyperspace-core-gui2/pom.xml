@@ -5,20 +5,21 @@
     <parent>
         <artifactId>openchemlib-hyperspace</artifactId>
         <groupId>com.idorsia.research</groupId>
-        <version>2.3.1</version>
+        <version>2.4.1</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>openchemlib-hyperspace-core-gui2</artifactId>
-    <version>2.3.1</version>
+    <version>2.4.1</version>
     <packaging>jar</packaging>
 
     <name>openchemlib-hyperspace-core-gui2</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.source>22</maven.compiler.source>
+        <maven.compiler.target>22</maven.compiler.target>
+        <maven.compiler.release>22</maven.compiler.release>
     </properties>
 
     <dependencies>
@@ -26,7 +27,7 @@
         <dependency>
             <groupId>com.idorsia.research</groupId>
             <artifactId>openchemlib-hyperspace-core</artifactId>
-            <version>2.3.1</version><!--<version>${revision}</version>-->
+            <version>2.4.1</version><!--<version>${revision}</version>-->
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -57,7 +58,10 @@
                 </plugin>
                 <plugin>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.8.0</version>
+                    <version>3.12.1</version>
+                    <configuration>
+                        <release>${maven.compiler.release}</release>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <artifactId>maven-surefire-plugin</artifactId>

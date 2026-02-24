@@ -1,14 +1,5 @@
 package com.idorsia.research.chem.hyperspace.localopt;
 
-import com.actelion.research.chem.IDCodeParser;
-import com.actelion.research.chem.Molecule;
-import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.conf.ConformerSet;
-import com.actelion.research.chem.conf.ConformerSetGenerator;
-import com.actelion.research.chem.conf.TorsionDB;
-import com.actelion.research.chem.phesa.DescriptorHandlerShape;
-import com.actelion.research.chem.phesa.PheSAMolecule;
-import com.idorsia.research.chem.hyperspace.SynthonAssembler;
 import com.idorsia.research.chem.hyperspace.SynthonSpace;
 
 import java.util.ArrayList;
@@ -24,15 +15,19 @@ import java.util.stream.Collectors;
 public class LocalBeamOptimizer {
 
     private final SynthonSetAccessor provider;
-    private final NeighborCache neighborCache = new NeighborCache();
-    private final IDCodeParser parser = new IDCodeParser();
-    private final DescriptorHandlerShape descriptorHandler = new DescriptorHandlerShape();
-    private final ConformerSetGenerator conformerGenerator = new ConformerSetGenerator(1);
-    private final PheSAMolecule queryDescriptor;
+    private final AssemblyScorer scorer;
+    private final NeighborSampler neighborSampler;
 
-    public LocalBeamOptimizer(SynthonSetAccessor provider, PheSAMolecule queryDescriptor) {
+    public LocalBeamOptimizer(SynthonSetAccessor provider, AssemblyScorer scorer) {
+        this(provider, scorer, new SkelSpheresNeighborSampler());
+    }
+
+    public LocalBeamOptimizer(SynthonSetAccessor provider,
+                              AssemblyScorer scorer,
+                              NeighborSampler neighborSampler) {
         this.provider = provider;
-        this.queryDescriptor = queryDescriptor;
+        this.scorer = scorer;
+        this.neighborSampler = neighborSampler;
     }
 
     public LocalOptimizationResult optimize(SeedAssembly seed, LocalOptimizationRequest request) {
@@ -46,13 +41,13 @@ public class LocalBeamOptimizer {
         LocalOptimizationLogger logger = new LocalOptimizationLogger(request.getLogLevel(), seed.getFragmentIds());
 
         Map<String, LocalOptimizationResult.BeamEntry> scoreCache = new HashMap<>();
-        LocalOptimizationResult.BeamEntry seedEntry = scoreAssembly(seed.getReactionId(), seedFragments, scoreCache, 0, logger);
+        LocalOptimizationResult.BeamEntry seedEntry = scoreCandidate(seed.getReactionId(), seedFragments, scoreCache, 0, logger);
         if (seedEntry == null) {
             throw new IllegalStateException("Unable to score seed assembly for reaction " + seed.getReactionId());
         }
         List<LocalOptimizationResult.BeamEntry> beam = new ArrayList<>();
         beam.add(seedEntry);
-        double bestScore = seedEntry.getPhesaSimilarity();
+        double bestScore = seedEntry.getScore();
         int noImprovementRounds = 0;
         Random rng = new Random(request.getRandomSeed() ^ seedKey(seed));
 
@@ -68,7 +63,7 @@ public class LocalBeamOptimizer {
             if (beam.isEmpty()) {
                 break;
             }
-            double roundBest = beam.get(0).getPhesaSimilarity();
+            double roundBest = beam.get(0).getScore();
             if (roundBest > bestScore + request.getImprovementTolerance()) {
                 bestScore = roundBest;
                 noImprovementRounds = 0;
@@ -79,6 +74,15 @@ public class LocalBeamOptimizer {
                     break;
                 }
             }
+        }
+
+        if (request.isReportAllCandidates()) {
+            double reportThreshold = request.getMinPhesaSimilarity();
+            List<LocalOptimizationResult.BeamEntry> allCandidates = scoreCache.values().stream()
+                    .filter(entry -> entry.getScore() >= reportThreshold)
+                    .sorted(Comparator.comparingDouble(LocalOptimizationResult.BeamEntry::getScore).reversed())
+                    .collect(Collectors.toCollection(ArrayList::new));
+            return new LocalOptimizationResult(seed.getReactionId(), allCandidates, seed.getFragmentIds());
         }
 
         return new LocalOptimizationResult(seed.getReactionId(), beam, seed.getFragmentIds());
@@ -96,12 +100,12 @@ public class LocalBeamOptimizer {
         Map<String, LocalOptimizationResult.BeamEntry> candidates = new LinkedHashMap<>();
         for (LocalOptimizationResult.BeamEntry entry : beam) {
             candidates.put(buildKey(reactionId, entry.getFragments()), entry);
-            List<SynthonSpace.FragId> neighbors = neighborCache.getNeighbors(reactionId,
+            List<SynthonSpace.FragId> sampled = neighborSampler.sampleNeighbors(reactionId,
                     positionKey,
                     entry.getFragments().get(positionIndex),
                     synthonSets,
-                    request.getNeighborPoolSize());
-            List<SynthonSpace.FragId> sampled = sampleNeighbors(neighbors, request.getSampledNeighbors(), rng);
+                    request,
+                    rng);
             for (SynthonSpace.FragId neighbor : sampled) {
                 if (neighbor.fragment_id.equals(entry.getFragments().get(positionIndex).fragment_id)) {
                     continue;
@@ -112,8 +116,8 @@ public class LocalBeamOptimizer {
                 if (candidates.containsKey(key)) {
                     continue;
                 }
-                LocalOptimizationResult.BeamEntry scored = scoreAssembly(reactionId, updated, scoreCache, positionIndex + 1, logger);
-                if (scored != null && scored.getPhesaSimilarity() >= request.getMinPhesaSimilarity()) {
+                LocalOptimizationResult.BeamEntry scored = scoreCandidate(reactionId, updated, scoreCache, positionIndex + 1, logger);
+                if (scored != null) {
                     candidates.put(key, scored);
                 }
             }
@@ -122,7 +126,7 @@ public class LocalBeamOptimizer {
             return Collections.emptyList();
         }
         List<LocalOptimizationResult.BeamEntry> sorted = new ArrayList<>(candidates.values());
-        sorted.sort(Comparator.comparingDouble(LocalOptimizationResult.BeamEntry::getPhesaSimilarity).reversed());
+        sorted.sort(Comparator.comparingDouble(LocalOptimizationResult.BeamEntry::getScore).reversed());
         return selectBeam(sorted, request.getBeamSize(), request.getPerPositionCap());
     }
 
@@ -196,73 +200,21 @@ public class LocalBeamOptimizer {
         return fragments;
     }
 
-    private LocalOptimizationResult.BeamEntry scoreAssembly(String reactionId,
-                                                            List<SynthonSpace.FragId> fragments,
-                                                            Map<String, LocalOptimizationResult.BeamEntry> cache,
-                                                            int originatingRound,
-                                                            LocalOptimizationLogger logger) {
+    private LocalOptimizationResult.BeamEntry scoreCandidate(String reactionId,
+                                                             List<SynthonSpace.FragId> fragments,
+                                                             Map<String, LocalOptimizationResult.BeamEntry> cache,
+                                                             int originatingRound,
+                                                             LocalOptimizationLogger logger) {
         String key = buildKey(reactionId, fragments);
         LocalOptimizationResult.BeamEntry cached = cache.get(key);
         if (cached != null) {
             return cached;
         }
-        try {
-            List<StereoMolecule> parts = new ArrayList<>(fragments.size());
-            for (SynthonSpace.FragId frag : fragments) {
-                StereoMolecule mol = new StereoMolecule();
-                parser.parse(mol, frag.idcode);
-                mol.ensureHelperArrays(Molecule.cHelperCIP);
-                parts.add(mol);
-            }
-            StereoMolecule assembled = SynthonAssembler.assembleSynthons_faster(parts);
-            assembled.ensureHelperArrays(Molecule.cHelperCIP);
-            int atomCount = assembled.getAtoms();
-            int rotatable = countRotatableBonds(assembled);
-            ConformerSet conformers = conformerGenerator.generateConformerSet(assembled);
-            if (conformers.isEmpty()) {
-                return null;
-            }
-            PheSAMolecule descriptor = descriptorHandler.createDescriptor(conformers);
-            if (descriptorHandler.calculationFailed(descriptor)) {
-                return null;
-            }
-            double similarity = descriptorHandler.getSimilarity(queryDescriptor, descriptor);
-            List<String> fragmentIds = fragments.stream().map(f -> f.fragment_id).collect(Collectors.toList());
-            logger.logCandidate(fragmentIds, similarity, assembled.getIDCode(), originatingRound);
-            LocalOptimizationResult.BeamEntry entry = new LocalOptimizationResult.BeamEntry(fragments,
-                    similarity,
-                    atomCount,
-                    rotatable,
-                    assembled.getIDCode(),
-                    originatingRound);
+        LocalOptimizationResult.BeamEntry entry = scorer.score(reactionId, fragments, originatingRound, logger);
+        if (entry != null) {
             cache.put(key, entry);
-            return entry;
-        } catch (Exception e) {
-            return null;
         }
-    }
-
-    private List<SynthonSpace.FragId> sampleNeighbors(List<SynthonSpace.FragId> neighbors, int maxSamples, Random rng) {
-        if (neighbors.isEmpty() || maxSamples <= 0) {
-            return Collections.emptyList();
-        }
-        int sampleSize = Math.min(maxSamples, neighbors.size());
-        List<SynthonSpace.FragId> copy = new ArrayList<>(neighbors);
-        Collections.shuffle(copy, rng);
-        return copy.subList(0, sampleSize);
-    }
-
-    private int countRotatableBonds(StereoMolecule molecule) {
-        molecule.ensureHelperArrays(Molecule.cHelperNeighbours);
-        boolean[] rotatable = new boolean[molecule.getBonds()];
-        TorsionDB.findRotatableBonds(molecule, true, rotatable);
-        int count = 0;
-        for (boolean b : rotatable) {
-            if (b) {
-                count++;
-            }
-        }
-        return count;
+        return entry;
     }
 
     private String buildKey(String reactionId, List<SynthonSpace.FragId> fragments) {

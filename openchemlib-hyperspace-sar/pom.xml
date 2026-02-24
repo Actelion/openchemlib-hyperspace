@@ -7,11 +7,11 @@
     <parent>
         <groupId>com.idorsia.research</groupId>
         <artifactId>openchemlib-hyperspace</artifactId>
-        <version>2.3.1</version>
+        <version>2.4.1</version>
     </parent>
 
     <artifactId>openchemlib-hyperspace-sar</artifactId>
-    <version>2.3.1</version>
+    <version>2.4.1</version>
     <packaging>jar</packaging>
     <!--<version>1.1-SNAPSHOT</version>-->
 
@@ -220,7 +220,7 @@
         <dependency>
             <groupId>com.idorsia.research</groupId>
             <artifactId>openchemlib-hyperspace-core</artifactId>
-            <version>2.3.1</version><!--<version>${revision}</version>-->
+            <version>2.4.1</version><!--<version>${revision}</version>-->
             <scope>compile</scope>
         </dependency>
         <!--<dependency>
@@ -291,14 +291,20 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>8</source>
-                    <target>8</target>
+                    <release>${maven.compiler.release}</release>
                 </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.2.4</version>
+                <version>3.5.1</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.vafer</groupId>
+                        <artifactId>jdependency</artifactId>
+                        <version>2.10</version>
+                    </dependency>
+                </dependencies>
                 <executions>
                     <execution>
                         <phase>package</phase>

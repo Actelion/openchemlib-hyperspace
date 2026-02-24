@@ -21,10 +21,16 @@ public class SynthonDownsamplingResult implements Serializable {
                                      String algorithmName,
                                      SynthonDownsamplingRequest request,
                                      List<SynthonSetDownsamplingResult> setResults) {
-        this.sourceSpace = Objects.requireNonNull(sourceSpace, "sourceSpace");
+        this.sourceSpace = sourceSpace;
         this.algorithmName = Objects.requireNonNull(algorithmName, "algorithmName");
         this.request = Objects.requireNonNull(request, "request");
         this.setResults = Collections.unmodifiableList(new ArrayList<>(setResults));
+    }
+
+    public SynthonDownsamplingResult(String algorithmName,
+                                     SynthonDownsamplingRequest request,
+                                     List<SynthonSetDownsamplingResult> setResults) {
+        this(null, algorithmName, request, setResults);
     }
 
     public SynthonSpace getSourceSpace() {

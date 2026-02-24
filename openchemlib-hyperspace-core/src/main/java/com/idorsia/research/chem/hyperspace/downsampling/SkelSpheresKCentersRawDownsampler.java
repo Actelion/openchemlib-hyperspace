@@ -5,52 +5,51 @@ import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.descriptor.DescriptorHandlerBinarySkelSpheres;
 import com.idorsia.research.chem.hyperspace.CachedStereoMoleculeProvider;
 import com.idorsia.research.chem.hyperspace.SynthonSpace;
+import com.idorsia.research.chem.hyperspace.rawspace.RawSynthon;
+import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSet;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Random;
 
 /**
- * Simple online-like k-centers variant that uses SkelSpheres to pick representatives.
+ * Raw-synthon variant of the SkelSpheres k-centers downsampler.
  */
-public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
+public class SkelSpheresKCentersRawDownsampler implements RawSynthonDownsampler {
 
-    private final CachedStereoMoleculeProvider stereoMoleculeProvider = new CachedStereoMoleculeProvider();
-    private final SynthonDescriptorCache<int[]> descriptorCache;
-    private final ThreadLocal<DescriptorHandlerBinarySkelSpheres> descriptorHandler;
+    private final CachedStereoMoleculeProvider moleculeProvider = new CachedStereoMoleculeProvider();
+    private final RawSynthonDescriptorCache<int[]> descriptorCache;
+    private final ThreadLocal<DescriptorHandlerBinarySkelSpheres> descriptorHandlers;
 
-    public SkelSpheresKCentersDownsampler() {
-        this.descriptorHandler = ThreadLocal.withInitial(DescriptorHandlerBinarySkelSpheres::new);
-        this.descriptorCache = new SynthonDescriptorCache<>(this::createDescriptor);
+    public SkelSpheresKCentersRawDownsampler() {
+        this.descriptorHandlers = ThreadLocal.withInitial(DescriptorHandlerBinarySkelSpheres::new);
+        this.descriptorCache = new RawSynthonDescriptorCache<>(this::createDescriptor);
     }
 
     @Override
     public String getName() {
-        return "SkelSpheresKCenters";
+        return "SkelSpheresKCentersRaw";
     }
 
     @Override
-    public SynthonSetDownsamplingResult downsample(SynthonSpace sourceSpace,
-                                                   SynthonSpace.FragType fragType,
-                                                   List<SynthonSpace.FragId> synthons,
+    public SynthonSetDownsamplingResult downsample(RawSynthonSet synthonSet,
                                                    SynthonDownsamplingRequest request) {
-        Objects.requireNonNull(fragType, "fragType");
-        Objects.requireNonNull(synthons, "synthons");
-        Objects.requireNonNull(request, "request");
-
+        List<RawSynthon> synthons = synthonSet.getSynthons();
         if (synthons.isEmpty()) {
-            return new SynthonSetDownsamplingResult(fragType, Collections.emptyList(), Collections.emptyList(), 0);
+            return new SynthonSetDownsamplingResult(synthonSet.toFragType(),
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    0);
         }
 
-        List<SynthonSpace.FragId> working = new ArrayList<>(synthons);
+        List<RawSynthon> working = new ArrayList<>(synthons);
         Collections.shuffle(working, new Random(request.getRandomSeed()));
 
         int maxCenters = request.getEffectiveMaxCenters(working.size());
         List<CenterRecord> centers = new ArrayList<>();
-        for (SynthonSpace.FragId candidate : working) {
+        for (RawSynthon candidate : working) {
             int[] descriptor = descriptorCache.getOrCompute(candidate);
             if (descriptor == null) {
                 continue;
@@ -65,7 +64,6 @@ public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
             if (best != null) {
                 best.center.registerAssignment(best.similarity);
             } else if (!centers.isEmpty()) {
-                // all centers filtered by connector equivalence but limit reached -> assign to overall best ignoring connectors
                 CenterWithSimilarity fallback = findBestCenter(candidate, descriptor, centers, false);
                 if (fallback != null) {
                     fallback.center.registerAssignment(fallback.similarity);
@@ -76,29 +74,33 @@ public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
         }
 
         List<SynthonSpace.FragId> representatives = new ArrayList<>();
-        List<SynthonSetDownsamplingResult.ClusterInfo> clusterInfos = new ArrayList<>();
+        List<SynthonSetDownsamplingResult.ClusterInfo> clusters = new ArrayList<>();
         for (CenterRecord center : centers) {
-            representatives.add(center.representative);
-            clusterInfos.add(new SynthonSetDownsamplingResult.ClusterInfo(center.representative,
+            SynthonSpace.FragId frag = center.representative.toFragId();
+            representatives.add(frag);
+            clusters.add(new SynthonSetDownsamplingResult.ClusterInfo(frag,
                     center.members,
                     center.minSimilarityWithinCluster));
         }
 
-        return new SynthonSetDownsamplingResult(fragType, representatives, clusterInfos, synthons.size());
+        return new SynthonSetDownsamplingResult(synthonSet.toFragType(),
+                representatives,
+                clusters,
+                synthons.size());
     }
 
-    private CenterWithSimilarity findBestCenter(SynthonSpace.FragId candidate,
+    private CenterWithSimilarity findBestCenter(RawSynthon candidate,
                                                 int[] descriptor,
                                                 List<CenterRecord> centers,
                                                 boolean enforceConnectorEquivalence) {
         CenterRecord best = null;
         double bestSimilarity = -1.0;
-        BitSet candidateConnectors = enforceConnectorEquivalence ? candidate.getConnectors() : null;
+        BitSet connectors = enforceConnectorEquivalence ? candidate.getConnectors() : null;
         for (CenterRecord center : centers) {
-            if (enforceConnectorEquivalence && !connectorsEqual(candidateConnectors, center.representative.getConnectors())) {
+            if (enforceConnectorEquivalence && !equalConnectors(connectors, center.representative.getConnectors())) {
                 continue;
             }
-            double similarity = descriptorHandler.get().getSimilarity(descriptor, center.descriptor);
+            double similarity = descriptorHandlers.get().getSimilarity(descriptor, center.descriptor);
             if (similarity > bestSimilarity) {
                 bestSimilarity = similarity;
                 best = center;
@@ -110,26 +112,30 @@ public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
         return new CenterWithSimilarity(best, bestSimilarity);
     }
 
-    private boolean connectorsEqual(BitSet a, BitSet b) {
+    private boolean equalConnectors(BitSet a, BitSet b) {
         if (a == null || b == null) {
             return false;
         }
         return a.equals(b);
     }
 
-    private int[] createDescriptor(SynthonSpace.FragId fragId) {
-        StereoMolecule molecule = stereoMoleculeProvider.parseIDCode(fragId.idcode);
-        molecule.ensureHelperArrays(Molecule.cHelperCIP);
-        return descriptorHandler.get().createDescriptor(molecule);
+    private int[] createDescriptor(RawSynthon synthon) {
+        try {
+            StereoMolecule mol = moleculeProvider.parseIDCode(synthon.getIdcode());
+            mol.ensureHelperArrays(Molecule.cHelperCIP);
+            return descriptorHandlers.get().createDescriptor(mol);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static final class CenterRecord {
-        private final SynthonSpace.FragId representative;
+        private final RawSynthon representative;
         private final int[] descriptor;
         private int members = 1;
         private double minSimilarityWithinCluster = 1.0;
 
-        private CenterRecord(SynthonSpace.FragId representative, int[] descriptor) {
+        private CenterRecord(RawSynthon representative, int[] descriptor) {
             this.representative = representative;
             this.descriptor = descriptor;
         }

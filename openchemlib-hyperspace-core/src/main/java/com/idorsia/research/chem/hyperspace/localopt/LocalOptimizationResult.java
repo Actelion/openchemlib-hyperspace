@@ -63,6 +63,13 @@ public class LocalOptimizationResult implements Serializable {
             return phesaSimilarity;
         }
 
+        /**
+         * Generic accessor for the primary optimization score (PheSA similarity by default).
+         */
+        public double getScore() {
+            return phesaSimilarity;
+        }
+
         public int getAtomCount() {
             return atomCount;
         }

@@ -5,7 +5,7 @@
     <parent>
         <artifactId>openchemlib-hyperspace</artifactId>
         <groupId>com.idorsia.research</groupId>
-        <version>2.3.1</version>
+        <version>2.4.1</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -29,7 +29,7 @@
         <dependency>
             <groupId>com.idorsia.research</groupId>
             <artifactId>openchemlib-hyperspace-core</artifactId>
-            <version>2.3.1</version>
+            <version>2.4.1</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -86,7 +86,10 @@
                 </plugin>
                 <plugin>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.8.0</version>
+                    <version>3.12.1</version>
+                    <configuration>
+                        <release>${maven.compiler.release}</release>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <artifactId>maven-surefire-plugin</artifactId>
@@ -120,8 +123,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>11</source>
-                    <target>11</target>
+                    <release>${maven.compiler.release}</release>
                 </configuration>
             </plugin>
             <plugin>

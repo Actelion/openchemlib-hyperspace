@@ -13,6 +13,7 @@ import com.idorsia.research.chem.hyperspace.SynthonSpace;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 /**
@@ -22,12 +23,20 @@ public class PheSAAssemblyScorer implements AssemblyScorer {
 
     private final PheSAMolecule queryDescriptor;
     private final double minSimilarity;
+    private final LongAdder comparisonCounter;
     private final ThreadLocal<DescriptorHandlerShape> descriptorHandlers = ThreadLocal.withInitial(DescriptorHandlerShape::new);
     private final ThreadLocal<ConformerSetGenerator> conformerGenerators = ThreadLocal.withInitial(() -> new ConformerSetGenerator(1));
 
     public PheSAAssemblyScorer(PheSAMolecule queryDescriptor, double minSimilarity) {
+        this(queryDescriptor, minSimilarity, null);
+    }
+
+    public PheSAAssemblyScorer(PheSAMolecule queryDescriptor,
+                               double minSimilarity,
+                               LongAdder comparisonCounter) {
         this.queryDescriptor = queryDescriptor;
         this.minSimilarity = minSimilarity;
+        this.comparisonCounter = comparisonCounter;
     }
 
     @Override
@@ -57,6 +66,9 @@ public class PheSAAssemblyScorer implements AssemblyScorer {
                 return null;
             }
             double similarity = handler.getSimilarity(queryDescriptor, descriptor);
+            if (comparisonCounter != null) {
+                comparisonCounter.increment();
+            }
             if (similarity < minSimilarity) {
                 return null;
             }

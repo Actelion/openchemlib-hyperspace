@@ -47,6 +47,7 @@ public class SkelSpheresKCentersRawDownsampler implements RawSynthonDownsampler 
         List<RawSynthon> working = new ArrayList<>(synthons);
         Collections.shuffle(working, new Random(request.getRandomSeed()));
 
+        int maxCenters = request.getEffectiveMaxCenters(working.size());
         List<CenterRecord> centers = new ArrayList<>();
         for (RawSynthon candidate : working) {
             int[] descriptor = descriptorCache.getOrCompute(candidate);
@@ -55,7 +56,7 @@ public class SkelSpheresKCentersRawDownsampler implements RawSynthonDownsampler 
             }
             CenterWithSimilarity best = findBestCenter(candidate, descriptor, centers, request.isEnforceConnectorEquivalence());
             boolean belowThreshold = best == null || best.similarity < request.getMinSimilarity();
-            boolean canCreateCenter = request.getMaxCenters() <= 0 || centers.size() < request.getMaxCenters();
+            boolean canCreateCenter = maxCenters <= 0 || centers.size() < maxCenters;
             if ((best == null || belowThreshold) && canCreateCenter) {
                 centers.add(new CenterRecord(candidate, descriptor));
                 continue;

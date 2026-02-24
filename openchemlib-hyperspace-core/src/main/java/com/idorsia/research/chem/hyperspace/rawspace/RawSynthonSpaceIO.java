@@ -227,6 +227,8 @@ public final class RawSynthonSpaceIO {
 
     private static final class JsonDownsamplingRequest {
         public int maxCenters;
+        public double sizeCapScale;
+        public double sizeCapOffset;
         public double minSimilarity;
         public long randomSeed;
         public boolean enforceConnectorEquivalence;
@@ -236,6 +238,8 @@ public final class RawSynthonSpaceIO {
     private static JsonDownsamplingRequest toJsonRequest(SynthonDownsamplingRequest request) {
         JsonDownsamplingRequest json = new JsonDownsamplingRequest();
         json.maxCenters = request.getMaxCenters();
+        json.sizeCapScale = request.getSizeCapScale();
+        json.sizeCapOffset = request.getSizeCapOffset();
         json.minSimilarity = request.getMinSimilarity();
         json.randomSeed = request.getRandomSeed();
         json.enforceConnectorEquivalence = request.isEnforceConnectorEquivalence();
@@ -246,6 +250,8 @@ public final class RawSynthonSpaceIO {
     private static SynthonDownsamplingRequest fromJsonRequest(JsonDownsamplingRequest json) {
         SynthonDownsamplingRequest.Builder builder = SynthonDownsamplingRequest.builder()
                 .withMaxCenters(json.maxCenters)
+                .withSizeCapScale(json.sizeCapScale)
+                .withSizeCapOffset(json.sizeCapOffset)
                 .withMinSimilarity(json.minSimilarity)
                 .withRandomSeed(json.randomSeed)
                 .enforceConnectorEquivalence(json.enforceConnectorEquivalence);

@@ -56,6 +56,8 @@ public final class ContinuousScreeningCLI {
                 .maxRounds(Integer.parseInt(cmd.getOptionValue("fullRounds", "6")))
                 .patience(Integer.parseInt(cmd.getOptionValue("fullPatience", "3")))
                 .minPhesaSimilarity(Double.parseDouble(cmd.getOptionValue("fullMinSimilarity", "0.6")))
+                .minScoreThreshold(0.0)
+                .reportAllCandidates(true)
                 .randomSeed(Long.parseLong(cmd.getOptionValue("randomSeed", "13")))
                 .build();
 
@@ -81,6 +83,10 @@ public final class ContinuousScreeningCLI {
                 .withSamplerConfig(samplerConfig)
                 .withFullOptimizationRequest(fullRequest)
                 .withFullOptimizerThreads(Integer.parseInt(cmd.getOptionValue("fullThreads", "4")))
+                .withQueueCapacity(Integer.parseInt(cmd.getOptionValue("queueCapacity", "1000")))
+                .withProgressIntervalSeconds(Integer.parseInt(cmd.getOptionValue("progressSeconds", "60")))
+                .withReactionWeightExponent(Double.parseDouble(cmd.getOptionValue("reactionWeightExponent", "1.0")))
+                .withReactionMinWeight(Double.parseDouble(cmd.getOptionValue("reactionMinWeight", "0.01")))
                 .withHitOutput(Path.of(cmd.getOptionValue("outputHits")))
                 .withDuplicateCacheSize(Integer.parseInt(cmd.getOptionValue("dedupeMax", "200000")))
                 .withRandomSeed(Long.parseLong(cmd.getOptionValue("randomSeed", "13")));
@@ -94,7 +100,7 @@ public final class ContinuousScreeningCLI {
             orchestrator.run(iterations);
             ScreeningMetrics metrics = orchestrator.getMetrics();
             System.out.println("Sampled candidates: " + metrics.getSampled());
-            System.out.println("Duplicates skipped: " + metrics.getDuplicates());
+            System.out.println("Duplicate seeds skipped: " + metrics.getDuplicateSeeds());
             System.out.println("Submitted to optimizer: " + metrics.getSubmitted());
             System.out.println("Total hits: " + metrics.getHits());
         }
@@ -132,6 +138,14 @@ public final class ContinuousScreeningCLI {
         options.addOption(Option.builder().longOpt("fullPatience").hasArg().desc("Full optimizer patience").build());
         options.addOption(Option.builder().longOpt("fullMinSimilarity").hasArg().desc("Full optimizer min similarity").build());
         options.addOption(Option.builder().longOpt("fullThreads").hasArg().desc("Worker threads for full optimizer").build());
+        options.addOption(Option.builder().longOpt("queueCapacity").hasArg()
+                .desc("Max queued sample+opt jobs before applying backpressure").build());
+        options.addOption(Option.builder().longOpt("progressSeconds").hasArg()
+                .desc("Interval in seconds for progress logging (0 to disable)").build());
+        options.addOption(Option.builder().longOpt("reactionWeightExponent").hasArg()
+                .desc("Exponent applied to reaction size weighting (default 1.0)").build());
+        options.addOption(Option.builder().longOpt("reactionMinWeight").hasArg()
+                .desc("Minimum weight as a fraction of the max reaction weight (default 0.01)").build());
         options.addOption(Option.builder().longOpt("microEnabled").desc("Enable micro optimization on downsampled space").build());
         options.addOption(Option.builder().longOpt("microBeam").hasArg().desc("Micro optimizer beam size").build());
         options.addOption(Option.builder().longOpt("microTopL").hasArg().desc("Micro optimizer neighbor pool size").build());

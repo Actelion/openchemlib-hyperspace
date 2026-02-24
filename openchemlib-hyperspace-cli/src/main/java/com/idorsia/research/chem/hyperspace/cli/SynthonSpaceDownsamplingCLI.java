@@ -38,10 +38,16 @@ public class SynthonSpaceDownsamplingCLI {
             throw new IllegalArgumentException("Provide either --spaceIn or --rawIn");
         }
         int maxCenters = Integer.parseInt(cmd.getOptionValue("maxCenters", "0"));
+        double sizeCapScale = Double.parseDouble(cmd.getOptionValue("sizeCapScale", "0"));
+        double sizeCapOffset = Double.parseDouble(cmd.getOptionValue("sizeCapOffset", "0"));
         double minSimilarity = Double.parseDouble(cmd.getOptionValue("minSimilarity", "0.7"));
         long seed = Long.parseLong(cmd.getOptionValue("seed", "13"));
+        int threads = Integer.parseInt(cmd.getOptionValue("threads", "1"));
         boolean enforceConnectors = !cmd.hasOption("allowConnectorMixing");
         String rawOut = cmd.getOptionValue("rawOut");
+        if (threads <= 0) {
+            throw new IllegalArgumentException("--threads must be positive");
+        }
 
         SynthonSpace space = null;
         RawSynthonSpace rawSource = null;
@@ -57,6 +63,8 @@ public class SynthonSpaceDownsamplingCLI {
 
         SynthonDownsamplingRequest request = SynthonDownsamplingRequest.builder()
                 .withMaxCenters(maxCenters)
+                .withSizeCapScale(sizeCapScale)
+                .withSizeCapOffset(sizeCapOffset)
                 .withMinSimilarity(minSimilarity)
                 .withRandomSeed(seed)
                 .enforceConnectorEquivalence(enforceConnectors)
@@ -69,13 +77,13 @@ public class SynthonSpaceDownsamplingCLI {
         if (rawSource != null) {
             RawSynthonDownsampler downsampler = new SkelSpheresKCentersRawDownsampler();
             RawSynthonDownsamplingOrchestrator orchestrator = new RawSynthonDownsamplingOrchestrator();
-            result = orchestrator.downsample(rawSource, downsampler, request);
+            result = orchestrator.downsample(rawSource, downsampler, request, threads);
             downsampledSpace = result.toDownsampledSpace();
             algorithmName = downsampler.getName();
         } else {
             SynthonDownsampler downsampler = new SkelSpheresKCentersDownsampler();
             SynthonDownsamplingOrchestrator orchestrator = new SynthonDownsamplingOrchestrator();
-            result = orchestrator.downsample(space, downsampler, request);
+            result = orchestrator.downsample(space, downsampler, request, threads);
             downsampledSpace = result.toDownsampledSpace();
             algorithmName = downsampler.getName();
         }
@@ -116,10 +124,16 @@ public class SynthonSpaceDownsamplingCLI {
                 .desc("Path to RawSynthonSpace JSON (alternative to --spaceIn)").build());
         options.addOption(Option.builder().longOpt("maxCenters").hasArg()
                 .desc("Maximum number of centers per synthon set (0 = unlimited)").build());
+        options.addOption(Option.builder().longOpt("sizeCapScale").hasArg()
+                .desc("Scale factor for size-based cap: scale * sqrt(n) + offset (0 = disabled)").build());
+        options.addOption(Option.builder().longOpt("sizeCapOffset").hasArg()
+                .desc("Offset for size-based cap: scale * sqrt(n) + offset (0 = disabled)").build());
         options.addOption(Option.builder().longOpt("minSimilarity").hasArg()
                 .desc("Minimum SkelSpheres similarity required to reuse an existing center [0-1]").build());
         options.addOption(Option.builder().longOpt("seed").hasArg()
                 .desc("Random seed for shuffling synthons").build());
+        options.addOption(Option.builder().longOpt("threads").hasArg()
+                .desc("Worker threads for downsampling (default 1)").build());
         options.addOption(Option.builder().longOpt("allowConnectorMixing")
                 .desc("Allow synthons with different connector patterns to join the same center").build());
         options.addOption(Option.builder().longOpt("rawOut").hasArg().required(true)

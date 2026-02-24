@@ -11,6 +11,8 @@ import java.util.Map;
 public class SynthonDownsamplingRequest implements Serializable {
 
     private final int maxCenters;
+    private final double sizeCapScale;
+    private final double sizeCapOffset;
     private final double minSimilarity;
     private final long randomSeed;
     private final boolean enforceConnectorEquivalence;
@@ -18,6 +20,8 @@ public class SynthonDownsamplingRequest implements Serializable {
 
     private SynthonDownsamplingRequest(Builder builder) {
         this.maxCenters = builder.maxCenters;
+        this.sizeCapScale = builder.sizeCapScale;
+        this.sizeCapOffset = builder.sizeCapOffset;
         this.minSimilarity = builder.minSimilarity;
         this.randomSeed = builder.randomSeed;
         this.enforceConnectorEquivalence = builder.enforceConnectorEquivalence;
@@ -26,6 +30,23 @@ public class SynthonDownsamplingRequest implements Serializable {
 
     public int getMaxCenters() {
         return maxCenters;
+    }
+
+    public double getSizeCapScale() {
+        return sizeCapScale;
+    }
+
+    public double getSizeCapOffset() {
+        return sizeCapOffset;
+    }
+
+    public int getEffectiveMaxCenters(int totalSynthons) {
+        int effective = maxCenters;
+        int sizeBased = computeSizeBasedCap(totalSynthons);
+        if (sizeBased > 0 && (effective <= 0 || sizeBased < effective)) {
+            effective = sizeBased;
+        }
+        return effective;
     }
 
     public double getMinSimilarity() {
@@ -50,6 +71,8 @@ public class SynthonDownsamplingRequest implements Serializable {
 
     public static class Builder {
         private int maxCenters = 0;
+        private double sizeCapScale = 0.0;
+        private double sizeCapOffset = 0.0;
         private double minSimilarity = 0.0;
         private long randomSeed = 1L;
         private boolean enforceConnectorEquivalence = true;
@@ -57,6 +80,16 @@ public class SynthonDownsamplingRequest implements Serializable {
 
         public Builder withMaxCenters(int maxCenters) {
             this.maxCenters = maxCenters;
+            return this;
+        }
+
+        public Builder withSizeCapScale(double scale) {
+            this.sizeCapScale = scale;
+            return this;
+        }
+
+        public Builder withSizeCapOffset(double offset) {
+            this.sizeCapOffset = offset;
             return this;
         }
 
@@ -85,5 +118,18 @@ public class SynthonDownsamplingRequest implements Serializable {
         public SynthonDownsamplingRequest build() {
             return new SynthonDownsamplingRequest(this);
         }
+    }
+
+    private int computeSizeBasedCap(int totalSynthons) {
+        if (totalSynthons <= 0) {
+            return 0;
+        }
+        if (sizeCapScale <= 0.0 && sizeCapOffset <= 0.0) {
+            return 0;
+        }
+        double value = sizeCapScale * Math.sqrt(totalSynthons) + sizeCapOffset;
+        int cap = (int) Math.ceil(value);
+        cap = Math.max(1, cap);
+        return Math.min(cap, totalSynthons);
     }
 }

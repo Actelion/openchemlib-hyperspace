@@ -7,11 +7,11 @@
     <parent>
         <groupId>com.idorsia.research</groupId>
         <artifactId>openchemlib-hyperspace</artifactId>
-        <version>2.4.3</version>
+        <version>2.4.4</version>
     </parent>
 
     <artifactId>openchemlib-hyperspace-sar</artifactId>
-    <version>2.4.3</version>
+    <version>2.4.4</version>
     <packaging>jar</packaging>
     <!--<version>1.1-SNAPSHOT</version>-->
 
@@ -220,7 +220,7 @@
         <dependency>
             <groupId>com.idorsia.research</groupId>
             <artifactId>openchemlib-hyperspace-core</artifactId>
-            <version>2.4.3</version><!--<version>${revision}</version>-->
+            <version>2.4.4</version><!--<version>${revision}</version>-->
             <scope>compile</scope>
         </dependency>
         <!--<dependency>

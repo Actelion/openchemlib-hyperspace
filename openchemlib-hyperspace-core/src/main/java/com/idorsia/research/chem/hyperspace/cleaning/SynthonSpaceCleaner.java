@@ -223,7 +223,8 @@ public final class SynthonSpaceCleaner {
             if (cleanedSynthonMolecules.isEmpty()) {
                 cleanedSynthonMolecules.add(new StereoMolecule(fragment.molecule));
             }
-            List<RawSynthon> replacements = toRawSynthons(reactionId, fragmentIndex, fragment.rawSynthon.getFragmentId(), cleanedSynthonMolecules);
+            List<RawSynthon> replacements = deduplicateByIdcode(
+                    toRawSynthons(reactionId, fragmentIndex, fragment.rawSynthon.getFragmentId(), cleanedSynthonMolecules));
             return new CleanTaskResult(fragment, replacements);
         } catch (RuntimeException ex) {
             throw new IllegalStateException("Cleaning failed for fragment " + fragment.rawSynthon.getFragmentId(), ex);
@@ -316,6 +317,14 @@ public final class SynthonSpaceCleaner {
             duplicateIndex++;
         }
         return result;
+    }
+
+    private List<RawSynthon> deduplicateByIdcode(List<RawSynthon> synthons) {
+        Map<String, RawSynthon> unique = new LinkedHashMap<>();
+        for (RawSynthon synthon : synthons) {
+            unique.putIfAbsent(synthon.getIdcode(), synthon);
+        }
+        return new ArrayList<>(unique.values());
     }
 
     private static final class SynthonFragment {

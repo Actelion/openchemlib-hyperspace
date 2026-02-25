@@ -16,6 +16,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * High-level workflow that cleans every synthon within a {@link RawSynthonSpace}
@@ -24,15 +29,23 @@ import java.util.Random;
  */
 public final class SynthonSpaceCleaner {
 
-    private final StructureCleaner structureCleaner;
+    private final StructureCleaner.Provider cleanerProvider;
     private final SynthonCleaningOptions options;
 
     public SynthonSpaceCleaner(StructureCleaner structureCleaner) {
-        this(structureCleaner, SynthonCleaningOptions.builder().build());
+        this(StructureCleaner.Provider.singleton(structureCleaner), SynthonCleaningOptions.builder().build());
     }
 
     public SynthonSpaceCleaner(StructureCleaner structureCleaner, SynthonCleaningOptions options) {
-        this.structureCleaner = Objects.requireNonNull(structureCleaner, "structureCleaner");
+        this(StructureCleaner.Provider.singleton(structureCleaner), options);
+    }
+
+    public SynthonSpaceCleaner(StructureCleaner.Provider cleanerProvider) {
+        this(cleanerProvider, SynthonCleaningOptions.builder().build());
+    }
+
+    public SynthonSpaceCleaner(StructureCleaner.Provider cleanerProvider, SynthonCleaningOptions options) {
+        this.cleanerProvider = Objects.requireNonNull(cleanerProvider, "structureCleanerProvider");
         this.options = options == null ? SynthonCleaningOptions.builder().build() : options;
     }
 
@@ -50,17 +63,23 @@ public final class SynthonSpaceCleaner {
                     source.getDownsamplingRequest().orElse(null));
         }
 
-        Random random = options.newRandom();
-        for (Map.Entry<String, RawSynthonSpace.ReactionData> entry : source.getReactions().entrySet()) {
-            processReaction(builder, entry.getKey(), entry.getValue(), random);
+        ExecutorService executor = Executors.newFixedThreadPool(options.getMaxParallelism());
+        try {
+            Random seedGenerator = options.newRandom();
+            for (Map.Entry<String, RawSynthonSpace.ReactionData> entry : source.getReactions().entrySet()) {
+                processReaction(builder, entry.getKey(), entry.getValue(), seedGenerator, executor);
+            }
+            return builder.build();
+        } finally {
+            executor.shutdown();
         }
-        return builder.build();
     }
 
     private void processReaction(RawSynthonSpace.Builder builder,
                                  String reactionId,
                                  RawSynthonSpace.ReactionData data,
-                                 Random random) {
+                                 Random seedGenerator,
+                                 ExecutorService executor) {
         Map<Integer, List<RawSynthon>> cleanedSets = new LinkedHashMap<>();
         Map<String, RawSynthon> cleanedById = new HashMap<>();
         Map<String, Map<String, String>> cleanedAttributes = new LinkedHashMap<>();
@@ -69,23 +88,18 @@ public final class SynthonSpaceCleaner {
         Map<String, Map<String, String>> originalAttributes = data.getFragmentAttributes();
 
         for (Map.Entry<Integer, List<SynthonFragment>> entry : fragmentsBySet.entrySet()) {
-            List<RawSynthon> cleaned = new ArrayList<>();
-            cleanedSets.put(entry.getKey(), cleaned);
-            for (SynthonFragment fragment : entry.getValue()) {
-                List<RawSynthon> replacements = cleanFragment(reactionId, entry.getKey(), fragment,
-                        fragmentsBySet, random);
-                if (replacements.isEmpty()) {
-                    replacements = Collections.singletonList(fragment.rawSynthon);
-                }
-                for (RawSynthon repl : replacements) {
-                    cleaned.add(repl);
-                    cleanedById.put(repl.getFragmentId(), repl);
-                    Map<String, String> attrs = originalAttributes.get(fragment.rawSynthon.getFragmentId());
-                    if (attrs != null && !attrs.isEmpty()) {
-                        cleanedAttributes.put(repl.getFragmentId(), new LinkedHashMap<>(attrs));
-                    }
-                }
-            }
+            List<RawSynthon> cleanedSet = cleanSynthonSet(reactionId,
+                    entry.getKey(),
+                    entry.getValue(),
+                    fragmentsBySet,
+                    cleanedById,
+                    originalAttributes,
+                    cleanedAttributes,
+                    seedGenerator,
+                    executor);
+            cleanedSets.put(entry.getKey(), cleanedSet);
+            System.out.printf("Cleaned reaction %s set %d: %d synthons -> %d cleaned variants%n",
+                    reactionId, entry.getKey(), entry.getValue().size(), cleanedSet.size());
         }
 
         cleanedSets.forEach((idx, list) -> builder.addRawFragments(reactionId, idx, list));
@@ -135,36 +149,87 @@ public final class SynthonSpaceCleaner {
         return fragmentsBySet;
     }
 
-    private List<RawSynthon> cleanFragment(String reactionId,
-                                            int fragmentIndex,
-                                            SynthonFragment fragment,
-                                            Map<Integer, List<SynthonFragment>> fragmentsBySet,
-                                            Random random) {
-        List<StereoMolecule> cleanedSynthonMolecules = new ArrayList<>();
-        int assemblies = options.getAssembliesPerSynthon();
-        for (int run = 0; run < assemblies; run++) {
-            SynthonAssemblyResult assembly = assembleExample(fragment, fragmentsBySet, fragmentIndex, random);
-            int[] atomMap = assembly.atomMaps.get(0);
-            StereoMolecule cleanerInput = new StereoMolecule(assembly.assembled);
-            cleanerInput.ensureHelperArrays(Molecule.cHelperCIP);
-            List<StereoMolecule> cleanedAssemblies;
+    private List<RawSynthon> cleanSynthonSet(String reactionId,
+                                             int fragmentIndex,
+                                             List<SynthonFragment> fragments,
+                                             Map<Integer, List<SynthonFragment>> fragmentsBySet,
+                                             Map<String, RawSynthon> cleanedById,
+                                             Map<String, Map<String, String>> originalAttributes,
+                                             Map<String, Map<String, String>> cleanedAttributes,
+                                             Random seedGenerator,
+                                             ExecutorService executor) {
+        List<Future<CleanTaskResult>> futures = new ArrayList<>(fragments.size());
+        for (SynthonFragment fragment : fragments) {
+            long fragmentSeed = seedGenerator.nextLong();
+            futures.add(executor.submit(() -> cleanFragment(reactionId,
+                    fragmentIndex,
+                    fragment,
+                    fragmentsBySet,
+                    fragmentSeed)));
+        }
+
+        List<RawSynthon> cleaned = new ArrayList<>();
+        for (int idx = 0; idx < futures.size(); idx++) {
+            CleanTaskResult result;
             try {
-                cleanedAssemblies = structureCleaner.cleanStructure(cleanerInput);
-            } catch (RuntimeException ex) {
-                throw new IllegalStateException("Cleaning failed for fragment " + fragment.rawSynthon.getFragmentId(), ex);
+                result = futures.get(idx).get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Cleaning interrupted", e);
+            } catch (ExecutionException e) {
+                throw new IllegalStateException("Cleaning failed for reaction " + reactionId, e.getCause());
             }
-            if (cleanedAssemblies == null || cleanedAssemblies.isEmpty()) {
-                cleanedAssemblies = Collections.singletonList(assembly.assembled);
+            List<RawSynthon> replacements = result.replacements;
+            if (replacements.isEmpty()) {
+                replacements = Collections.singletonList(result.fragment.rawSynthon);
             }
-            for (StereoMolecule cleanedAssembly : cleanedAssemblies) {
-                cleanedAssembly.ensureHelperArrays(Molecule.cHelperCIP);
-                cleanedSynthonMolecules.add(projectSynthon(fragment.molecule, cleanedAssembly, atomMap));
+            cleaned.addAll(replacements);
+            Map<String, String> attrs = originalAttributes.get(result.fragment.rawSynthon.getFragmentId());
+            for (RawSynthon repl : replacements) {
+                cleanedById.put(repl.getFragmentId(), repl);
+                if (attrs != null && !attrs.isEmpty()) {
+                    cleanedAttributes.put(repl.getFragmentId(), new LinkedHashMap<>(attrs));
+                }
             }
         }
-        if (cleanedSynthonMolecules.isEmpty()) {
-            cleanedSynthonMolecules.add(new StereoMolecule(fragment.molecule));
+
+        return cleaned;
+    }
+
+    private CleanTaskResult cleanFragment(String reactionId,
+                                          int fragmentIndex,
+                                          SynthonFragment fragment,
+                                          Map<Integer, List<SynthonFragment>> fragmentsBySet,
+                                          long randomSeed) {
+        Random random = new Random(randomSeed);
+        StructureCleaner cleaner = cleanerProvider.acquire();
+        try {
+            List<StereoMolecule> cleanedSynthonMolecules = new ArrayList<>();
+            int assemblies = options.getAssembliesPerSynthon();
+            for (int run = 0; run < assemblies; run++) {
+                SynthonAssemblyResult assembly = assembleExample(fragment, fragmentsBySet, fragmentIndex, random);
+                int[] atomMap = assembly.atomMaps.get(0);
+                StereoMolecule cleanerInput = new StereoMolecule(assembly.assembled);
+                cleanerInput.ensureHelperArrays(Molecule.cHelperCIP);
+                List<StereoMolecule> cleanedAssemblies = cleaner.cleanStructure(cleanerInput);
+                if (cleanedAssemblies == null || cleanedAssemblies.isEmpty()) {
+                    cleanedAssemblies = Collections.singletonList(assembly.assembled);
+                }
+                for (StereoMolecule cleanedAssembly : cleanedAssemblies) {
+                    cleanedAssembly.ensureHelperArrays(Molecule.cHelperCIP);
+                    cleanedSynthonMolecules.add(projectSynthon(fragment.molecule, cleanedAssembly, atomMap));
+                }
+            }
+            if (cleanedSynthonMolecules.isEmpty()) {
+                cleanedSynthonMolecules.add(new StereoMolecule(fragment.molecule));
+            }
+            List<RawSynthon> replacements = toRawSynthons(reactionId, fragmentIndex, fragment.rawSynthon.getFragmentId(), cleanedSynthonMolecules);
+            return new CleanTaskResult(fragment, replacements);
+        } catch (RuntimeException ex) {
+            throw new IllegalStateException("Cleaning failed for fragment " + fragment.rawSynthon.getFragmentId(), ex);
+        } finally {
+            cleanerProvider.release(cleaner);
         }
-        return toRawSynthons(reactionId, fragmentIndex, fragment.rawSynthon.getFragmentId(), cleanedSynthonMolecules);
     }
 
     private SynthonAssemblyResult assembleExample(SynthonFragment target,
@@ -270,6 +335,16 @@ public final class SynthonSpaceCleaner {
         private SynthonAssemblyResult(StereoMolecule assembled, List<int[]> atomMaps) {
             this.assembled = assembled;
             this.atomMaps = atomMaps;
+        }
+    }
+
+    private static final class CleanTaskResult {
+        private final SynthonFragment fragment;
+        private final List<RawSynthon> replacements;
+
+        private CleanTaskResult(SynthonFragment fragment, List<RawSynthon> replacements) {
+            this.fragment = fragment;
+            this.replacements = replacements;
         }
     }
 }

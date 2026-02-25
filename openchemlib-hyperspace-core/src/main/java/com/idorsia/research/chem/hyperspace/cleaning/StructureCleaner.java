@@ -3,6 +3,7 @@ package com.idorsia.research.chem.hyperspace.cleaning;
 import com.actelion.research.chem.StereoMolecule;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Strategy interface that wraps an external normalization workflow.
@@ -22,4 +23,36 @@ public interface StructureCleaner {
      * signals that the input should be used as-is.
      */
     List<StereoMolecule> cleanStructure(StereoMolecule structure);
+
+    /**
+     * Factory for providing thread-confined cleaner instances. Implementations may
+     * return the same cleaner every time if it is thread-safe.
+     */
+    interface Provider {
+        StructureCleaner acquire();
+
+        default void release(StructureCleaner cleaner) {
+            // no-op by default
+        }
+
+        static Provider singleton(StructureCleaner cleaner) {
+            Objects.requireNonNull(cleaner, "cleaner");
+            return new Provider() {
+                @Override
+                public StructureCleaner acquire() {
+                    return cleaner;
+                }
+            };
+        }
+
+        static Provider threadLocal(ThreadLocal<? extends StructureCleaner> threadLocal) {
+            Objects.requireNonNull(threadLocal, "threadLocal");
+            return new Provider() {
+                @Override
+                public StructureCleaner acquire() {
+                    return threadLocal.get();
+                }
+            };
+        }
+    }
 }

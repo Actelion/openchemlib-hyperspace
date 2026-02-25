@@ -14,12 +14,14 @@ public final class SynthonCleaningOptions {
     private final boolean reuseFragmentIdWhenSingleResult;
     private final String fragmentIdFormat;
     private final Long randomSeed;
+    private final int maxParallelism;
 
     private SynthonCleaningOptions(Builder builder) {
         this.assembliesPerSynthon = builder.assembliesPerSynthon;
         this.reuseFragmentIdWhenSingleResult = builder.reuseFragmentIdWhenSingleResult;
         this.fragmentIdFormat = builder.fragmentIdFormat;
         this.randomSeed = builder.randomSeed;
+        this.maxParallelism = builder.maxParallelism;
     }
 
     public static Builder builder() {
@@ -43,11 +45,16 @@ public final class SynthonCleaningOptions {
         return randomSeed == null ? new Random() : new Random(randomSeed);
     }
 
+    public int getMaxParallelism() {
+        return maxParallelism;
+    }
+
     public static final class Builder {
         private int assembliesPerSynthon = 1;
         private boolean reuseFragmentIdWhenSingleResult = true;
         private String fragmentIdFormat = DEFAULT_FRAGMENT_ID_FORMAT;
         private Long randomSeed;
+        private int maxParallelism = Runtime.getRuntime().availableProcessors();
 
         public Builder assembliesPerSynthon(int assembliesPerSynthon) {
             if (assembliesPerSynthon < 1) {
@@ -80,6 +87,14 @@ public final class SynthonCleaningOptions {
 
         public Builder randomSeed(long randomSeed) {
             this.randomSeed = randomSeed;
+            return this;
+        }
+
+        public Builder maxParallelism(int maxParallelism) {
+            if (maxParallelism < 1) {
+                throw new IllegalArgumentException("maxParallelism must be >= 1");
+            }
+            this.maxParallelism = maxParallelism;
             return this;
         }
 

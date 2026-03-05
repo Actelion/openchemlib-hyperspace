@@ -16,6 +16,7 @@ public class SynthonDownsamplingRequest implements Serializable {
     private final double minSimilarity;
     private final long randomSeed;
     private final boolean enforceConnectorEquivalence;
+    private final boolean includeClusterMembers;
     private final Map<String, Object> attributes;
 
     private SynthonDownsamplingRequest(Builder builder) {
@@ -25,6 +26,7 @@ public class SynthonDownsamplingRequest implements Serializable {
         this.minSimilarity = builder.minSimilarity;
         this.randomSeed = builder.randomSeed;
         this.enforceConnectorEquivalence = builder.enforceConnectorEquivalence;
+        this.includeClusterMembers = builder.includeClusterMembers;
         this.attributes = Collections.unmodifiableMap(new HashMap<>(builder.attributes));
     }
 
@@ -61,6 +63,10 @@ public class SynthonDownsamplingRequest implements Serializable {
         return enforceConnectorEquivalence;
     }
 
+    public boolean isIncludeClusterMembers() {
+        return includeClusterMembers;
+    }
+
     public Map<String, Object> getAttributes() {
         return attributes;
     }
@@ -76,6 +82,7 @@ public class SynthonDownsamplingRequest implements Serializable {
         private double minSimilarity = 0.0;
         private long randomSeed = 1L;
         private boolean enforceConnectorEquivalence = true;
+        private boolean includeClusterMembers = false;
         private final Map<String, Object> attributes = new HashMap<>();
 
         public Builder withMaxCenters(int maxCenters) {
@@ -105,6 +112,11 @@ public class SynthonDownsamplingRequest implements Serializable {
 
         public Builder enforceConnectorEquivalence(boolean enforce) {
             this.enforceConnectorEquivalence = enforce;
+            return this;
+        }
+
+        public Builder includeClusterMembers(boolean includeClusterMembers) {
+            this.includeClusterMembers = includeClusterMembers;
             return this;
         }
 

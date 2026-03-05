@@ -49,6 +49,7 @@ public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
         Collections.shuffle(working, new Random(request.getRandomSeed()));
 
         int maxCenters = request.getEffectiveMaxCenters(working.size());
+        boolean includeClusterMembers = request.isIncludeClusterMembers();
         List<CenterRecord> centers = new ArrayList<>();
         for (SynthonSpace.FragId candidate : working) {
             int[] descriptor = descriptorCache.getOrCompute(candidate);
@@ -59,19 +60,19 @@ public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
             boolean belowThreshold = best == null || best.similarity < request.getMinSimilarity();
             boolean canCreateCenter = maxCenters <= 0 || centers.size() < maxCenters;
             if ((best == null || belowThreshold) && canCreateCenter) {
-                centers.add(new CenterRecord(candidate, descriptor));
+                centers.add(new CenterRecord(candidate, descriptor, includeClusterMembers));
                 continue;
             }
             if (best != null) {
-                best.center.registerAssignment(best.similarity);
+                best.center.registerAssignment(candidate, best.similarity);
             } else if (!centers.isEmpty()) {
                 // all centers filtered by connector equivalence but limit reached -> assign to overall best ignoring connectors
                 CenterWithSimilarity fallback = findBestCenter(candidate, descriptor, centers, false);
                 if (fallback != null) {
-                    fallback.center.registerAssignment(fallback.similarity);
+                    fallback.center.registerAssignment(candidate, fallback.similarity);
                 }
             } else {
-                centers.add(new CenterRecord(candidate, descriptor));
+                centers.add(new CenterRecord(candidate, descriptor, includeClusterMembers));
             }
         }
 
@@ -79,9 +80,7 @@ public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
         List<SynthonSetDownsamplingResult.ClusterInfo> clusterInfos = new ArrayList<>();
         for (CenterRecord center : centers) {
             representatives.add(center.representative);
-            clusterInfos.add(new SynthonSetDownsamplingResult.ClusterInfo(center.representative,
-                    center.members,
-                    center.minSimilarityWithinCluster));
+            clusterInfos.add(center.toClusterInfo());
         }
 
         return new SynthonSetDownsamplingResult(fragType, representatives, clusterInfos, synthons.size());
@@ -126,17 +125,37 @@ public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
     private static final class CenterRecord {
         private final SynthonSpace.FragId representative;
         private final int[] descriptor;
+        private final List<SynthonSetDownsamplingResult.ClusterMember> memberAssignments;
         private int members = 1;
         private double minSimilarityWithinCluster = 1.0;
 
-        private CenterRecord(SynthonSpace.FragId representative, int[] descriptor) {
+        private CenterRecord(SynthonSpace.FragId representative,
+                             int[] descriptor,
+                             boolean includeClusterMembers) {
             this.representative = representative;
             this.descriptor = descriptor;
+            this.memberAssignments = includeClusterMembers ? new ArrayList<>() : null;
+            if (this.memberAssignments != null) {
+                this.memberAssignments.add(new SynthonSetDownsamplingResult.ClusterMember(representative, 1.0));
+            }
         }
 
-        private void registerAssignment(double similarity) {
+        private void registerAssignment(SynthonSpace.FragId member, double similarity) {
             members++;
             minSimilarityWithinCluster = Math.min(minSimilarityWithinCluster, similarity);
+            if (memberAssignments != null) {
+                memberAssignments.add(new SynthonSetDownsamplingResult.ClusterMember(member, similarity));
+            }
+        }
+
+        private SynthonSetDownsamplingResult.ClusterInfo toClusterInfo() {
+            if (memberAssignments == null) {
+                return new SynthonSetDownsamplingResult.ClusterInfo(representative, members, minSimilarityWithinCluster);
+            }
+            return new SynthonSetDownsamplingResult.ClusterInfo(representative,
+                    members,
+                    minSimilarityWithinCluster,
+                    memberAssignments);
         }
     }
 

@@ -4,7 +4,13 @@ import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.gui.JStructureView;
 import com.actelion.research.gui.table.ChemistryCellRenderer;
+import com.idorsia.research.chem.hyperspace.SynthonSpace;
+import com.idorsia.research.chem.hyperspace.downsampling.RawSynthonDownsampler;
+import com.idorsia.research.chem.hyperspace.downsampling.SkelSpheresKCentersRawDownsampler;
+import com.idorsia.research.chem.hyperspace.downsampling.SynthonDownsamplingRequest;
+import com.idorsia.research.chem.hyperspace.downsampling.SynthonSetDownsamplingResult;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthon;
+import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSet;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpaceIO;
 
@@ -12,6 +18,7 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableRowSorter;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
@@ -21,11 +28,13 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.text.DecimalFormat;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -41,6 +50,7 @@ public class SynthonSpaceBrowserFrame extends JFrame {
     private final JCheckBox downsampledSetsCheckBox = new JCheckBox("Use downsampled sets");
     private final JLabel statusLabel = new JLabel("Load a RawSynthonSpace to start.");
     private final JPanel previewPanel = new JPanel(new BorderLayout());
+    private final DecimalFormat similarityFormat = new DecimalFormat("0.000");
 
     private RawSynthonSpace currentSpace;
     private Path currentPath;
@@ -107,6 +117,7 @@ public class SynthonSpaceBrowserFrame extends JFrame {
         JButton reloadButton = new JButton("Reload");
         JButton expandAllButton = new JButton("Expand All");
         JButton collapseAllButton = new JButton("Collapse All");
+        JButton downsampleSetButton = new JButton("Downsample Set...");
 
         openButton.addActionListener(e -> chooseAndOpen());
         reloadButton.addActionListener(e -> {
@@ -116,12 +127,14 @@ public class SynthonSpaceBrowserFrame extends JFrame {
         });
         expandAllButton.addActionListener(e -> expandAll(true));
         collapseAllButton.addActionListener(e -> expandAll(false));
+        downsampleSetButton.addActionListener(e -> runDownsamplingForSelectedSet());
 
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         panel.add(openButton);
         panel.add(reloadButton);
         panel.add(expandAllButton);
         panel.add(collapseAllButton);
+        panel.add(downsampleSetButton);
         panel.add(downsampledSetsCheckBox);
         panel.add(new JLabel("Filter:"));
         panel.add(filterField);
@@ -308,6 +321,333 @@ public class SynthonSpaceBrowserFrame extends JFrame {
         return out;
     }
 
+    private SynthonTreeBuilder.NodeData nodeData(DefaultMutableTreeNode node) {
+        if (node == null) {
+            return null;
+        }
+        Object userObject = node.getUserObject();
+        if (userObject instanceof SynthonTreeBuilder.NodeData nodeData) {
+            return nodeData;
+        }
+        return null;
+    }
+
+    private SelectedSet selectedSetFromNode(DefaultMutableTreeNode node) {
+        SynthonTreeBuilder.NodeData nodeData = nodeData(node);
+        if (nodeData == null || nodeData.type() != SynthonTreeBuilder.NodeType.SET || nodeData.setIndex() == null) {
+            return null;
+        }
+        return new SelectedSet(nodeData.reactionId(), nodeData.setIndex());
+    }
+
+    private void runDownsamplingForSelectedSet() {
+        runDownsamplingForNode(selectedNode());
+    }
+
+    private void runDownsamplingForNode(DefaultMutableTreeNode node) {
+        if (currentSpace == null) {
+            return;
+        }
+        SelectedSet selectedSet = selectedSetFromNode(node);
+        if (selectedSet == null) {
+            JOptionPane.showMessageDialog(this,
+                    "Please select a specific synthon set node (Reaction -> Set) first.",
+                    "No set selected",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        List<RawSynthon> sourceSet = getSourceSet(selectedSet);
+        if (sourceSet.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "Selected set does not contain synthons.",
+                    "Empty set",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        DownsamplingConfig config = askDownsamplingConfig(selectedSet, sourceSet.size());
+        if (config == null) {
+            return;
+        }
+
+        setBusyState(String.format("Downsampling %s / set %d ...", selectedSet.reactionId(), selectedSet.setIndex()));
+        SwingWorker<SynthonSetDownsamplingResult, Void> worker = new SwingWorker<>() {
+            @Override
+            protected SynthonSetDownsamplingResult doInBackground() {
+                SynthonDownsamplingRequest request = SynthonDownsamplingRequest.builder()
+                        .withMaxCenters(config.maxCenters())
+                        .withSizeCapScale(config.sizeCapScale())
+                        .withSizeCapOffset(config.sizeCapOffset())
+                        .withMinSimilarity(config.minSimilarity())
+                        .withRandomSeed(config.seed())
+                        .enforceConnectorEquivalence(config.enforceConnectorEquivalence())
+                        .includeClusterMembers(config.includeClusterMembers())
+                        .build();
+                RawSynthonSet set = new RawSynthonSet(selectedSet.reactionId(), selectedSet.setIndex(), sourceSet);
+                RawSynthonDownsampler downsampler = new SkelSpheresKCentersRawDownsampler();
+                return downsampler.downsample(set, request);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    SynthonSetDownsamplingResult result = get();
+                    statusLabel.setText(String.format(
+                            "Downsampling done for %s / set %d: %d -> %d representatives",
+                            selectedSet.reactionId(),
+                            selectedSet.setIndex(),
+                            result.getOriginalSize(),
+                            result.getRetainedSize()
+                    ));
+                    showDownsamplingResultDialog(selectedSet, sourceSet, result);
+                } catch (Exception ex) {
+                    showError("Could not downsample selected set", ex);
+                } finally {
+                    setCursor(Cursor.getDefaultCursor());
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private List<RawSynthon> getSourceSet(SelectedSet set) {
+        RawSynthonSpace.ReactionData reactionData = currentSpace.getReactions().get(set.reactionId());
+        if (reactionData == null) {
+            return List.of();
+        }
+        List<RawSynthon> synthons = reactionData.getRawFragmentSets().get(set.setIndex());
+        if (synthons == null) {
+            return List.of();
+        }
+        return synthons;
+    }
+
+    private DownsamplingConfig askDownsamplingConfig(SelectedSet selectedSet, int sourceSetSize) {
+        JTextField maxCentersField = new JTextField("8", 8);
+        JTextField sizeCapScaleField = new JTextField("0.0", 8);
+        JTextField sizeCapOffsetField = new JTextField("0.0", 8);
+        JTextField minSimilarityField = new JTextField("0.75", 8);
+        JTextField seedField = new JTextField("13", 8);
+        JCheckBox connectorEquivalence = new JCheckBox("Enforce connector equivalence", true);
+        JCheckBox includeMembers = new JCheckBox("Capture full cluster members (for expansion view)", true);
+
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(4, 6, 4, 6);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        panel.add(new JLabel(String.format("Reaction: %s   Set: %d   Size: %d",
+                selectedSet.reactionId(),
+                selectedSet.setIndex(),
+                sourceSetSize)), gbc);
+
+        gbc.gridy++;
+        panel.add(new JLabel("maxCenters (0 = unlimited)"), gbc);
+        gbc.gridx = 1;
+        panel.add(maxCentersField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        panel.add(new JLabel("sizeCapScale"), gbc);
+        gbc.gridx = 1;
+        panel.add(sizeCapScaleField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        panel.add(new JLabel("sizeCapOffset"), gbc);
+        gbc.gridx = 1;
+        panel.add(sizeCapOffsetField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        panel.add(new JLabel("minSimilarity [0..1]"), gbc);
+        gbc.gridx = 1;
+        panel.add(minSimilarityField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        panel.add(new JLabel("seed"), gbc);
+        gbc.gridx = 1;
+        panel.add(seedField, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy++;
+        gbc.gridwidth = 2;
+        panel.add(connectorEquivalence, gbc);
+        gbc.gridy++;
+        panel.add(includeMembers, gbc);
+
+        while (true) {
+            int rc = JOptionPane.showConfirmDialog(
+                    this,
+                    panel,
+                    "Downsample Set - SkelSpheresKCentersRaw",
+                    JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.PLAIN_MESSAGE
+            );
+            if (rc != JOptionPane.OK_OPTION) {
+                return null;
+            }
+
+            try {
+                int maxCenters = Integer.parseInt(maxCentersField.getText().trim());
+                double sizeCapScale = Double.parseDouble(sizeCapScaleField.getText().trim());
+                double sizeCapOffset = Double.parseDouble(sizeCapOffsetField.getText().trim());
+                double minSimilarity = Double.parseDouble(minSimilarityField.getText().trim());
+                long seed = Long.parseLong(seedField.getText().trim());
+
+                if (maxCenters < 0) {
+                    throw new IllegalArgumentException("maxCenters must be >= 0");
+                }
+                if (sizeCapScale < 0.0) {
+                    throw new IllegalArgumentException("sizeCapScale must be >= 0");
+                }
+                if (minSimilarity < 0.0 || minSimilarity > 1.0) {
+                    throw new IllegalArgumentException("minSimilarity must be in [0, 1]");
+                }
+
+                return new DownsamplingConfig(
+                        maxCenters,
+                        sizeCapScale,
+                        sizeCapOffset,
+                        minSimilarity,
+                        seed,
+                        connectorEquivalence.isSelected(),
+                        includeMembers.isSelected()
+                );
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Invalid settings: " + ex.getMessage(),
+                        "Validation Error",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
+        }
+    }
+
+    private void showDownsamplingResultDialog(SelectedSet selectedSet,
+                                              List<RawSynthon> sourceSet,
+                                              SynthonSetDownsamplingResult result) {
+        Map<String, RawSynthon> byFragmentId = new HashMap<>();
+        for (RawSynthon synthon : sourceSet) {
+            byFragmentId.put(synthon.getFragmentId(), synthon);
+        }
+
+        List<RepresentativeRow> representativeRows = new ArrayList<>();
+        for (SynthonSetDownsamplingResult.ClusterInfo cluster : result.getClusterInfos()) {
+            RawSynthon representative = resolveRawSynthon(cluster.getRepresentative(), byFragmentId);
+            representativeRows.add(new RepresentativeRow(
+                    representative.getIdcode(),
+                    representative.getFragmentId(),
+                    SynthonTableModel.formatConnectors(representative.getConnectors()),
+                    cluster.getMembers(),
+                    cluster.getMinSimilarityWithinCluster(),
+                    cluster.getMemberAssignments().size(),
+                    cluster
+            ));
+        }
+        representativeRows.sort(Comparator.comparing(RepresentativeRow::fragmentId, Comparator.nullsFirst(Comparator.naturalOrder())));
+
+        RepresentativeTableModel representativesModel = new RepresentativeTableModel(representativeRows);
+        ClusterMemberTableModel memberTableModel = new ClusterMemberTableModel();
+
+        JTable representativesTable = new JTable(representativesModel);
+        representativesTable.setRowHeight(90);
+        representativesTable.getColumnModel().getColumn(0).setCellRenderer(new ChemistryCellRenderer());
+        representativesTable.getColumnModel().getColumn(0).setPreferredWidth(220);
+        representativesTable.getColumnModel().getColumn(2).setPreferredWidth(120);
+
+        JTable membersTable = new JTable(memberTableModel);
+        membersTable.setRowHeight(90);
+        membersTable.getColumnModel().getColumn(0).setCellRenderer(new ChemistryCellRenderer());
+        membersTable.getColumnModel().getColumn(0).setPreferredWidth(220);
+        membersTable.getColumnModel().getColumn(2).setPreferredWidth(120);
+        membersTable.getColumnModel().getColumn(3).setPreferredWidth(110);
+
+        JLabel membersHeader = new JLabel("Cluster Members");
+        representativesTable.getSelectionModel().addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) {
+                return;
+            }
+            int row = representativesTable.getSelectedRow();
+            if (row < 0) {
+                memberTableModel.setRows(List.of());
+                membersHeader.setText("Cluster Members");
+                return;
+            }
+            RepresentativeRow selected = representativesModel.getRow(row);
+            List<MemberRow> memberRows = toMemberRows(selected.clusterInfo(), byFragmentId);
+            memberTableModel.setRows(memberRows);
+            if (selected.clusterInfo().hasMemberAssignments()) {
+                membersHeader.setText(String.format("Cluster Members (%d captured)", memberRows.size()));
+            } else {
+                membersHeader.setText("Cluster Members (not captured for this run)");
+            }
+        });
+
+        JLabel summaryLabel = new JLabel(String.format(
+                "%s / Set %d: %d -> %d representatives (discarded=%d)",
+                selectedSet.reactionId(),
+                selectedSet.setIndex(),
+                result.getOriginalSize(),
+                result.getRetainedSize(),
+                result.getDiscardedSize()
+        ));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.add(summaryLabel, BorderLayout.NORTH);
+        top.add(new JScrollPane(representativesTable), BorderLayout.CENTER);
+
+        JPanel bottom = new JPanel(new BorderLayout());
+        bottom.add(membersHeader, BorderLayout.NORTH);
+        bottom.add(new JScrollPane(membersTable), BorderLayout.CENTER);
+
+        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, top, bottom);
+        split.setResizeWeight(0.55);
+
+        JDialog dialog = new JDialog(this, "Downsampling Result", true);
+        dialog.setLayout(new BorderLayout());
+        dialog.add(split, BorderLayout.CENTER);
+        dialog.setSize(1150, 760);
+        dialog.setLocationRelativeTo(this);
+        if (!representativeRows.isEmpty()) {
+            representativesTable.setRowSelectionInterval(0, 0);
+        }
+        dialog.setVisible(true);
+    }
+
+    private List<MemberRow> toMemberRows(SynthonSetDownsamplingResult.ClusterInfo clusterInfo,
+                                         Map<String, RawSynthon> byFragmentId) {
+        if (!clusterInfo.hasMemberAssignments()) {
+            return List.of();
+        }
+        List<MemberRow> out = new ArrayList<>();
+        for (SynthonSetDownsamplingResult.ClusterMember member : clusterInfo.getMemberAssignments()) {
+            RawSynthon raw = resolveRawSynthon(member.getFragId(), byFragmentId);
+            out.add(new MemberRow(
+                    raw.getIdcode(),
+                    raw.getFragmentId(),
+                    SynthonTableModel.formatConnectors(raw.getConnectors()),
+                    member.getSimilarityToRepresentative()
+            ));
+        }
+        out.sort(Comparator.comparingDouble(MemberRow::similarityToRepresentative).reversed());
+        return out;
+    }
+
+    private RawSynthon resolveRawSynthon(SynthonSpace.FragId fragId, Map<String, RawSynthon> byFragmentId) {
+        RawSynthon fromMap = byFragmentId.get(fragId.fragment_id);
+        if (fromMap != null) {
+            return fromMap;
+        }
+        return RawSynthon.fromFragId(fragId);
+    }
+
     private void maybeShowTreeContextMenu(MouseEvent e) {
         if (!e.isPopupTrigger()) {
             return;
@@ -326,6 +666,13 @@ public class SynthonSpaceBrowserFrame extends JFrame {
         }
 
         JPopupMenu menu = new JPopupMenu();
+        SynthonTreeBuilder.NodeData nodeData = nodeData(node);
+        if (nodeData != null && nodeData.type() == SynthonTreeBuilder.NodeType.SET) {
+            JMenuItem downsampleSet = new JMenuItem("Downsample set...");
+            downsampleSet.addActionListener(a -> runDownsamplingForNode(node));
+            menu.add(downsampleSet);
+            menu.addSeparator();
+        }
         JMenuItem exportTsv = new JMenuItem("Export to .tsv");
         exportTsv.addActionListener(a -> exportNodeToTsv(node));
         menu.add(exportTsv);
@@ -517,6 +864,132 @@ public class SynthonSpaceBrowserFrame extends JFrame {
                 tree.collapseRow(row);
             }
             row++;
+        }
+    }
+
+    private record SelectedSet(String reactionId, int setIndex) {}
+
+    private record DownsamplingConfig(int maxCenters,
+                                      double sizeCapScale,
+                                      double sizeCapOffset,
+                                      double minSimilarity,
+                                      long seed,
+                                      boolean enforceConnectorEquivalence,
+                                      boolean includeClusterMembers) {}
+
+    private record RepresentativeRow(String idcode,
+                                     String fragmentId,
+                                     String connectors,
+                                     int members,
+                                     double minSimilarityWithinCluster,
+                                     int capturedAssignments,
+                                     SynthonSetDownsamplingResult.ClusterInfo clusterInfo) {}
+
+    private record MemberRow(String idcode,
+                             String fragmentId,
+                             String connectors,
+                             double similarityToRepresentative) {}
+
+    private final class RepresentativeTableModel extends AbstractTableModel {
+
+        private final String[] columns = {
+                "Representative[idcode]",
+                "Fragment ID",
+                "Connectors",
+                "Cluster Members",
+                "Min Similarity",
+                "Captured Assignments"
+        };
+        private final List<RepresentativeRow> rows;
+
+        private RepresentativeTableModel(List<RepresentativeRow> rows) {
+            this.rows = new ArrayList<>(rows);
+        }
+
+        @Override
+        public int getRowCount() {
+            return rows.size();
+        }
+
+        @Override
+        public int getColumnCount() {
+            return columns.length;
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            return columns[column];
+        }
+
+        @Override
+        public Class<?> getColumnClass(int columnIndex) {
+            return switch (columnIndex) {
+                case 3, 5 -> Integer.class;
+                case 4 -> String.class;
+                default -> String.class;
+            };
+        }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            RepresentativeRow row = rows.get(rowIndex);
+            return switch (columnIndex) {
+                case 0 -> row.idcode();
+                case 1 -> row.fragmentId();
+                case 2 -> row.connectors();
+                case 3 -> row.members();
+                case 4 -> similarityFormat.format(row.minSimilarityWithinCluster());
+                case 5 -> row.capturedAssignments();
+                default -> "";
+            };
+        }
+
+        public RepresentativeRow getRow(int rowIndex) {
+            return rows.get(rowIndex);
+        }
+    }
+
+    private final class ClusterMemberTableModel extends AbstractTableModel {
+
+        private final String[] columns = {
+                "Member[idcode]",
+                "Fragment ID",
+                "Connectors",
+                "Similarity to Rep"
+        };
+        private final List<MemberRow> rows = new ArrayList<>();
+
+        @Override
+        public int getRowCount() {
+            return rows.size();
+        }
+
+        @Override
+        public int getColumnCount() {
+            return columns.length;
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            return columns[column];
+        }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            MemberRow row = rows.get(rowIndex);
+            return switch (columnIndex) {
+                case 0 -> row.idcode();
+                case 1 -> row.fragmentId();
+                case 2 -> row.connectors();
+                case 3 -> similarityFormat.format(row.similarityToRepresentative());
+                default -> "";
+            };
+        }
+
+        public void setRows(List<MemberRow> memberRows) {
+            rows.clear();
+            rows.addAll(memberRows);
+            fireTableDataChanged();
         }
     }
 

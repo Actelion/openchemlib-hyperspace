@@ -46,11 +46,40 @@ class SkelSpheresKCentersDownsamplerTest {
         Map<Integer, Integer> retainedPerFragment = new HashMap<>();
         result.getSetResults().forEach(r -> {
             assertTrue(r.getRetainedSize() <= request.getMaxCenters());
+            r.getClusterInfos().forEach(cluster -> assertTrue(cluster.getMemberAssignments().isEmpty(),
+                    "member assignments should be empty unless explicitly requested"));
             retainedPerFragment.put(r.getFragType().frag, r.getRetainedSize());
         });
         assertEquals(8, retainedPerFragment.get(0));
         assertEquals(8, retainedPerFragment.get(1));
         assertEquals(3, retainedPerFragment.get(2));
+    }
+
+    @Test
+    void downsamplingCanCaptureClusterMembers() throws Exception {
+        SynthonSpace space = loadToySpace("testdata/idorsia_toy_space_a.txt",
+                Collections.singleton("benzoimidazole_b-8"));
+
+        SynthonDownsamplingRequest request = SynthonDownsamplingRequest.builder()
+                .withMaxCenters(8)
+                .withMinSimilarity(0.75)
+                .withRandomSeed(42L)
+                .enforceConnectorEquivalence(true)
+                .includeClusterMembers(true)
+                .build();
+
+        SynthonDownsampler downsampler = new SkelSpheresKCentersDownsampler();
+        SynthonDownsamplingResult result = new SynthonDownsamplingOrchestrator()
+                .downsample(space, downsampler, request);
+
+        assertFalse(result.getSetResults().isEmpty());
+        result.getSetResults().forEach(setResult -> {
+            assertFalse(setResult.getClusterInfos().isEmpty());
+            setResult.getClusterInfos().forEach(cluster -> {
+                assertTrue(cluster.hasMemberAssignments());
+                assertEquals(cluster.getMembers(), cluster.getMemberAssignments().size());
+            });
+        });
     }
 
     private SynthonSpace loadToySpace(String resource, Set<String> allowedReactions) throws Exception {

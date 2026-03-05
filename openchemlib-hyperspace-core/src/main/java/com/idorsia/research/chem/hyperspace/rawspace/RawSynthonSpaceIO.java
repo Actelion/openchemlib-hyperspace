@@ -232,6 +232,7 @@ public final class RawSynthonSpaceIO {
         public double minSimilarity;
         public long randomSeed;
         public boolean enforceConnectorEquivalence;
+        public boolean includeClusterMembers;
         public Map<String, Object> attributes;
     }
 
@@ -243,6 +244,7 @@ public final class RawSynthonSpaceIO {
         json.minSimilarity = request.getMinSimilarity();
         json.randomSeed = request.getRandomSeed();
         json.enforceConnectorEquivalence = request.isEnforceConnectorEquivalence();
+        json.includeClusterMembers = request.isIncludeClusterMembers();
         json.attributes = request.getAttributes();
         return json;
     }
@@ -254,7 +256,8 @@ public final class RawSynthonSpaceIO {
                 .withSizeCapOffset(json.sizeCapOffset)
                 .withMinSimilarity(json.minSimilarity)
                 .withRandomSeed(json.randomSeed)
-                .enforceConnectorEquivalence(json.enforceConnectorEquivalence);
+                .enforceConnectorEquivalence(json.enforceConnectorEquivalence)
+                .includeClusterMembers(json.includeClusterMembers);
         if (json.attributes != null) {
             json.attributes.forEach(builder::putAttribute);
         }

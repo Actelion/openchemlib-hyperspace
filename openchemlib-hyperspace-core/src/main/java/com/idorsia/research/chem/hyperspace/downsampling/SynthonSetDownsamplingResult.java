@@ -56,11 +56,22 @@ public class SynthonSetDownsamplingResult implements Serializable {
         private final SynthonSpace.FragId representative;
         private final int members;
         private final double minSimilarityWithinCluster;
+        private final List<ClusterMember> memberAssignments;
 
         public ClusterInfo(SynthonSpace.FragId representative, int members, double minSimilarityWithinCluster) {
+            this(representative, members, minSimilarityWithinCluster, Collections.emptyList());
+        }
+
+        public ClusterInfo(SynthonSpace.FragId representative,
+                           int members,
+                           double minSimilarityWithinCluster,
+                           List<ClusterMember> memberAssignments) {
             this.representative = Objects.requireNonNull(representative, "representative");
             this.members = members;
             this.minSimilarityWithinCluster = minSimilarityWithinCluster;
+            this.memberAssignments = Collections.unmodifiableList(new ArrayList<>(memberAssignments == null
+                    ? Collections.emptyList()
+                    : memberAssignments));
         }
 
         public SynthonSpace.FragId getRepresentative() {
@@ -73,6 +84,32 @@ public class SynthonSetDownsamplingResult implements Serializable {
 
         public double getMinSimilarityWithinCluster() {
             return minSimilarityWithinCluster;
+        }
+
+        public List<ClusterMember> getMemberAssignments() {
+            return memberAssignments;
+        }
+
+        public boolean hasMemberAssignments() {
+            return !memberAssignments.isEmpty();
+        }
+    }
+
+    public static final class ClusterMember implements Serializable {
+        private final SynthonSpace.FragId fragId;
+        private final double similarityToRepresentative;
+
+        public ClusterMember(SynthonSpace.FragId fragId, double similarityToRepresentative) {
+            this.fragId = Objects.requireNonNull(fragId, "fragId");
+            this.similarityToRepresentative = similarityToRepresentative;
+        }
+
+        public SynthonSpace.FragId getFragId() {
+            return fragId;
+        }
+
+        public double getSimilarityToRepresentative() {
+            return similarityToRepresentative;
         }
     }
 }

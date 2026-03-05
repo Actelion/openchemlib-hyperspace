@@ -8,6 +8,7 @@ import com.idorsia.research.chem.hyperspace.localopt.LocalOptimizationResult;
 import com.idorsia.research.chem.hyperspace.localopt.LocalOptimizationResultWriter;
 import com.idorsia.research.chem.hyperspace.localopt.PheSAAssemblyScorer;
 import com.idorsia.research.chem.hyperspace.localopt.SeedAssembly;
+import com.idorsia.research.chem.hyperspace.localopt.SkelSpheresNeighborSampler;
 import com.idorsia.research.chem.hyperspace.localopt.SynthonSetAccessor;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace;
 
@@ -16,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -73,11 +75,13 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
                 config.reactionMinWeight,
                 config.reactionWeightExponent);
         this.duplicateFilter = new DuplicateFilter(config.duplicateCacheSize);
+        SkelSpheresNeighborSampler fullNeighborSampler = new SkelSpheresNeighborSampler();
         SynthonSetAccessor fullAccessor = new SynthonSetAccessor(config.fullRaw);
         this.fullOptimizer = new LocalBeamOptimizer(fullAccessor,
                 new PheSAAssemblyScorer(config.queryDescriptor,
                         config.fullOptimizationRequest.getMinScoreThreshold(),
-                        metrics.fullOptComparisonCounter()));
+                        metrics.fullOptComparisonCounter()),
+                fullNeighborSampler);
         this.fullRequest = config.fullOptimizationRequest;
         this.writer = new LocalOptimizationResultWriter(config.hitOutput);
         this.progressIntervalSeconds = config.progressIntervalSeconds;
@@ -99,10 +103,13 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
         this.microEnabled = config.microEnabled;
         if (microEnabled) {
             SynthonSetAccessor downsampledAccessor = new SynthonSetAccessor(downsampledView);
+            SkelSpheresNeighborSampler microNeighborSampler =
+                    new SkelSpheresNeighborSampler(fullNeighborSampler.getDescriptorCache());
             this.microOptimizer = new LocalBeamOptimizer(downsampledAccessor,
                     new PheSAAssemblyScorer(config.queryDescriptor,
                             config.microOptimizationRequest.getMinScoreThreshold(),
-                            metrics.microOptComparisonCounter()));
+                            metrics.microOptComparisonCounter()),
+                    microNeighborSampler);
             this.microRequest = config.microOptimizationRequest;
         } else {
             this.microOptimizer = null;
@@ -122,6 +129,8 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
 
     public void run(long iterations) {
         long remaining = iterations < 0 ? Long.MAX_VALUE : iterations;
+        long runStartNanos = System.nanoTime();
+        this.startTimeNanos = runStartNanos;
         try {
             startProgressReporter(iterations);
             while (remaining > 0) {
@@ -132,6 +141,7 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
             shutdownAndAwait();
         } finally {
             stopProgressReporter();
+            reportFinalSummary(runStartNanos);
             closeWriter();
         }
     }
@@ -229,6 +239,14 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
             long candidateComparisons = metrics.getCandidateComparisons();
             long microComparisons = metrics.getMicroOptComparisons();
             long fullComparisons = metrics.getFullOptComparisons();
+            ScreeningMetrics.ScoreStatsSnapshot sampledScores = metrics.getSampledScoreStats();
+            ScreeningMetrics.ScoreStatsSnapshot preMicroScores = metrics.getPreMicroScoreStats();
+            ScreeningMetrics.ScoreStatsSnapshot postMicroScores = metrics.getPostMicroScoreStats();
+            ScreeningMetrics.ScoreStatsSnapshot preFullScores = metrics.getPreFullScoreStats();
+            ScreeningMetrics.ScoreStatsSnapshot postFullAllScores = metrics.getPostFullAllScoreStats();
+            ScreeningMetrics.ScoreStatsSnapshot postFullReportedScores = metrics.getPostFullReportedScoreStats();
+            ScreeningMetrics.ScoreStatsSnapshot microGains = metrics.getMicroGainStats();
+            ScreeningMetrics.ScoreStatsSnapshot fullGains = metrics.getFullGainStats();
 
             StringBuilder sb = new StringBuilder();
             sb.append("[Screening] elapsed=").append(elapsedSeconds).append("s ");
@@ -242,10 +260,78 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
                     .append(" (cand=").append(candidateComparisons)
                     .append(", micro=").append(microComparisons)
                     .append(", full=").append(fullComparisons).append(")");
-            sb.append(" rate=").append(String.format("%.1f", sampled / (double) elapsedSeconds)).append("/s");
+            sb.append(" scoreAvg=").append("s=").append(formatScore(sampledScores))
+                    .append(",preM=").append(formatScore(preMicroScores))
+                    .append(",postM=").append(formatScore(postMicroScores))
+                    .append(",preF=").append(formatScore(preFullScores))
+                    .append(",fullAll=").append(formatScore(postFullAllScores))
+                    .append(",fullOut=").append(formatScore(postFullReportedScores));
+            sb.append(" gainAvg=").append("m=").append(formatScore(microGains))
+                    .append(",f=").append(formatScore(fullGains));
+            sb.append(" rate=").append(String.format(Locale.ROOT, "%.1f", sampled / (double) elapsedSeconds)).append("/s");
             System.out.println(sb);
         } catch (Exception ignored) {
         }
+    }
+
+    private void reportFinalSummary(long runStartNanos) {
+        try {
+            long elapsedSeconds = Math.max(1L, (System.nanoTime() - runStartNanos) / 1_000_000_000L);
+            long sampled = metrics.getSampled();
+            long submitted = metrics.getSubmitted();
+            long hits = metrics.getHits();
+            long duplicateSeeds = metrics.getDuplicateSeeds();
+            long candidateComparisons = metrics.getCandidateComparisons();
+            long microComparisons = metrics.getMicroOptComparisons();
+            long fullComparisons = metrics.getFullOptComparisons();
+
+            StringBuilder header = new StringBuilder();
+            header.append("[ScreeningSummary] elapsed=").append(elapsedSeconds).append("s ")
+                    .append("sampled=").append(sampled)
+                    .append(" submitted=").append(submitted)
+                    .append(" hits=").append(hits)
+                    .append(" dupSeeds=").append(duplicateSeeds)
+                    .append(" rate=").append(String.format(Locale.ROOT, "%.1f", sampled / (double) elapsedSeconds)).append("/s");
+            System.out.println(header);
+
+            StringBuilder comparisons = new StringBuilder();
+            comparisons.append("[ScreeningSummary] comparisons total=")
+                    .append(candidateComparisons + microComparisons + fullComparisons)
+                    .append(" (cand=").append(candidateComparisons)
+                    .append(", micro=").append(microComparisons)
+                    .append(", full=").append(fullComparisons).append(")");
+            System.out.println(comparisons);
+
+            System.out.println("[ScreeningSummary] scores sampled " + formatScoreLong(metrics.getSampledScoreStats()));
+            System.out.println("[ScreeningSummary] scores preMicro " + formatScoreLong(metrics.getPreMicroScoreStats()));
+            System.out.println("[ScreeningSummary] scores postMicro " + formatScoreLong(metrics.getPostMicroScoreStats()));
+            System.out.println("[ScreeningSummary] scores preFull " + formatScoreLong(metrics.getPreFullScoreStats()));
+            System.out.println("[ScreeningSummary] scores fullAll " + formatScoreLong(metrics.getPostFullAllScoreStats()));
+            System.out.println("[ScreeningSummary] scores fullOut " + formatScoreLong(metrics.getPostFullReportedScoreStats()));
+            System.out.println("[ScreeningSummary] gains micro " + formatScoreLong(metrics.getMicroGainStats()));
+            System.out.println("[ScreeningSummary] gains full " + formatScoreLong(metrics.getFullGainStats()));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String formatScore(ScreeningMetrics.ScoreStatsSnapshot stats) {
+        if (stats.getCount() <= 0) {
+            return "-";
+        }
+        return String.format(Locale.ROOT, "%.3f(n=%d)", stats.getMean(), stats.getCount());
+    }
+
+    private String formatScoreLong(ScreeningMetrics.ScoreStatsSnapshot stats) {
+        if (stats.getCount() <= 0) {
+            return "-";
+        }
+        return String.format(Locale.ROOT,
+                "mean=%.4f stdev=%.4f min=%.4f max=%.4f n=%d",
+                stats.getMean(),
+                stats.getStdev(),
+                stats.getMin(),
+                stats.getMax(),
+                stats.getCount());
     }
 
     private final class SampleAndOptimizeJob implements Runnable {
@@ -264,21 +350,35 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
             if (candidate == null) {
                 return;
             }
+            metrics.recordSampledScore(candidate.getSimilarity());
             if (duplicateFilter.markIfDuplicate(candidate.getAssembledIdcode())) {
                 metrics.incrementDuplicateSeeds();
                 return;
             }
+            double preMicroScore = candidate.getSimilarity();
+            metrics.recordPreMicroScore(preMicroScore);
             candidate = maybeMicroOptimize(candidate);
             if (candidate == null) {
                 return;
             }
+            if (microEnabled) {
+                metrics.recordPostMicroScore(candidate.getSimilarity());
+                metrics.recordMicroGain(candidate.getSimilarity() - preMicroScore);
+            }
             metrics.incrementSubmitted();
+            double preFullScore = candidate.getSimilarity();
+            metrics.recordPreFullScore(preFullScore);
             SeedAssembly seed = new SeedAssembly(candidate.getReactionId(),
                     candidate.getFragmentIds(),
                     candidate.getSimilarity());
             LocalOptimizationResult result = fullOptimizer.optimize(seed, fullRequest);
+            if (Double.isFinite(result.getBestObservedScore())) {
+                metrics.recordPostFullAllScore(result.getBestObservedScore());
+                metrics.recordFullGain(result.getBestObservedScore() - preFullScore);
+            }
             if (!result.getBeamEntries().isEmpty()) {
                 metrics.recordHit(result.getReactionId());
+                metrics.recordPostFullReportedScore(result.getBeamEntries().get(0).getScore());
             }
             synchronized (writer) {
                 try {

@@ -12,13 +12,22 @@ public class LocalOptimizationResult implements Serializable {
     private final String reactionId;
     private final List<BeamEntry> beamEntries;
     private final List<String> seedFragments;
+    private final double bestObservedScore;
 
     public LocalOptimizationResult(String reactionId,
                                    List<BeamEntry> beamEntries,
                                    List<String> seedFragments) {
+        this(reactionId, beamEntries, seedFragments, Double.NaN);
+    }
+
+    public LocalOptimizationResult(String reactionId,
+                                   List<BeamEntry> beamEntries,
+                                   List<String> seedFragments,
+                                   double bestObservedScore) {
         this.reactionId = reactionId;
         this.beamEntries = Collections.unmodifiableList(new ArrayList<>(beamEntries));
         this.seedFragments = Collections.unmodifiableList(new ArrayList<>(seedFragments));
+        this.bestObservedScore = bestObservedScore;
     }
 
     public String getReactionId() {
@@ -31,6 +40,13 @@ public class LocalOptimizationResult implements Serializable {
 
     public List<String> getSeedFragments() {
         return seedFragments;
+    }
+
+    /**
+     * Best score seen during optimization, regardless of reporting filters.
+     */
+    public double getBestObservedScore() {
+        return bestObservedScore;
     }
 
     public static final class BeamEntry implements Serializable {

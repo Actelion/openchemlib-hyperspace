@@ -23,8 +23,18 @@ public class SkelSpheresNeighborSampler implements NeighborSampler {
     private final Map<NeighborKey, List<SynthonSpace.FragId>> cache = new ConcurrentHashMap<>();
 
     public SkelSpheresNeighborSampler() {
+        this(null);
+    }
+
+    public SkelSpheresNeighborSampler(SynthonDescriptorCache<int[]> descriptorCache) {
         this.descriptorHandlers = ThreadLocal.withInitial(DescriptorHandlerBinarySkelSpheres::new);
-        this.descriptorCache = new SynthonDescriptorCache<>(this::computeDescriptor);
+        this.descriptorCache = descriptorCache != null
+                ? descriptorCache
+                : new SynthonDescriptorCache<>(this::computeDescriptor);
+    }
+
+    public SynthonDescriptorCache<int[]> getDescriptorCache() {
+        return descriptorCache;
     }
 
     @Override

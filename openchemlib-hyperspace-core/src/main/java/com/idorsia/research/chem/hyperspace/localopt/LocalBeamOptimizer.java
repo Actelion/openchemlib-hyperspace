@@ -43,7 +43,9 @@ public class LocalBeamOptimizer {
         Map<String, LocalOptimizationResult.BeamEntry> scoreCache = new HashMap<>();
         LocalOptimizationResult.BeamEntry seedEntry = scoreCandidate(seed.getReactionId(), seedFragments, scoreCache, 0, logger);
         if (seedEntry == null) {
-            throw new IllegalStateException("Unable to score seed assembly for reaction " + seed.getReactionId());
+            //throw new IllegalStateException("Unable to score seed assembly for reaction " + seed.getReactionId());
+            System.out.println("[WARN] scoreCandidate returned null..");
+            return new LocalOptimizationResult(seed.getReactionId(), new ArrayList<>(), new ArrayList<>(), Double.NaN);
         }
         List<LocalOptimizationResult.BeamEntry> beam = new ArrayList<>();
         beam.add(seedEntry);
@@ -64,6 +66,7 @@ public class LocalBeamOptimizer {
                 break;
             }
             double roundBest = beam.get(0).getScore();
+            System.out.println("Best: "+roundBest);
             if (roundBest > bestScore + request.getImprovementTolerance()) {
                 bestScore = roundBest;
                 noImprovementRounds = 0;
@@ -77,15 +80,20 @@ public class LocalBeamOptimizer {
         }
 
         if (request.isReportAllCandidates()) {
+            double bestObservedScore = scoreCache.values().stream()
+                    .mapToDouble(LocalOptimizationResult.BeamEntry::getScore)
+                    .max()
+                    .orElse(Double.NaN);
             double reportThreshold = request.getMinPhesaSimilarity();
             List<LocalOptimizationResult.BeamEntry> allCandidates = scoreCache.values().stream()
                     .filter(entry -> entry.getScore() >= reportThreshold)
                     .sorted(Comparator.comparingDouble(LocalOptimizationResult.BeamEntry::getScore).reversed())
                     .collect(Collectors.toCollection(ArrayList::new));
-            return new LocalOptimizationResult(seed.getReactionId(), allCandidates, seed.getFragmentIds());
+            return new LocalOptimizationResult(seed.getReactionId(), allCandidates, seed.getFragmentIds(), bestObservedScore);
         }
 
-        return new LocalOptimizationResult(seed.getReactionId(), beam, seed.getFragmentIds());
+        double bestObservedScore = beam.isEmpty() ? Double.NaN : beam.get(0).getScore();
+        return new LocalOptimizationResult(seed.getReactionId(), beam, seed.getFragmentIds(), bestObservedScore);
     }
 
     private List<LocalOptimizationResult.BeamEntry> expandPosition(String reactionId,

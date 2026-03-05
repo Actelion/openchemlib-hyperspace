@@ -41,21 +41,21 @@ public final class ContinuousScreeningCLI {
         PheSAMolecule queryDescriptor = buildQueryDescriptor(cmd);
 
         CandidateSampler.Config samplerConfig = new CandidateSampler.Config(
-                Long.parseLong(cmd.getOptionValue("candidateAttempts", "1000")),
+                Long.parseLong(cmd.getOptionValue("candidateAttempts", "20")),
                 Integer.parseInt(cmd.getOptionValue("minAtoms", "1")),
                 Integer.parseInt(cmd.getOptionValue("maxAtoms", "0")),
                 Integer.parseInt(cmd.getOptionValue("maxRotatable", "15")),
-                Double.parseDouble(cmd.getOptionValue("candidateThreshold", "0.6"))
+                Double.parseDouble(cmd.getOptionValue("candidateThreshold", "0.5"))
         );
 
         LocalOptimizationRequest fullRequest = LocalOptimizationRequest.builder()
                 .beamSize(Integer.parseInt(cmd.getOptionValue("fullBeam", "10")))
-                .neighborPoolSize(Integer.parseInt(cmd.getOptionValue("fullTopL", "100")))
-                .sampledNeighbors(Integer.parseInt(cmd.getOptionValue("fullSampleNeighbors", "10")))
+                .neighborPoolSize(Integer.parseInt(cmd.getOptionValue("fullTopL", "8")))
+                .sampledNeighbors(Integer.parseInt(cmd.getOptionValue("fullSampleNeighbors", "4")))
                 .perPositionCap(Integer.parseInt(cmd.getOptionValue("fullCap", "2")))
                 .maxRounds(Integer.parseInt(cmd.getOptionValue("fullRounds", "6")))
                 .patience(Integer.parseInt(cmd.getOptionValue("fullPatience", "3")))
-                .minPhesaSimilarity(Double.parseDouble(cmd.getOptionValue("fullMinSimilarity", "0.6")))
+                .minPhesaSimilarity(Double.parseDouble(cmd.getOptionValue("fullMinSimilarity", "0.55")))
                 .minScoreThreshold(0.0)
                 .reportAllCandidates(true)
                 .randomSeed(Long.parseLong(cmd.getOptionValue("randomSeed", "13")))
@@ -66,13 +66,15 @@ public final class ContinuousScreeningCLI {
         if (microEnabled) {
             microRequest = LocalOptimizationRequest.builder()
                     .beamSize(Integer.parseInt(cmd.getOptionValue("microBeam", "5")))
-                    .neighborPoolSize(Integer.parseInt(cmd.getOptionValue("microTopL", "50")))
-                    .sampledNeighbors(Integer.parseInt(cmd.getOptionValue("microSampleNeighbors", "5")))
+                    .neighborPoolSize(Integer.parseInt(cmd.getOptionValue("microTopL", "4")))
+                    .sampledNeighbors(Integer.parseInt(cmd.getOptionValue("microSampleNeighbors", "4")))
                     .perPositionCap(Integer.parseInt(cmd.getOptionValue("microCap", "2")))
                     .maxRounds(Integer.parseInt(cmd.getOptionValue("microRounds", "2")))
                     .patience(Integer.parseInt(cmd.getOptionValue("microPatience", "1")))
-                    .minPhesaSimilarity(Double.parseDouble(cmd.getOptionValue("microMinSimilarity", "0.6")))
+                    .minPhesaSimilarity(0.0)
+                    .minScoreThreshold(0.0)
                     .randomSeed(Long.parseLong(cmd.getOptionValue("randomSeed", "13")))
+                    .reportAllCandidates(true)
                     .build();
         }
 
@@ -84,7 +86,7 @@ public final class ContinuousScreeningCLI {
                 .withFullOptimizationRequest(fullRequest)
                 .withFullOptimizerThreads(Integer.parseInt(cmd.getOptionValue("fullThreads", "4")))
                 .withQueueCapacity(Integer.parseInt(cmd.getOptionValue("queueCapacity", "1000")))
-                .withProgressIntervalSeconds(Integer.parseInt(cmd.getOptionValue("progressSeconds", "60")))
+                .withProgressIntervalSeconds(Integer.parseInt(cmd.getOptionValue("progressSeconds", "20")))
                 .withReactionWeightExponent(Double.parseDouble(cmd.getOptionValue("reactionWeightExponent", "1.0")))
                 .withReactionMinWeight(Double.parseDouble(cmd.getOptionValue("reactionMinWeight", "0.01")))
                 .withHitOutput(Path.of(cmd.getOptionValue("outputHits")))
@@ -153,7 +155,6 @@ public final class ContinuousScreeningCLI {
         options.addOption(Option.builder().longOpt("microCap").hasArg().desc("Micro optimizer per-position cap").build());
         options.addOption(Option.builder().longOpt("microRounds").hasArg().desc("Micro optimizer rounds").build());
         options.addOption(Option.builder().longOpt("microPatience").hasArg().desc("Micro optimizer patience").build());
-        options.addOption(Option.builder().longOpt("microMinSimilarity").hasArg().desc("Micro optimizer min similarity").build());
         options.addOption(Option.builder().longOpt("dedupeMax").hasArg()
                 .desc("Maximum entries stored in duplicate filter").build());
         options.addOption(Option.builder().longOpt("randomSeed").hasArg()

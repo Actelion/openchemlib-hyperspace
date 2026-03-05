@@ -89,7 +89,9 @@ public final class SynthonSpaceParser3 {
                 .putMetadata("source.directory", options.directory().toAbsolutePath().toString())
                 .putMetadata("parser.mode", descriptor.modeLabel())
                 .putMetadata("parser.smilesColumn", options.smilesColumn())
-                .putMetadata("parser.idColumn", options.idColumn())
+                .putMetadata("parser.idColumn", options.autoDetectIdColumn()
+                        ? "<auto-second-column>"
+                        : options.idColumn())
                 .putMetadata("parser.priceColumn", Optional.ofNullable(options.priceColumn()).orElse(""))
                 .putMetadata("parser.priceAttributeKey", Optional.ofNullable(options.priceAttributeKey()).orElse(""))
                 .putMetadata("parser.synthonSetColumn", Optional.ofNullable(options.synthonSetColumn()).orElse(""))
@@ -106,7 +108,7 @@ public final class SynthonSpaceParser3 {
         return new ParsedSpace(raw, synthonSpace);
     }
 
-    private static final int ENAMINE_BATCH_SIZE = 2_000;
+    private static final int DEFAULT_BATCH_SIZE = 2_000;
 
     private static Map<String, ReactionRecord> parseEnamineFile(EnamineOptions options,
                                                                 DescriptorContext descriptor) throws Exception {
@@ -121,17 +123,35 @@ public final class SynthonSpaceParser3 {
             if (header == null) {
                 throw new IllegalArgumentException("Empty input file: " + options.input());
             }
-            List<String> batch = new ArrayList<>(ENAMINE_BATCH_SIZE);
+            List<String> batch = new ArrayList<>(DEFAULT_BATCH_SIZE);
             long batchBytes = 0L;
             String line;
-            while ((line = reader.readLine()) != null) {
-                String trimmed = line.trim();
-                if (trimmed.isEmpty()) {
-                    continue;
+            boolean csvBatching = options.input().getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".csv");
+            if (csvBatching) {
+                parseUnifiedCsv(header, reader, options, descriptor, records);
+            } else {
+                while ((line = reader.readLine()) != null) {
+                    String trimmed = line.trim();
+                    if (trimmed.isEmpty()) {
+                        continue;
+                    }
+                    batch.add(trimmed);
+                    batchBytes += line.length() + 1L;
+                    if (batch.size() >= DEFAULT_BATCH_SIZE) {
+                        submitEnamineBatch(batch,
+                                batchBytes,
+                                options,
+                                descriptor,
+                                records,
+                                recordLock,
+                                executor,
+                                futures,
+                                progress);
+                        batch = new ArrayList<>(DEFAULT_BATCH_SIZE);
+                        batchBytes = 0L;
+                    }
                 }
-                batch.add(trimmed);
-                batchBytes += line.length() + 1L;
-                if (batch.size() >= ENAMINE_BATCH_SIZE) {
+                if (!batch.isEmpty()) {
                     submitEnamineBatch(batch,
                             batchBytes,
                             options,
@@ -141,20 +161,7 @@ public final class SynthonSpaceParser3 {
                             executor,
                             futures,
                             progress);
-                    batch = new ArrayList<>(ENAMINE_BATCH_SIZE);
-                    batchBytes = 0L;
                 }
-            }
-            if (!batch.isEmpty()) {
-                submitEnamineBatch(batch,
-                        batchBytes,
-                        options,
-                        descriptor,
-                        records,
-                        recordLock,
-                        executor,
-                        futures,
-                        progress);
             }
             if (executor != null) {
                 executor.shutdown();
@@ -177,6 +184,67 @@ public final class SynthonSpaceParser3 {
         }
         progress.finish();
         return records;
+    }
+
+    private static void parseUnifiedCsv(String firstHeaderLine,
+                                        BufferedReader reader,
+                                        EnamineOptions options,
+                                        DescriptorContext descriptor,
+                                        Map<String, ReactionRecord> records) throws Exception {
+        String headerLine = firstHeaderLine;
+        List<String> header = splitCsvLine(headerLine);
+        Map<String, Integer> headerIndex = buildHeaderIndex(header);
+        int smilesIdx = requireCsvColumn(headerIndex, "SMILES");
+        int idIdx = requireCsvColumn(headerIndex, "synthon_id");
+        int reactionIdx = requireCsvColumn(headerIndex, "reaction_id");
+        int synthonSetIdx = requireCsvColumn(headerIndex, "synthon#");
+        Integer priceIdx = headerIndex.get("price");
+        String line;
+        SmilesParser parser = new SmilesParser();
+        while ((line = reader.readLine()) != null) {
+            try {
+                line = line.trim();
+                if (line.isEmpty()) {
+                    continue;
+                }
+                List<String> parts = splitCsvLine(line);
+                while (parts.size() < header.size()) {
+                    parts.add("");
+                }
+                String smiles = parts.get(smilesIdx).trim();
+                if (smiles.isEmpty()) {
+                    continue;
+                }
+                String reactionId = parts.get(reactionIdx).trim();
+                if (reactionId.isEmpty()) {
+                    continue;
+                }
+                int synthonIdx = Integer.parseInt(parts.get(synthonSetIdx).trim());
+                ReactionRecord record = records.computeIfAbsent(reactionId, ReactionRecord::new);
+                String fragmentId = parts.get(idIdx).trim();
+                StereoMolecule molecule = parseSmiles(parser, smiles, options.input().toString());
+                RawSynthon fragment = createFragment(reactionId, synthonIdx, fragmentId, molecule);
+                record.addFragment(synthonIdx, fragment);
+                if (priceIdx != null) {
+                    String price = parts.get(priceIdx).trim();
+                    if (!price.isEmpty()) {
+                        record.addFragmentAttribute(fragmentId, "price", price);
+                    }
+                }
+            }
+            catch (Exception e) {
+                System.out.println("Exception parsing line: "+line);
+                System.out.println("Reason: "+e.getMessage());
+            }
+        }
+    }
+
+    private static int requireCsvColumn(Map<String, Integer> headerIndex, String columnName) {
+        Integer idx = headerIndex.get(columnName.toLowerCase(Locale.ROOT));
+        if (idx == null) {
+            throw new IllegalArgumentException("Column \"" + columnName + "\" not found in CSV header");
+        }
+        return idx;
     }
 
     private static void submitEnamineBatch(List<String> batch,
@@ -215,13 +283,13 @@ public final class SynthonSpaceParser3 {
     private static List<ReactionRecord> parseCsvFiles(List<Path> files,
                                                       CsvDirectoryOptions options,
                                                       DescriptorContext descriptor) throws Exception {
-        List<ReactionRecord> records = new ArrayList<>();
+        Map<String, ReactionRecord> recordsById = new LinkedHashMap<>();
         if (options.threads() <= 1) {
             SmilesParser parser = new SmilesParser();
             for (Path file : files) {
                 ReactionRecord record = parseCsvFile(file, options, descriptor, parser);
                 if (record != null) {
-                    records.add(record);
+                    mergeRecord(recordsById, record);
                 }
             }
         } else {
@@ -242,19 +310,29 @@ public final class SynthonSpaceParser3 {
                     throw new IllegalStateException("Parsing interrupted", e);
                 }
                 if (record != null) {
-                    records.add(record);
+                    mergeRecord(recordsById, record);
                 }
             }
         }
-        return records;
+        return new ArrayList<>(recordsById.values());
+    }
+
+    private static void mergeRecord(Map<String, ReactionRecord> recordsById, ReactionRecord parsed) {
+        if (parsed == null) {
+            return;
+        }
+        recordsById.merge(parsed.reactionId(), parsed, (existing, incoming) -> {
+            existing.mergeFrom(incoming);
+            return existing;
+        });
     }
 
     private static ReactionRecord parseCsvFile(Path file,
                                                CsvDirectoryOptions options,
                                                DescriptorContext descriptor,
                                                SmilesParser parser) throws Exception {
-        String reactionId = reactionIdFromFile(file);
-        ReactionRecord record = new ReactionRecord(reactionId);
+        ReactionFileMetadata metadata = reactionInfoFromFile(file);
+        ReactionRecord record = new ReactionRecord(metadata.reactionId());
         List<String> headerTokens;
         try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
             String headerLine = reader.readLine();
@@ -263,33 +341,41 @@ public final class SynthonSpaceParser3 {
             }
             headerTokens = splitCsvLine(headerLine);
             Map<String, Integer> headerIndex = buildHeaderIndex(headerTokens);
-            ColumnMapping mapping = ColumnMapping.fromHeader(headerIndex, options);
+            Integer detectedSet = metadata.synthonSetIndex();
+            int defaultSynthonSet = detectedSet != null ? detectedSet : options.defaultSynthonSet();
+            ColumnMapping mapping = ColumnMapping.fromHeader(headerIndex, headerTokens, options, defaultSynthonSet);
 
             String line;
             while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty() || line.startsWith("#")) {
-                    continue;
-                }
-                List<String> parts = splitCsvLine(line);
-                if (parts.isEmpty()) {
-                    continue;
-                }
-                while (parts.size() < headerTokens.size()) {
-                    parts.add("");
-                }
-                String smiles = parts.get(mapping.smilesIdx()).trim();
-                if (smiles.isEmpty()) {
-                    continue;
-                }
-                StereoMolecule molecule = parseSmiles(parser, smiles, file.toString());
-                String fragmentId = parts.get(mapping.idIdx()).trim();
-                int synthonIdx = mapping.synthonIdx(parts);
+                try {
+                    line = line.trim();
+                    if (line.isEmpty() || line.startsWith("#")) {
+                        continue;
+                    }
+                    List<String> parts = splitCsvLine(line);
+                    if (parts.isEmpty()) {
+                        continue;
+                    }
+                    while (parts.size() < headerTokens.size()) {
+                        parts.add("");
+                    }
+                    String smiles = parts.get(mapping.smilesIdx()).trim();
+                    if (smiles.isEmpty()) {
+                        continue;
+                    }
+                    StereoMolecule molecule = parseSmiles(parser, smiles, file.toString());
+                    String fragmentId = parts.get(mapping.idIdx()).trim();
+                    int synthonIdx = mapping.synthonIdx(parts);
 
-                RawSynthon fragment = createFragment(reactionId, synthonIdx, fragmentId, molecule);
-                record.addFragment(synthonIdx, fragment);
-                mapping.priceValue(parts).ifPresent(price -> record.addFragmentAttribute(fragmentId,
-                        options.priceAttributeKey(), price));
+                    RawSynthon fragment = createFragment(metadata.reactionId(), synthonIdx, fragmentId, molecule);
+                    record.addFragment(synthonIdx, fragment);
+                    mapping.priceValue(parts).ifPresent(price ->
+                            record.addFragmentAttribute(fragmentId, options.priceAttributeKey(), price));
+                }
+                catch(Exception ex) {
+                    System.out.println("Error parsing line: "+line);
+                    ex.printStackTrace();
+                }
             }
         } catch (IOException e) {
             throw new IllegalStateException("Unable to parse reaction file " + file, e);
@@ -308,6 +394,7 @@ public final class SynthonSpaceParser3 {
             molecule.ensureHelperArrays(Molecule.cHelperCIP);
             return molecule;
         } catch (Exception e) {
+            //System.out.println("Exception parsing Smiles: "+smiles);
             throw new IllegalArgumentException("Failed to parse SMILES '" + smiles + "' from " + source, e);
         }
     }
@@ -383,13 +470,28 @@ public final class SynthonSpaceParser3 {
         return RawSynthon.fromMolecule(reactionId, synthonIdx, fragmentId, working);
     }
 
-    private static String reactionIdFromFile(Path file) {
+    private static ReactionFileMetadata reactionInfoFromFile(Path file) {
         String name = file.getFileName().toString();
         int idx = name.lastIndexOf('.');
-        if (idx > 0) {
-            return name.substring(0, idx);
+        String base = idx > 0 ? name.substring(0, idx) : name;
+        String lowerBase = base.toLowerCase(Locale.ROOT);
+        if (lowerBase.endsWith("_synthon")) {
+            base = base.substring(0, base.length() - "_synthon".length());
+            lowerBase = base.toLowerCase(Locale.ROOT);
         }
-        return name;
+        Integer synthonSet = null;
+        int underscore = lowerBase.lastIndexOf('_');
+        if (underscore > 0 && underscore + 1 < base.length()) {
+            String suffix = base.substring(underscore + 1);
+            if (suffix.chars().allMatch(Character::isDigit)) {
+                try {
+                    synthonSet = Integer.parseInt(suffix);
+                    base = base.substring(0, underscore);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return new ReactionFileMetadata(base, synthonSet);
     }
 
     private static Map<String, Integer> buildHeaderIndex(List<String> headerTokens) {
@@ -566,6 +668,7 @@ public final class SynthonSpaceParser3 {
         private final int threads;
         private final List<String> descriptorTags;
         private final boolean buildSynthonSpace;
+        private final boolean autoDetectIdColumn;
 
         private CsvDirectoryOptions(Builder builder) {
             this.directory = Objects.requireNonNull(builder.directory, "directory");
@@ -581,6 +684,7 @@ public final class SynthonSpaceParser3 {
             this.threads = builder.threads;
             this.descriptorTags = List.copyOf(builder.descriptorTags);
             this.buildSynthonSpace = builder.buildSynthonSpace;
+            this.autoDetectIdColumn = builder.autoDetectIdColumn;
         }
 
         public Path directory() {
@@ -635,6 +739,10 @@ public final class SynthonSpaceParser3 {
             return buildSynthonSpace;
         }
 
+        public boolean autoDetectIdColumn() {
+            return autoDetectIdColumn;
+        }
+
         public static Builder builder() {
             return new Builder();
         }
@@ -653,6 +761,7 @@ public final class SynthonSpaceParser3 {
             private int threads = Math.max(1, Runtime.getRuntime().availableProcessors());
             private final LinkedHashSet<String> descriptorTags = new LinkedHashSet<>();
             private boolean buildSynthonSpace = false;
+            private boolean autoDetectIdColumn = false;
 
             public Builder directory(Path directory) {
                 this.directory = directory;
@@ -718,6 +827,16 @@ public final class SynthonSpaceParser3 {
                         descriptorTags.add(trimmed);
                     }
                 }
+                return this;
+            }
+
+            /**
+             * Enables auto-detection of the fragment-id column. When true, the parser
+             * assumes the SMILES column is the first header entry and the fragment id
+             * column is the second header entry in every CSV file.
+             */
+            public Builder autoDetectIdColumn(boolean autoDetect) {
+                this.autoDetectIdColumn = autoDetect;
                 return this;
             }
 
@@ -914,7 +1033,19 @@ public final class SynthonSpaceParser3 {
         String reactionId() {
             return reactionId;
         }
+
+        void mergeFrom(ReactionRecord other) {
+            if (!reactionId.equals(other.reactionId)) {
+                throw new IllegalArgumentException("Reaction IDs mismatch: " + reactionId + " vs " + other.reactionId);
+            }
+            other.fragmentSets.forEach((idx, list) ->
+                    fragmentSets.computeIfAbsent(idx, key -> new ArrayList<>()).addAll(list));
+            other.fragmentAttributes.forEach((fragmentId, attrs) ->
+                    attrs.forEach((key, value) -> addFragmentAttribute(fragmentId, key, value)));
+        }
     }
+
+    private record ReactionFileMetadata(String reactionId, Integer synthonSetIndex) { }
 
     private static final class DescriptorContext {
         private final DescriptorHandler<long[], StereoMolecule> prototype;
@@ -1007,12 +1138,32 @@ public final class SynthonSpaceParser3 {
             this.priceIdx = priceIdx;
         }
 
-        static ColumnMapping fromHeader(Map<String, Integer> headerIndex, CsvDirectoryOptions options) {
-            int smiles = requireColumn(headerIndex, options.smilesColumn(), "SMILES");
-            int idCol = requireColumn(headerIndex, options.idColumn(), "fragment id");
+        static ColumnMapping fromHeader(Map<String, Integer> headerIndex,
+                                        List<String> headerTokens,
+                                        CsvDirectoryOptions options,
+                                        int defaultSynthonSet) {
+            String smilesColumn = options.smilesColumn();
+            if (smilesColumn == null || smilesColumn.isBlank()) {
+                if (headerTokens.isEmpty()) {
+                    throw new IllegalArgumentException("Unable to auto-detect SMILES column");
+                }
+                smilesColumn = headerTokens.get(0).trim();
+            }
+            String idColumn = options.idColumn();
+            if (options.autoDetectIdColumn()) {
+                if (headerTokens.size() < 2) {
+                    throw new IllegalArgumentException("Unable to auto-detect fragment id column (need at least two columns)");
+                }
+                idColumn = headerTokens.get(1).trim();
+                if (idColumn.isEmpty()) {
+                    throw new IllegalArgumentException("Detected fragment id column name is empty");
+                }
+            }
+            int smiles = requireColumn(headerIndex, smilesColumn, "SMILES");
+            int idCol = requireColumn(headerIndex, idColumn, "fragment id");
             Integer synthonIdxColumn = resolveOptionalColumn(headerIndex, options.synthonSetColumn());
             Integer price = resolveOptionalColumn(headerIndex, options.priceColumn());
-            return new ColumnMapping(smiles, idCol, synthonIdxColumn, options.defaultSynthonSet(), price);
+            return new ColumnMapping(smiles, idCol, synthonIdxColumn, defaultSynthonSet, price);
         }
 
         int smilesIdx() {

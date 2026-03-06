@@ -169,6 +169,9 @@ public final class CandidateSampler {
                 if (comparisonCounter != null) {
                     comparisonCounter.increment();
                 }
+                if (samplingTracker != null) {
+                    samplingTracker.recordEvaluated(reactionId, similarity);
+                }
                 if (similarity < config.minSimilarity) {
                     continue;
                 }
@@ -214,5 +217,7 @@ public final class CandidateSampler {
         void recordAttempt(String reactionId);
 
         void recordSuccess(String reactionId);
+
+        void recordEvaluated(String reactionId, double similarity);
     }
 }

@@ -4,79 +4,35 @@ import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.SmilesParser;
 import com.actelion.research.chem.StereoMolecule;
+import com.actelion.research.chem.conf.HydrogenAssembler;
 import com.actelion.research.chem.conf.ConformerSet;
 import com.actelion.research.chem.conf.ConformerSetGenerator;
 import com.actelion.research.chem.phesa.DescriptorHandlerShape;
+import com.actelion.research.chem.phesa.DescriptorHandlerShapeOneConf;
 import com.actelion.research.chem.phesa.PheSAMolecule;
+import com.actelion.research.chem.io.SDFileParser;
 import com.idorsia.research.chem.hyperspace.HyperspaceIOUtils;
 import com.idorsia.research.chem.hyperspace.localopt.LocalOptimizationRequest;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace;
 import com.idorsia.research.chem.hyperspace.screening.CandidateSampler;
 import com.idorsia.research.chem.hyperspace.screening.ContinuousScreeningOrchestrator;
 import com.idorsia.research.chem.hyperspace.screening.ScreeningMetrics;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
 
-import java.io.IOException;
 import java.nio.file.Path;
 
 public final class ContinuousScreeningCLI {
 
     public static void main(String[] args) throws Exception {
-        Options options = buildOptions();
-        CommandLine cmd;
-        try {
-            cmd = new DefaultParser().parse(options, args);
-        } catch (ParseException e) {
-            new HelpFormatter().printHelp("ContinuousScreeningCLI", options, true);
-            throw new IllegalArgumentException("Unable to parse arguments", e);
-        }
-
-        RawSynthonSpace fullRaw = HyperspaceIOUtils.loadRawSynthonSpace(cmd.getOptionValue("rawFull"));
-        RawSynthonSpace downsampledRaw = HyperspaceIOUtils.loadRawSynthonSpace(cmd.getOptionValue("rawDownsampled"));
-        PheSAMolecule queryDescriptor = buildQueryDescriptor(cmd);
-
-        CandidateSampler.Config samplerConfig = new CandidateSampler.Config(
-                Long.parseLong(cmd.getOptionValue("candidateAttempts", "20")),
-                Integer.parseInt(cmd.getOptionValue("minAtoms", "1")),
-                Integer.parseInt(cmd.getOptionValue("maxAtoms", "0")),
-                Integer.parseInt(cmd.getOptionValue("maxRotatable", "15")),
-                Double.parseDouble(cmd.getOptionValue("candidateThreshold", "0.5"))
-        );
-
-        LocalOptimizationRequest fullRequest = LocalOptimizationRequest.builder()
-                .beamSize(Integer.parseInt(cmd.getOptionValue("fullBeam", "10")))
-                .neighborPoolSize(Integer.parseInt(cmd.getOptionValue("fullTopL", "8")))
-                .sampledNeighbors(Integer.parseInt(cmd.getOptionValue("fullSampleNeighbors", "4")))
-                .perPositionCap(Integer.parseInt(cmd.getOptionValue("fullCap", "2")))
-                .maxRounds(Integer.parseInt(cmd.getOptionValue("fullRounds", "6")))
-                .patience(Integer.parseInt(cmd.getOptionValue("fullPatience", "3")))
-                .minPhesaSimilarity(Double.parseDouble(cmd.getOptionValue("fullMinSimilarity", "0.55")))
-                .minScoreThreshold(0.0)
-                .reportAllCandidates(true)
-                .randomSeed(Long.parseLong(cmd.getOptionValue("randomSeed", "13")))
-                .build();
-
-        boolean microEnabled = cmd.hasOption("microEnabled");
-        LocalOptimizationRequest microRequest = null;
-        if (microEnabled) {
-            microRequest = LocalOptimizationRequest.builder()
-                    .beamSize(Integer.parseInt(cmd.getOptionValue("microBeam", "5")))
-                    .neighborPoolSize(Integer.parseInt(cmd.getOptionValue("microTopL", "4")))
-                    .sampledNeighbors(Integer.parseInt(cmd.getOptionValue("microSampleNeighbors", "4")))
-                    .perPositionCap(Integer.parseInt(cmd.getOptionValue("microCap", "2")))
-                    .maxRounds(Integer.parseInt(cmd.getOptionValue("microRounds", "2")))
-                    .patience(Integer.parseInt(cmd.getOptionValue("microPatience", "1")))
-                    .minPhesaSimilarity(0.0)
-                    .minScoreThreshold(0.0)
-                    .randomSeed(Long.parseLong(cmd.getOptionValue("randomSeed", "13")))
-                    .reportAllCandidates(true)
-                    .build();
-        }
+        Path configPath = parseConfigPath(args);
+        ContinuousScreeningConfig cliConfig = ContinuousScreeningConfig.fromJson(configPath);
+        RawSynthonSpace fullRaw = HyperspaceIOUtils.loadRawSynthonSpace(cliConfig.resolveRawFull(configPath).toString());
+        RawSynthonSpace downsampledRaw =
+                HyperspaceIOUtils.loadRawSynthonSpace(cliConfig.resolveRawDownsampled(configPath).toString());
+        PheSAMolecule queryDescriptor = buildQueryDescriptor(cliConfig.resolveQuery(configPath));
+        CandidateSampler.Config samplerConfig = cliConfig.toSamplerConfig();
+        LocalOptimizationRequest fullRequest = cliConfig.toFullOptimizationRequest();
+        boolean microEnabled = cliConfig.getMicroOptimization().isEnabled();
+        LocalOptimizationRequest microRequest = microEnabled ? cliConfig.toMicroOptimizationRequest() : null;
 
         ContinuousScreeningOrchestrator.Config config = new ContinuousScreeningOrchestrator.Config()
                 .withFullRaw(fullRaw)
@@ -84,86 +40,56 @@ public final class ContinuousScreeningCLI {
                 .withQueryDescriptor(queryDescriptor)
                 .withSamplerConfig(samplerConfig)
                 .withFullOptimizationRequest(fullRequest)
-                .withFullOptimizerThreads(Integer.parseInt(cmd.getOptionValue("fullThreads", "4")))
-                .withQueueCapacity(Integer.parseInt(cmd.getOptionValue("queueCapacity", "1000")))
-                .withProgressIntervalSeconds(Integer.parseInt(cmd.getOptionValue("progressSeconds", "20")))
-                .withReactionWeightExponent(Double.parseDouble(cmd.getOptionValue("reactionWeightExponent", "1.0")))
-                .withReactionMinWeight(Double.parseDouble(cmd.getOptionValue("reactionMinWeight", "0.01")))
-                .withHitOutput(Path.of(cmd.getOptionValue("outputHits")))
-                .withDuplicateCacheSize(Integer.parseInt(cmd.getOptionValue("dedupeMax", "200000")))
-                .withRandomSeed(Long.parseLong(cmd.getOptionValue("randomSeed", "13")));
+                .withFullOptimizerThreads(cliConfig.getOrchestration().getWorkerThreads())
+                .withQueueCapacity(cliConfig.getOrchestration().getQueueCapacity())
+                .withProgressIntervalSeconds(cliConfig.getOrchestration().getProgressIntervalSeconds())
+                .withReactionWeightExponent(cliConfig.getOrchestration().getReactionWeightExponent())
+                .withReactionMinWeight(cliConfig.getOrchestration().getReactionMinWeight())
+                .withHitOutput(cliConfig.resolveOutputHits(configPath))
+                .withMinReportedSimilarity(cliConfig.getMinReportedSimilarity())
+                .withDuplicateCacheSize(cliConfig.getOrchestration().getDuplicateCacheSize())
+                .withRandomSeed(cliConfig.getRun().getRandomSeed());
         if (microEnabled) {
             config.withMicroEnabled(true).withMicroOptimizationRequest(microRequest);
         }
         config.validate();
 
-        long iterations = Long.parseLong(cmd.getOptionValue("iterations", "-1"));
+        long iterations = cliConfig.getRun().getIterations();
         try (ContinuousScreeningOrchestrator orchestrator = new ContinuousScreeningOrchestrator(config)) {
             orchestrator.run(iterations);
             ScreeningMetrics metrics = orchestrator.getMetrics();
-            System.out.println("Sampled candidates: " + metrics.getSampled());
+            System.out.println("Sampled evaluations: " + metrics.getSampled());
             System.out.println("Duplicate seeds skipped: " + metrics.getDuplicateSeeds());
             System.out.println("Submitted to optimizer: " + metrics.getSubmitted());
             System.out.println("Total hits: " + metrics.getHits());
         }
     }
 
-    private static Options buildOptions() {
-        Options options = new Options();
-        options.addOption(Option.builder().longOpt("rawFull").hasArg().required(true)
-                .desc("Path to full RawSynthonSpace (.rawspace/.gz)").build());
-        options.addOption(Option.builder().longOpt("rawDownsampled").hasArg().required(true)
-                .desc("Path to downsampled RawSynthonSpace").build());
-        options.addOption(Option.builder().longOpt("querySmiles").hasArg()
-                .desc("Query ligand as SMILES").build());
-        options.addOption(Option.builder().longOpt("queryIdcode").hasArg()
-                .desc("Query ligand as IDCode").build());
-        options.addOption(Option.builder().longOpt("outputHits").hasArg().required(true)
-                .desc("Output TSV for optimized hits").build());
-        options.addOption(Option.builder().longOpt("iterations").hasArg()
-                .desc("Number of sampling iterations (-1 = infinite)").build());
-        options.addOption(Option.builder().longOpt("candidateAttempts").hasArg()
-                .desc("Attempts per reaction when sampling candidates").build());
-        options.addOption(Option.builder().longOpt("minAtoms").hasArg()
-                .desc("Minimum atoms for sampled assembly").build());
-        options.addOption(Option.builder().longOpt("maxAtoms").hasArg()
-                .desc("Maximum atoms (0 = unlimited)").build());
-        options.addOption(Option.builder().longOpt("maxRotatable").hasArg()
-                .desc("Maximum rotatable bonds").build());
-        options.addOption(Option.builder().longOpt("candidateThreshold").hasArg()
-                .desc("Minimum similarity for sampled candidate").build());
-        options.addOption(Option.builder().longOpt("fullBeam").hasArg().desc("Full optimizer beam size").build());
-        options.addOption(Option.builder().longOpt("fullTopL").hasArg().desc("Full optimizer neighbor pool size").build());
-        options.addOption(Option.builder().longOpt("fullSampleNeighbors").hasArg().desc("Sampled neighbors per expansion").build());
-        options.addOption(Option.builder().longOpt("fullCap").hasArg().desc("Full optimizer per-position cap").build());
-        options.addOption(Option.builder().longOpt("fullRounds").hasArg().desc("Full optimizer max rounds").build());
-        options.addOption(Option.builder().longOpt("fullPatience").hasArg().desc("Full optimizer patience").build());
-        options.addOption(Option.builder().longOpt("fullMinSimilarity").hasArg().desc("Full optimizer min similarity").build());
-        options.addOption(Option.builder().longOpt("fullThreads").hasArg().desc("Worker threads for full optimizer").build());
-        options.addOption(Option.builder().longOpt("queueCapacity").hasArg()
-                .desc("Max queued sample+opt jobs before applying backpressure").build());
-        options.addOption(Option.builder().longOpt("progressSeconds").hasArg()
-                .desc("Interval in seconds for progress logging (0 to disable)").build());
-        options.addOption(Option.builder().longOpt("reactionWeightExponent").hasArg()
-                .desc("Exponent applied to reaction size weighting (default 1.0)").build());
-        options.addOption(Option.builder().longOpt("reactionMinWeight").hasArg()
-                .desc("Minimum weight as a fraction of the max reaction weight (default 0.01)").build());
-        options.addOption(Option.builder().longOpt("microEnabled").desc("Enable micro optimization on downsampled space").build());
-        options.addOption(Option.builder().longOpt("microBeam").hasArg().desc("Micro optimizer beam size").build());
-        options.addOption(Option.builder().longOpt("microTopL").hasArg().desc("Micro optimizer neighbor pool size").build());
-        options.addOption(Option.builder().longOpt("microSampleNeighbors").hasArg().desc("Micro optimizer sampled neighbors").build());
-        options.addOption(Option.builder().longOpt("microCap").hasArg().desc("Micro optimizer per-position cap").build());
-        options.addOption(Option.builder().longOpt("microRounds").hasArg().desc("Micro optimizer rounds").build());
-        options.addOption(Option.builder().longOpt("microPatience").hasArg().desc("Micro optimizer patience").build());
-        options.addOption(Option.builder().longOpt("dedupeMax").hasArg()
-                .desc("Maximum entries stored in duplicate filter").build());
-        options.addOption(Option.builder().longOpt("randomSeed").hasArg()
-                .desc("Random seed").build());
-        return options;
+    private static Path parseConfigPath(String[] args) {
+        if (args.length == 1 && !args[0].startsWith("--")) {
+            return Path.of(args[0]);
+        }
+        if (args.length == 2 && "--config".equals(args[0])) {
+            return Path.of(args[1]);
+        }
+        if (args.length == 1 && ("--help".equals(args[0]) || "-h".equals(args[0]))) {
+            printUsage();
+            System.exit(0);
+        }
+        printUsage();
+        throw new IllegalArgumentException("Provide a JSON config file path");
     }
 
-    private static PheSAMolecule buildQueryDescriptor(CommandLine cmd) throws Exception {
-        StereoMolecule molecule = parseQuery(cmd);
+    private static void printUsage() {
+        System.err.println("Usage: ContinuousScreeningCLI <config.json>");
+        System.err.println("   or: ContinuousScreeningCLI --config <config.json>");
+    }
+
+    private static PheSAMolecule buildQueryDescriptor(ContinuousScreeningConfig.QueryInput queryInput) throws Exception {
+        if (hasText(queryInput.getSdfFile())) {
+            return buildSdfQueryDescriptor(queryInput);
+        }
+        StereoMolecule molecule = parseQuery(queryInput);
         ConformerSetGenerator generator = new ConformerSetGenerator(1);
         ConformerSet conformers = generator.generateConformerSet(molecule);
         if (conformers.isEmpty()) {
@@ -177,22 +103,70 @@ public final class ContinuousScreeningCLI {
         return descriptor;
     }
 
-    private static StereoMolecule parseQuery(CommandLine cmd) throws Exception {
-        String smiles = cmd.getOptionValue("querySmiles");
-        String idcode = cmd.getOptionValue("queryIdcode");
-        if (smiles == null && idcode == null) {
-            throw new IllegalArgumentException("Provide --querySmiles or --queryIdcode");
+    private static PheSAMolecule buildSdfQueryDescriptor(ContinuousScreeningConfig.QueryInput queryInput) {
+        int recordIndex = queryInput.getSdfRecordIndex();
+        Path sdfPath = Path.of(queryInput.getSdfFile());
+
+        SDFileParser parser = new SDFileParser(sdfPath.toString());
+        if (!parser.isOpen()) {
+            throw new IllegalArgumentException("Unable to open query.sdfFile: " + sdfPath);
         }
-        if (smiles != null && idcode != null) {
-            throw new IllegalArgumentException("Specify only one of --querySmiles or --queryIdcode");
+
+        try {
+            StereoMolecule molecule = null;
+            int currentIndex = -1;
+            while (parser.next()) {
+                currentIndex++;
+                if (currentIndex == recordIndex) {
+                    molecule = parser.getMolecule();
+                    if (molecule == null) {
+                        throw new IllegalArgumentException("Unable to parse query molecule at sdf record "
+                                + recordIndex + " from file: " + sdfPath);
+                    }
+                    break;
+                }
+            }
+
+            if (molecule == null) {
+                throw new IllegalArgumentException("query.sdfRecordIndex " + recordIndex
+                        + " not found in sdfFile: " + sdfPath);
+            }
+
+            StereoMolecule prepared = new StereoMolecule(molecule);
+            new HydrogenAssembler(prepared).addImplicitHydrogens();
+            prepared.ensureHelperArrays(Molecule.cHelperCIP);
+
+            DescriptorHandlerShapeOneConf handler = new DescriptorHandlerShapeOneConf();
+            PheSAMolecule descriptor = handler.createDescriptor(prepared);
+            if (handler.calculationFailed(descriptor)) {
+                throw new IllegalStateException("Unable to create single-conformation PheSA descriptor from sdfFile: "
+                        + sdfPath + " record " + recordIndex);
+            }
+            return descriptor;
+        } finally {
+            parser.close();
+        }
+    }
+
+    private static StereoMolecule parseQuery(ContinuousScreeningConfig.QueryInput queryInput) throws Exception {
+        String smiles = queryInput.getSmiles();
+        String idcode = queryInput.getIdcode();
+        boolean hasSmiles = smiles != null && !smiles.isBlank();
+        boolean hasIdcode = idcode != null && !idcode.isBlank();
+        if (hasSmiles == hasIdcode) {
+            throw new IllegalArgumentException("Specify exactly one of query.smiles or query.idcode");
         }
         StereoMolecule molecule = new StereoMolecule();
-        if (smiles != null) {
+        if (hasSmiles) {
             new SmilesParser().parse(molecule, smiles);
         } else {
             new IDCodeParser().parse(molecule, idcode);
         }
         molecule.ensureHelperArrays(Molecule.cHelperCIP);
         return molecule;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

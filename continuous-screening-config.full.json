@@ -1,0 +1,69 @@
+{
+  "inputs": {
+    "rawFull": "/path/to/hyperspace.rawspace.gz",
+    "rawDownsampled": "/path/to/hyperspace_downsampled.rawspace.gz"
+  },
+  "query": {
+    "smiles": "c1ccc(cc1)NC(=O)N",
+    "idcode": null,
+    "sdfFile": null,
+    "sdfRecordIndex": 0
+  },
+  "queryFile": null,
+  "sampling": {
+    "attemptsPerReaction": 20,
+    "minAtoms": 1,
+    "maxAtoms": 0,
+    "maxRotatableBonds": 15,
+    "minSimilarity": 0.65
+  },
+  "microOptimization": {
+    "enabled": true,
+    "request": {
+      "beamSize": 5,
+      "neighborPoolSize": 4,
+      "sampledNeighbors": 4,
+      "perPositionCap": 2,
+      "maxRounds": 2,
+      "patience": 1,
+      "minPhesaSimilarity": 0.0,
+      "minScoreThreshold": 0.0,
+      "improvementTolerance": 0.0001,
+      "reportAllCandidates": true,
+      "randomSeed": null,
+      "logLevel": "NONE"
+    }
+  },
+  "fullOptimization": {
+    "request": {
+      "beamSize": 10,
+      "neighborPoolSize": 8,
+      "sampledNeighbors": 4,
+      "perPositionCap": 2,
+      "maxRounds": 6,
+      "patience": 3,
+      "minPhesaSimilarity": 0.6,
+      "minScoreThreshold": 0.0,
+      "improvementTolerance": 0.0001,
+      "reportAllCandidates": true,
+      "randomSeed": null,
+      "logLevel": "NONE"
+    }
+  },
+  "orchestration": {
+    "workerThreads": 64,
+    "queueCapacity": 1000,
+    "progressIntervalSeconds": 60,
+    "reactionWeightExponent": 1.0,
+    "reactionMinWeight": 0.01,
+    "duplicateCacheSize": 200000
+  },
+  "run": {
+    "iterations": 10000,
+    "randomSeed": 13
+  },
+  "output": {
+    "hitsTsv": "screening_hits.tsv",
+    "minReportedSimilarity": 0.6
+  }
+}

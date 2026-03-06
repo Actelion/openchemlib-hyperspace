@@ -173,21 +173,34 @@ If you prefer a single executable that samples seeds, optionally performs a ligh
 ```
 java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
     com.idorsia.research.chem.hyperspace.cli.ContinuousScreeningCLI \
-    --rawFull hyperspace.rawspace.gz \
-    --rawDownsampled hyperspace_downsampled.rawspace.gz \
-    --querySmiles "c1ccc(cc1)NC(=O)N" \
-    --candidateThreshold 0.65 \
-    --fullMinSimilarity 0.6 \
-    --fullThreads 8 \
-    --queueCapacity 1000 \
-    --progressSeconds 60 \
-    --reactionWeightExponent 1.0 \
-    --reactionMinWeight 0.01 \
-    --outputHits screening_hits.tsv \
-    --iterations 10000
+    continuous-screening-config.example.json
 ```
 
-By default the CLI keeps looping until the requested iteration budget is exhausted (use `--iterations -1` for an open-ended run). `--fullMinSimilarity` controls the minimum PheSA similarity that a local-optimization candidate must reach to be reported. `--queueCapacity` controls how many sample+optimize jobs can wait in the executor queue before backpressure kicks in. `--progressSeconds` sets the interval for periodic progress logging (0 disables). `--reactionWeightExponent` dampens or amplifies reaction size weighting (1.0 = proportional to candidate count), and `--reactionMinWeight` sets the minimum weight fraction for small reactions. Add `--microEnabled` together with the `--micro*` parameters if you want a short downsampled-space LocalBeamOptimizer pass before scheduling the full optimization stage.
+The CLI now accepts a single JSON config file (`<config.json>` or `--config <config.json>`). Use [`continuous-screening-config.example.json`](continuous-screening-config.example.json) as template.
+
+The JSON is grouped by pipeline step:
+- `inputs` + query source: full/downsampled raw space paths and either inline `query` or external `queryFile`
+- `sampling`: candidate generation and filtering knobs
+- `microOptimization`: optional downsampled-space local optimization stage
+- `fullOptimization`: full-space local optimization request parameters
+- `orchestration`: worker pool size, queue, progress reporting, reaction weighting, and dedupe cache
+- `run`: `iterations` (`-1` for continuous) and `randomSeed`
+- `output`: hit TSV path + global reporting gate (`minReportedSimilarity`)
+
+Query input modes:
+- One-file mode: set `query` in the config and leave `queryFile` unset/null (see [`continuous-screening-config.example.json`](continuous-screening-config.example.json)).
+- Two-file mode: set `queryFile` and omit `query` (see [`continuous-screening-config.split.example.json`](continuous-screening-config.split.example.json) + [`continuous-screening-query.example.json`](continuous-screening-query.example.json)).
+
+Exactly one query source is allowed (`query` xor `queryFile`).
+
+Inside the `query` object (inline or external), specify exactly one of:
+- `smiles`
+- `idcode`
+- `sdfFile` (optional `sdfRecordIndex`, default `0`)
+
+`sdfFile` uses the molecule conformation from the SDF record directly (no conformer generation). The CLI adds implicit hydrogens as explicit 3D hydrogens before building a single-conformation PheSA descriptor.
+
+`output.minReportedSimilarity` applies a final global reporting threshold: candidates below this score are not written, even when optimizer stages run with `reportAllCandidates=true`.
 
 # Build
 ## General

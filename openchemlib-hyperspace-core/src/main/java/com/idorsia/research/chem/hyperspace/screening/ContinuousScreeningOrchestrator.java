@@ -45,11 +45,13 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
     private final ScheduledExecutorService progressExecutor;
     private final int progressIntervalSeconds;
     private final AtomicLong jobCounter = new AtomicLong();
+    private final AtomicLong completedJobs = new AtomicLong();
     private final long baseSeed;
     private final AtomicBoolean writerClosed = new AtomicBoolean(false);
     private final AtomicBoolean progressStarted = new AtomicBoolean(false);
     private volatile long targetIterations = -1;
     private volatile long startTimeNanos = 0L;
+    private final double minReportedSimilarity;
     private final boolean microEnabled;
     private final LocalBeamOptimizer microOptimizer;
     private final LocalOptimizationRequest microRequest;
@@ -69,6 +71,12 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
                     @Override
                     public void recordSuccess(String reactionId) {
                         metrics.recordSamplingSuccess(reactionId);
+                    }
+
+                    @Override
+                    public void recordEvaluated(String reactionId, double similarity) {
+                        metrics.incrementSampled();
+                        metrics.recordSampledScore(similarity);
                     }
                 });
         this.scheduler = new ReactionScheduler(computeReactionSizes(downsampledView),
@@ -100,6 +108,7 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
             return t;
         });
         this.baseSeed = config.randomSeed;
+        this.minReportedSimilarity = config.minReportedSimilarity;
         this.microEnabled = config.microEnabled;
         if (microEnabled) {
             SynthonSetAccessor downsampledAccessor = new SynthonSetAccessor(downsampledView);
@@ -233,6 +242,7 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
         try {
             long elapsedSeconds = Math.max(1L, (System.nanoTime() - startTimeNanos) / 1_000_000_000L);
             long sampled = metrics.getSampled();
+            long completed = completedJobs.get();
             long submitted = metrics.getSubmitted();
             long hits = metrics.getHits();
             long duplicateSeeds = metrics.getDuplicateSeeds();
@@ -253,7 +263,7 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
             sb.append("sampled=").append(sampled).append(" submitted=").append(submitted)
                     .append(" hits=").append(hits).append(" dupSeeds=").append(duplicateSeeds);
             if (targetIterations > 0) {
-                int pct = (int) Math.min(100L, Math.round(sampled * 100.0 / targetIterations));
+                int pct = (int) Math.min(100L, Math.round(completed * 100.0 / targetIterations));
                 sb.append(" progress=").append(pct).append("%");
             }
             sb.append(" comps=").append(candidateComparisons + microComparisons + fullComparisons)
@@ -343,51 +353,70 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
 
         @Override
         public void run() {
-            Random rng = new Random(baseSeed ^ jobId);
-            metrics.incrementSampled();
-            String reactionId = scheduler.pick(rng);
-            ScreeningCandidate candidate = sampler.sample(reactionId, rng);
-            if (candidate == null) {
-                return;
-            }
-            metrics.recordSampledScore(candidate.getSimilarity());
-            if (duplicateFilter.markIfDuplicate(candidate.getAssembledIdcode())) {
-                metrics.incrementDuplicateSeeds();
-                return;
-            }
-            double preMicroScore = candidate.getSimilarity();
-            metrics.recordPreMicroScore(preMicroScore);
-            candidate = maybeMicroOptimize(candidate);
-            if (candidate == null) {
-                return;
-            }
-            if (microEnabled) {
-                metrics.recordPostMicroScore(candidate.getSimilarity());
-                metrics.recordMicroGain(candidate.getSimilarity() - preMicroScore);
-            }
-            metrics.incrementSubmitted();
-            double preFullScore = candidate.getSimilarity();
-            metrics.recordPreFullScore(preFullScore);
-            SeedAssembly seed = new SeedAssembly(candidate.getReactionId(),
-                    candidate.getFragmentIds(),
-                    candidate.getSimilarity());
-            LocalOptimizationResult result = fullOptimizer.optimize(seed, fullRequest);
-            if (Double.isFinite(result.getBestObservedScore())) {
-                metrics.recordPostFullAllScore(result.getBestObservedScore());
-                metrics.recordFullGain(result.getBestObservedScore() - preFullScore);
-            }
-            if (!result.getBeamEntries().isEmpty()) {
-                metrics.recordHit(result.getReactionId());
-                metrics.recordPostFullReportedScore(result.getBeamEntries().get(0).getScore());
-            }
-            synchronized (writer) {
-                try {
-                    writer.write(result);
-                } catch (IOException e) {
-                    throw new RuntimeException("Unable to write optimization result", e);
+            try {
+                Random rng = new Random(baseSeed ^ jobId);
+                String reactionId = scheduler.pick(rng);
+                ScreeningCandidate candidate = sampler.sample(reactionId, rng);
+                if (candidate == null) {
+                    return;
                 }
+                if (duplicateFilter.markIfDuplicate(candidate.getAssembledIdcode())) {
+                    metrics.incrementDuplicateSeeds();
+                    return;
+                }
+                double preMicroScore = candidate.getSimilarity();
+                metrics.recordPreMicroScore(preMicroScore);
+                candidate = maybeMicroOptimize(candidate);
+                if (candidate == null) {
+                    return;
+                }
+                if (microEnabled) {
+                    metrics.recordPostMicroScore(candidate.getSimilarity());
+                    metrics.recordMicroGain(candidate.getSimilarity() - preMicroScore);
+                }
+                metrics.incrementSubmitted();
+                double preFullScore = candidate.getSimilarity();
+                metrics.recordPreFullScore(preFullScore);
+                SeedAssembly seed = new SeedAssembly(candidate.getReactionId(),
+                        candidate.getFragmentIds(),
+                        candidate.getSimilarity());
+                LocalOptimizationResult result = fullOptimizer.optimize(seed, fullRequest);
+                if (Double.isFinite(result.getBestObservedScore())) {
+                    metrics.recordPostFullAllScore(result.getBestObservedScore());
+                    metrics.recordFullGain(result.getBestObservedScore() - preFullScore);
+                }
+                LocalOptimizationResult reported = applyReportingThreshold(result);
+                if (!reported.getBeamEntries().isEmpty()) {
+                    metrics.recordHit(reported.getReactionId());
+                    metrics.recordPostFullReportedScore(reported.getBeamEntries().get(0).getScore());
+                }
+                synchronized (writer) {
+                    try {
+                        writer.write(reported);
+                    } catch (IOException e) {
+                        throw new RuntimeException("Unable to write optimization result", e);
+                    }
+                }
+            } finally {
+                completedJobs.incrementAndGet();
             }
         }
+    }
+
+    private LocalOptimizationResult applyReportingThreshold(LocalOptimizationResult result) {
+        if (minReportedSimilarity <= 0.0) {
+            return result;
+        }
+        List<LocalOptimizationResult.BeamEntry> filtered = new ArrayList<>();
+        for (LocalOptimizationResult.BeamEntry entry : result.getBeamEntries()) {
+            if (entry.getScore() >= minReportedSimilarity) {
+                filtered.add(entry);
+            }
+        }
+        return new LocalOptimizationResult(result.getReactionId(),
+                filtered,
+                result.getSeedFragments(),
+                result.getBestObservedScore());
     }
 
     public static final class Config {
@@ -404,6 +433,7 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
         private double reactionWeightExponent = 1.0;
         private double reactionMinWeight = 0.01;
         private Path hitOutput;
+        private double minReportedSimilarity = 0.0;
         private int duplicateCacheSize = 200_000;
         private long randomSeed = 13L;
 
@@ -472,6 +502,11 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
             return this;
         }
 
+        public Config withMinReportedSimilarity(double minReportedSimilarity) {
+            this.minReportedSimilarity = minReportedSimilarity;
+            return this;
+        }
+
         public Config withDuplicateCacheSize(int size) {
             this.duplicateCacheSize = size;
             return this;
@@ -515,6 +550,9 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
             }
             if (reactionMinWeight < 0) {
                 throw new IllegalArgumentException("Reaction min weight must be >= 0");
+            }
+            if (!Double.isFinite(minReportedSimilarity)) {
+                throw new IllegalArgumentException("Min reported similarity must be finite");
             }
         }
     }

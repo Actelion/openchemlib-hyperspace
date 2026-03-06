@@ -1,9 +1,11 @@
 package com.idorsia.research.synthonbrowser;
 
 import com.actelion.research.chem.IDCodeParser;
+import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.gui.JStructureView;
 import com.actelion.research.gui.table.ChemistryCellRenderer;
+import com.idorsia.research.chem.hyperspace.SynthonAssembler;
 import com.idorsia.research.chem.hyperspace.SynthonSpace;
 import com.idorsia.research.chem.hyperspace.downsampling.RawSynthonDownsampler;
 import com.idorsia.research.chem.hyperspace.downsampling.SkelSpheresKCentersRawDownsampler;
@@ -32,15 +34,38 @@ import java.text.DecimalFormat;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
+import java.util.Set;
 
 public class SynthonSpaceBrowserFrame extends JFrame {
+
+    private static final String CARD_SYNTHONS = "synthons";
+    private static final String CARD_REACTION = "reaction";
+    private static final String CARD_SPACE = "space";
+    private static final int RANDOM_EXAMPLE_COUNT = 10;
+    private static final int RANDOM_SAMPLE_MAX_ATTEMPTS = 300;
+    private static final int SPACE_LARGEST_REACTIONS_LIMIT = 20;
+    private static final String[] SPACE_BUCKET_LABELS = {
+            "<1M",
+            "1M-10M",
+            "10M-100M",
+            "100M-1B",
+            "1B-10B",
+            "10B-100B",
+            ">100B"
+    };
 
     private final JTree tree = new JTree(new DefaultMutableTreeNode("No synthon space loaded"));
     private final SynthonTableModel tableModel = new SynthonTableModel();
@@ -50,7 +75,23 @@ public class SynthonSpaceBrowserFrame extends JFrame {
     private final JCheckBox downsampledSetsCheckBox = new JCheckBox("Use downsampled sets");
     private final JLabel statusLabel = new JLabel("Load a RawSynthonSpace to start.");
     private final JPanel previewPanel = new JPanel(new BorderLayout());
+    private final CardLayout rightTopCards = new CardLayout();
+    private final JPanel rightTopPanel = new JPanel(rightTopCards);
+    private final JLabel reactionSummaryLabel = new JLabel("Select a reaction node to inspect statistics.");
+    private final ReactionHistogramTableModel reactionHistogramModel = new ReactionHistogramTableModel();
+    private final JTable reactionHistogramTable = new JTable(reactionHistogramModel);
+    private final RandomExamplesTableModel randomExamplesTableModel = new RandomExamplesTableModel();
+    private final JTable randomExamplesTable = new JTable(randomExamplesTableModel);
+    private final JLabel spaceSummaryLabel = new JLabel("Select the space node to inspect global statistics.");
+    private final SpaceHistogramTableModel spaceHistogramModel = new SpaceHistogramTableModel();
+    private final JTable spaceHistogramTable = new JTable(spaceHistogramModel);
+    private final LargestReactionsTableModel largestReactionsTableModel = new LargestReactionsTableModel();
+    private final JTable largestReactionsTable = new JTable(largestReactionsTableModel);
+    private final Map<String, Integer> nonHydrogenAtomCache = new HashMap<>();
+    private final Map<String, ReactionStats> reactionStatsCache = new HashMap<>();
+    private final Map<String, SpaceStats> spaceStatsCache = new HashMap<>();
     private final DecimalFormat similarityFormat = new DecimalFormat("0.000");
+    private final DecimalFormat percentFormat = new DecimalFormat("0.00");
 
     private RawSynthonSpace currentSpace;
     private Path currentPath;
@@ -89,6 +130,11 @@ public class SynthonSpaceBrowserFrame extends JFrame {
                 updatePreviewFromSelection();
             }
         });
+        randomExamplesTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                updatePreviewFromRandomExampleSelection();
+            }
+        });
         filterField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) {
@@ -105,7 +151,12 @@ public class SynthonSpaceBrowserFrame extends JFrame {
                 applyFilter();
             }
         });
-        downsampledSetsCheckBox.addActionListener(e -> rebuildTreeModel());
+        downsampledSetsCheckBox.addActionListener(e -> {
+            reactionStatsCache.clear();
+            spaceStatsCache.clear();
+            rebuildTreeModel();
+        });
+        rightTopCards.show(rightTopPanel, CARD_SYNTHONS);
 
         setPreferredSize(new Dimension(1300, 820));
         pack();
@@ -154,17 +205,70 @@ public class SynthonSpaceBrowserFrame extends JFrame {
         synthonTable.getColumnModel().getColumn(3).setPreferredWidth(300);
 
         JScrollPane tableScroll = new JScrollPane(synthonTable);
+        rightTopPanel.add(tableScroll, CARD_SYNTHONS);
+        rightTopPanel.add(buildReactionDetailsPanel(), CARD_REACTION);
+        rightTopPanel.add(buildSpaceDetailsPanel(), CARD_SPACE);
 
         previewPanel.setBorder(BorderFactory.createTitledBorder("Preview"));
         previewPanel.setPreferredSize(new Dimension(400, 200));
         setPreviewMolecule(new StereoMolecule());
 
-        JSplitPane rightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tableScroll, previewPanel);
+        JSplitPane rightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, rightTopPanel, previewPanel);
         rightSplit.setResizeWeight(0.8);
 
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treeScroll, rightSplit);
         mainSplit.setResizeWeight(0.27);
         return mainSplit;
+    }
+
+    private JComponent buildReactionDetailsPanel() {
+        reactionSummaryLabel.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+
+        reactionHistogramTable.setFillsViewportHeight(true);
+        reactionHistogramTable.getColumnModel().getColumn(0).setPreferredWidth(120);
+        reactionHistogramTable.getColumnModel().getColumn(1).setPreferredWidth(220);
+        reactionHistogramTable.getColumnModel().getColumn(2).setPreferredWidth(140);
+        reactionHistogramTable.getColumnModel().getColumn(3).setPreferredWidth(120);
+
+        randomExamplesTable.setRowHeight(90);
+        randomExamplesTable.setFillsViewportHeight(true);
+        randomExamplesTable.getColumnModel().getColumn(0).setCellRenderer(new ChemistryCellRenderer());
+        randomExamplesTable.getColumnModel().getColumn(0).setPreferredWidth(240);
+        randomExamplesTable.getColumnModel().getColumn(1).setPreferredWidth(120);
+        randomExamplesTable.getColumnModel().getColumn(2).setPreferredWidth(260);
+
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("Size Histogram", new JScrollPane(reactionHistogramTable));
+        tabs.addTab("Random Compounds", new JScrollPane(randomExamplesTable));
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(reactionSummaryLabel, BorderLayout.NORTH);
+        panel.add(tabs, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JComponent buildSpaceDetailsPanel() {
+        spaceSummaryLabel.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+
+        spaceHistogramTable.setFillsViewportHeight(true);
+        spaceHistogramTable.getColumnModel().getColumn(0).setPreferredWidth(160);
+        spaceHistogramTable.getColumnModel().getColumn(1).setPreferredWidth(140);
+        spaceHistogramTable.getColumnModel().getColumn(2).setPreferredWidth(110);
+
+        largestReactionsTable.setFillsViewportHeight(true);
+        largestReactionsTable.getColumnModel().getColumn(0).setPreferredWidth(280);
+        largestReactionsTable.getColumnModel().getColumn(1).setPreferredWidth(70);
+        largestReactionsTable.getColumnModel().getColumn(2).setPreferredWidth(100);
+        largestReactionsTable.getColumnModel().getColumn(3).setPreferredWidth(130);
+
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("Reaction Size Buckets", new JScrollPane(spaceHistogramTable));
+        tabs.addTab("Largest Reactions", new JScrollPane(largestReactionsTable));
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(spaceSummaryLabel, BorderLayout.NORTH);
+        panel.add(tabs, BorderLayout.CENTER);
+        return panel;
     }
 
     private void chooseAndOpen() {
@@ -190,6 +294,16 @@ public class SynthonSpaceBrowserFrame extends JFrame {
                 try {
                     currentSpace = get();
                     currentPath = path;
+                    nonHydrogenAtomCache.clear();
+                    reactionStatsCache.clear();
+                    spaceStatsCache.clear();
+                    reactionHistogramModel.setRows(List.of());
+                    randomExamplesTableModel.setRows(List.of());
+                    reactionSummaryLabel.setText("Select a reaction node to inspect statistics.");
+                    spaceHistogramModel.setRows(List.of());
+                    largestReactionsTableModel.setRows(List.of());
+                    spaceSummaryLabel.setText("Select the space node to inspect global statistics.");
+                    rightTopCards.show(rightTopPanel, CARD_SYNTHONS);
                     boolean hasDownsampled = currentSpace.hasDownsampledSets();
                     downsampledSetsCheckBox.setEnabled(hasDownsampled);
                     if (!hasDownsampled) {
@@ -229,7 +343,13 @@ public class SynthonSpaceBrowserFrame extends JFrame {
             return;
         }
         DefaultMutableTreeNode node = selectedNode();
-        List<SynthonTableModel.Row> rows = collectRowsForNode(node);
+        SynthonTreeBuilder.NodeData selectedNodeData = nodeData(node);
+        List<SynthonTableModel.Row> rows;
+        if (selectedNodeData != null && selectedNodeData.type() == SynthonTreeBuilder.NodeType.ROOT) {
+            rows = new ArrayList<>();
+        } else {
+            rows = collectRowsForNode(node);
+        }
         sortRows(rows);
         tableModel.setRows(rows);
         applyFilter();
@@ -243,6 +363,7 @@ public class SynthonSpaceBrowserFrame extends JFrame {
                 rows.size(),
                 synthonTable.getRowCount()
         ));
+        updateRightTopCard(selectedNodeData);
     }
 
     private void sortRows(List<SynthonTableModel.Row> rows) {
@@ -319,6 +440,562 @@ public class SynthonSpaceBrowserFrame extends JFrame {
             }
         }
         return out;
+    }
+
+    private void updateRightTopCard(SynthonTreeBuilder.NodeData nodeData) {
+        if (nodeData == null) {
+            rightTopCards.show(rightTopPanel, CARD_SYNTHONS);
+            return;
+        }
+        if (nodeData.type() == SynthonTreeBuilder.NodeType.ROOT) {
+            updateSpaceCard();
+            return;
+        }
+        if (nodeData.type() != SynthonTreeBuilder.NodeType.REACTION) {
+            rightTopCards.show(rightTopPanel, CARD_SYNTHONS);
+            return;
+        }
+        rightTopCards.show(rightTopPanel, CARD_REACTION);
+        String reactionId = nodeData.reactionId();
+        String cacheKey = reactionStatsCacheKey(reactionId);
+        ReactionStats cached = reactionStatsCache.get(cacheKey);
+        if (cached != null) {
+            applyReactionStats(cached);
+            return;
+        }
+
+        reactionSummaryLabel.setText(String.format("Computing reaction stats for %s ...", reactionId));
+        reactionHistogramModel.setRows(List.of());
+        randomExamplesTableModel.setRows(List.of());
+
+        SwingWorker<ReactionStats, Void> worker = new SwingWorker<>() {
+            @Override
+            protected ReactionStats doInBackground() {
+                return computeReactionStats(reactionId);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    ReactionStats stats = get();
+                    reactionStatsCache.put(cacheKey, stats);
+
+                    DefaultMutableTreeNode selected = selectedNode();
+                    SynthonTreeBuilder.NodeData selectedData = nodeData(selected);
+                    if (selectedData == null
+                            || selectedData.type() != SynthonTreeBuilder.NodeType.REACTION
+                            || !Objects.equals(selectedData.reactionId(), reactionId)
+                            || !Objects.equals(reactionStatsCacheKey(reactionId), cacheKey)) {
+                        return;
+                    }
+                    applyReactionStats(stats);
+                } catch (Exception ex) {
+                    showError("Could not compute reaction statistics", ex);
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private void updateSpaceCard() {
+        rightTopCards.show(rightTopPanel, CARD_SPACE);
+        String cacheKey = spaceStatsCacheKey();
+        SpaceStats cached = spaceStatsCache.get(cacheKey);
+        if (cached != null) {
+            applySpaceStats(cached);
+            return;
+        }
+
+        spaceSummaryLabel.setText("Computing space-level statistics ...");
+        spaceHistogramModel.setRows(List.of());
+        largestReactionsTableModel.setRows(List.of());
+
+        SwingWorker<SpaceStats, Void> worker = new SwingWorker<>() {
+            @Override
+            protected SpaceStats doInBackground() {
+                return computeSpaceStats();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    SpaceStats stats = get();
+                    spaceStatsCache.put(cacheKey, stats);
+
+                    DefaultMutableTreeNode selected = selectedNode();
+                    SynthonTreeBuilder.NodeData selectedData = nodeData(selected);
+                    if (selectedData == null
+                            || selectedData.type() != SynthonTreeBuilder.NodeType.ROOT
+                            || !Objects.equals(spaceStatsCacheKey(), cacheKey)) {
+                        return;
+                    }
+                    applySpaceStats(stats);
+                } catch (Exception ex) {
+                    showError("Could not compute space statistics", ex);
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private String reactionStatsCacheKey(String reactionId) {
+        return reactionId + "|" + (downsampledSetsCheckBox.isSelected() ? "downsampled" : "full");
+    }
+
+    private String spaceStatsCacheKey() {
+        return downsampledSetsCheckBox.isSelected() ? "downsampled" : "full";
+    }
+
+    private ReactionStats computeReactionStats(String reactionId) {
+        RawSynthonSpace.ReactionData reactionData = currentSpace.getReactions().get(reactionId);
+        if (reactionData == null) {
+            return new ReactionStats(reactionId, 0, 0, 0L, Map.of(), List.of(), "-", 0, 0, 0, 0);
+        }
+
+        Map<Integer, List<RawSynthon>> sets = SynthonTreeBuilder.activeSets(reactionData, downsampledSetsCheckBox.isSelected());
+        List<Integer> setIndexes = new ArrayList<>(sets.keySet());
+        setIndexes.sort(Comparator.naturalOrder());
+
+        int synthonCount = SynthonTreeBuilder.countSynthons(sets);
+        long estimatedCompounds = SynthonTreeBuilder.estimateCompoundCount(sets);
+
+        List<Map<Integer, Long>> perSetSizeCounts = new ArrayList<>();
+        List<List<RawSynthon>> orderedSets = new ArrayList<>();
+        List<String> setSizeSummary = new ArrayList<>();
+        for (Integer setIndex : setIndexes) {
+            List<RawSynthon> synthons = sets.get(setIndex);
+            if (synthons == null || synthons.isEmpty()) {
+                continue;
+            }
+            orderedSets.add(synthons);
+            setSizeSummary.add(String.format("S%d=%d", setIndex, synthons.size()));
+            Map<Integer, Long> sizeCounts = new HashMap<>();
+            for (RawSynthon synthon : synthons) {
+                int atoms = estimateSynthonNonHydrogenAtoms(synthon);
+                sizeCounts.merge(atoms, 1L, Long::sum);
+            }
+            perSetSizeCounts.add(sizeCounts);
+        }
+
+        Map<Integer, BigInteger> histogram = convolveSizeHistograms(perSetSizeCounts);
+        int minAtoms = minHistogramKey(histogram);
+        int maxAtoms = maxHistogramKey(histogram);
+        int medianAtoms = medianHistogramKey(histogram);
+        int modeAtoms = modeHistogramKey(histogram);
+        List<RandomExampleRow> randomExamples = sampleRandomExamples(orderedSets, RANDOM_EXAMPLE_COUNT);
+
+        return new ReactionStats(
+                reactionId,
+                setIndexes.size(),
+                synthonCount,
+                estimatedCompounds,
+                histogram,
+                randomExamples,
+                String.join(", ", setSizeSummary),
+                minAtoms,
+                medianAtoms,
+                modeAtoms,
+                maxAtoms
+        );
+    }
+
+    private SpaceStats computeSpaceStats() {
+        if (currentSpace == null) {
+            return new SpaceStats(0, 0, BigInteger.ZERO, 0, 0, 0, 0, List.of(), List.of());
+        }
+
+        Map<String, Integer> bucketReactionCounts = initBucketReactionCounts();
+        Map<String, BigInteger> bucketCompoundSums = initBucketCompoundSums();
+        List<LargestReactionRow> largest = new ArrayList<>();
+
+        int totalReactions = 0;
+        int totalSynthons = 0;
+        int zeroCompoundReactions = 0;
+        int twoSetReactions = 0;
+        int threeSetReactions = 0;
+        int otherSetReactions = 0;
+        BigInteger totalCompounds = BigInteger.ZERO;
+
+        for (Map.Entry<String, RawSynthonSpace.ReactionData> entry : currentSpace.getReactions().entrySet()) {
+            String reactionId = entry.getKey();
+            RawSynthonSpace.ReactionData reactionData = entry.getValue();
+            if (reactionData == null) {
+                continue;
+            }
+            totalReactions++;
+
+            Map<Integer, List<RawSynthon>> sets = SynthonTreeBuilder.activeSets(reactionData, downsampledSetsCheckBox.isSelected());
+            int reactionSynthons = SynthonTreeBuilder.countSynthons(sets);
+            totalSynthons += reactionSynthons;
+
+            int nonEmptySetCount = countNonEmptySets(sets);
+            if (nonEmptySetCount == 2) {
+                twoSetReactions++;
+            } else if (nonEmptySetCount == 3) {
+                threeSetReactions++;
+            } else {
+                otherSetReactions++;
+            }
+
+            long estimatedCompounds = SynthonTreeBuilder.estimateCompoundCount(sets);
+            if (estimatedCompounds == 0L) {
+                zeroCompoundReactions++;
+            }
+            BigInteger estimatedBig = BigInteger.valueOf(estimatedCompounds);
+            totalCompounds = totalCompounds.add(estimatedBig);
+
+            String bucket = classifySpaceCompoundBucket(estimatedCompounds);
+            bucketReactionCounts.merge(bucket, 1, Integer::sum);
+            bucketCompoundSums.merge(bucket, estimatedBig, BigInteger::add);
+
+            largest.add(new LargestReactionRow(
+                    reactionId,
+                    nonEmptySetCount,
+                    reactionSynthons,
+                    SynthonTreeBuilder.formatMillions(estimatedCompounds),
+                    estimatedCompounds
+            ));
+        }
+
+        largest.sort(
+                Comparator.comparingLong(LargestReactionRow::estimatedCompounds).reversed()
+                        .thenComparing(LargestReactionRow::reactionId)
+        );
+        if (largest.size() > SPACE_LARGEST_REACTIONS_LIMIT) {
+            largest = new ArrayList<>(largest.subList(0, SPACE_LARGEST_REACTIONS_LIMIT));
+        }
+
+        List<SpaceHistogramRow> histogramRows = toSpaceHistogramRows(bucketReactionCounts, bucketCompoundSums, totalReactions);
+
+        return new SpaceStats(
+                totalReactions,
+                totalSynthons,
+                totalCompounds,
+                zeroCompoundReactions,
+                twoSetReactions,
+                threeSetReactions,
+                otherSetReactions,
+                histogramRows,
+                largest
+        );
+    }
+
+    private void applySpaceStats(SpaceStats stats) {
+        String summary = String.format(
+                "<html><b>Space Summary</b> | reactions: %d | synthons: %d | enumeratable compounds: %s<br/>set-types: 2-set=%d, 3-set=%d, other=%d | zero-compound reactions: %d</html>",
+                stats.totalReactions(),
+                stats.totalSynthons(),
+                formatBigInteger(stats.totalCompounds()),
+                stats.twoSetReactions(),
+                stats.threeSetReactions(),
+                stats.otherSetReactions(),
+                stats.zeroCompoundReactions()
+        );
+        spaceSummaryLabel.setText(summary);
+        spaceHistogramModel.setRows(stats.histogramRows());
+        largestReactionsTableModel.setRows(stats.largestReactions());
+        statusLabel.setText(String.format(
+                "Space stats: reactions=%d, total compounds=%s",
+                stats.totalReactions(),
+                formatBigInteger(stats.totalCompounds())
+        ));
+    }
+
+    private Map<String, Integer> initBucketReactionCounts() {
+        Map<String, Integer> map = new HashMap<>();
+        for (String label : SPACE_BUCKET_LABELS) {
+            map.put(label, 0);
+        }
+        return map;
+    }
+
+    private Map<String, BigInteger> initBucketCompoundSums() {
+        Map<String, BigInteger> map = new HashMap<>();
+        for (String label : SPACE_BUCKET_LABELS) {
+            map.put(label, BigInteger.ZERO);
+        }
+        return map;
+    }
+
+    private List<SpaceHistogramRow> toSpaceHistogramRows(Map<String, Integer> bucketReactionCounts,
+                                                         Map<String, BigInteger> bucketCompoundSums,
+                                                         int totalReactions) {
+        List<SpaceHistogramRow> rows = new ArrayList<>(SPACE_BUCKET_LABELS.length);
+        for (String label : SPACE_BUCKET_LABELS) {
+            int reactions = bucketReactionCounts.getOrDefault(label, 0);
+            BigInteger compounds = bucketCompoundSums.getOrDefault(label, BigInteger.ZERO);
+            BigDecimal compoundsBillions = new BigDecimal(compounds)
+                    .divide(new BigDecimal("1000000000"), 1, RoundingMode.HALF_UP);
+            double share = totalReactions == 0 ? 0.0 : (100.0 * reactions / totalReactions);
+            rows.add(new SpaceHistogramRow(
+                    label,
+                    reactions,
+                    compoundsBillions.toPlainString(),
+                    percentFormat.format(share)
+            ));
+        }
+        return rows;
+    }
+
+    private String classifySpaceCompoundBucket(long compounds) {
+        if (compounds < 1_000_000L) {
+            return "<1M";
+        }
+        if (compounds < 10_000_000L) {
+            return "1M-10M";
+        }
+        if (compounds < 100_000_000L) {
+            return "10M-100M";
+        }
+        if (compounds < 1_000_000_000L) {
+            return "100M-1B";
+        }
+        if (compounds < 10_000_000_000L) {
+            return "1B-10B";
+        }
+        if (compounds <= 100_000_000_000L) {
+            return "10B-100B";
+        }
+        return ">100B";
+    }
+
+    private int countNonEmptySets(Map<Integer, List<RawSynthon>> sets) {
+        int count = 0;
+        for (List<RawSynthon> synthons : sets.values()) {
+            if (synthons != null && !synthons.isEmpty()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private String formatBigInteger(BigInteger value) {
+        if (value == null) {
+            return "0";
+        }
+        String plain = value.toString();
+        StringBuilder out = new StringBuilder();
+        int length = plain.length();
+        for (int i = 0; i < length; i++) {
+            if (i > 0 && (length - i) % 3 == 0) {
+                out.append(',');
+            }
+            out.append(plain.charAt(i));
+        }
+        return out.toString();
+    }
+
+    private void applyReactionStats(ReactionStats stats) {
+        String summary = String.format(
+                "<html><b>%s</b> | %d sets | %d synthons | %sM compounds<br/>Set sizes: %s<br/>Non-H atoms (estimated): min %d, median %d, mode %d, max %d</html>",
+                stats.reactionId(),
+                stats.setCount(),
+                stats.synthonCount(),
+                SynthonTreeBuilder.formatMillions(stats.estimatedCompounds()),
+                stats.setSizeSummary().isBlank() ? "-" : stats.setSizeSummary(),
+                stats.minAtoms(),
+                stats.medianAtoms(),
+                stats.modeAtoms(),
+                stats.maxAtoms()
+        );
+        reactionSummaryLabel.setText(summary);
+
+        List<ReactionHistogramRow> histogramRows = toHistogramRows(stats.histogram());
+        reactionHistogramModel.setRows(histogramRows);
+        randomExamplesTableModel.setRows(stats.randomExamples());
+        if (!stats.randomExamples().isEmpty()) {
+            randomExamplesTable.setRowSelectionInterval(0, 0);
+        }
+        statusLabel.setText(String.format(
+                "Reaction stats: %s (%d histogram bins, %d random examples)",
+                stats.reactionId(),
+                histogramRows.size(),
+                stats.randomExamples().size()
+        ));
+    }
+
+    private List<ReactionHistogramRow> toHistogramRows(Map<Integer, BigInteger> histogram) {
+        if (histogram.isEmpty()) {
+            return List.of();
+        }
+        BigInteger total = BigInteger.ZERO;
+        for (BigInteger count : histogram.values()) {
+            total = total.add(count);
+        }
+        List<Integer> sizes = new ArrayList<>(histogram.keySet());
+        sizes.sort(Comparator.naturalOrder());
+
+        List<ReactionHistogramRow> rows = new ArrayList<>(sizes.size());
+        for (Integer size : sizes) {
+            BigInteger count = histogram.getOrDefault(size, BigInteger.ZERO);
+            BigDecimal millions = new BigDecimal(count).divide(new BigDecimal("1000000"), 1, RoundingMode.HALF_UP);
+            BigDecimal percent = total.signum() == 0
+                    ? BigDecimal.ZERO
+                    : new BigDecimal(count).multiply(new BigDecimal("100"))
+                    .divide(new BigDecimal(total), 4, RoundingMode.HALF_UP);
+            rows.add(new ReactionHistogramRow(
+                    size,
+                    count.toString(),
+                    millions.toPlainString(),
+                    percentFormat.format(percent.doubleValue())
+            ));
+        }
+        return rows;
+    }
+
+    private Map<Integer, BigInteger> convolveSizeHistograms(List<Map<Integer, Long>> perSetSizeCounts) {
+        if (perSetSizeCounts.isEmpty()) {
+            return Map.of();
+        }
+        Map<Integer, BigInteger> distribution = new HashMap<>();
+        distribution.put(0, BigInteger.ONE);
+
+        for (Map<Integer, Long> setHistogram : perSetSizeCounts) {
+            if (setHistogram.isEmpty()) {
+                return Map.of();
+            }
+            Map<Integer, BigInteger> next = new HashMap<>();
+            for (Map.Entry<Integer, BigInteger> left : distribution.entrySet()) {
+                for (Map.Entry<Integer, Long> right : setHistogram.entrySet()) {
+                    int size = left.getKey() + right.getKey();
+                    BigInteger add = left.getValue().multiply(BigInteger.valueOf(right.getValue()));
+                    next.merge(size, add, BigInteger::add);
+                }
+            }
+            distribution = next;
+        }
+        return distribution;
+    }
+
+    private int minHistogramKey(Map<Integer, BigInteger> histogram) {
+        if (histogram.isEmpty()) {
+            return 0;
+        }
+        return Collections.min(histogram.keySet());
+    }
+
+    private int maxHistogramKey(Map<Integer, BigInteger> histogram) {
+        if (histogram.isEmpty()) {
+            return 0;
+        }
+        return Collections.max(histogram.keySet());
+    }
+
+    private int medianHistogramKey(Map<Integer, BigInteger> histogram) {
+        if (histogram.isEmpty()) {
+            return 0;
+        }
+        List<Integer> keys = new ArrayList<>(histogram.keySet());
+        keys.sort(Comparator.naturalOrder());
+        BigInteger total = BigInteger.ZERO;
+        for (Integer key : keys) {
+            total = total.add(histogram.getOrDefault(key, BigInteger.ZERO));
+        }
+        BigInteger target = total.add(BigInteger.ONE).divide(BigInteger.valueOf(2));
+        BigInteger cumulative = BigInteger.ZERO;
+        for (Integer key : keys) {
+            cumulative = cumulative.add(histogram.getOrDefault(key, BigInteger.ZERO));
+            if (cumulative.compareTo(target) >= 0) {
+                return key;
+            }
+        }
+        return keys.get(keys.size() - 1);
+    }
+
+    private int modeHistogramKey(Map<Integer, BigInteger> histogram) {
+        if (histogram.isEmpty()) {
+            return 0;
+        }
+        int bestKey = 0;
+        BigInteger bestValue = BigInteger.valueOf(-1L);
+        for (Map.Entry<Integer, BigInteger> entry : histogram.entrySet()) {
+            if (entry.getValue().compareTo(bestValue) > 0
+                    || (entry.getValue().equals(bestValue) && entry.getKey() < bestKey)) {
+                bestKey = entry.getKey();
+                bestValue = entry.getValue();
+            }
+        }
+        return bestKey;
+    }
+
+    private List<RandomExampleRow> sampleRandomExamples(List<List<RawSynthon>> orderedSets, int targetCount) {
+        if (orderedSets.isEmpty()) {
+            return List.of();
+        }
+        for (List<RawSynthon> set : orderedSets) {
+            if (set == null || set.isEmpty()) {
+                return List.of();
+            }
+        }
+
+        Set<String> seen = new LinkedHashSet<>();
+        List<RandomExampleRow> out = new ArrayList<>();
+        Random random = new Random();
+        int attempts = 0;
+        while (out.size() < targetCount && attempts < RANDOM_SAMPLE_MAX_ATTEMPTS) {
+            attempts++;
+            List<StereoMolecule> parts = new ArrayList<>(orderedSets.size());
+            List<String> partIds = new ArrayList<>(orderedSets.size());
+            boolean valid = true;
+
+            for (List<RawSynthon> set : orderedSets) {
+                RawSynthon chosen = set.get(random.nextInt(set.size()));
+                partIds.add(chosen.getFragmentId() == null ? "n/a" : chosen.getFragmentId());
+
+                StereoMolecule part = parseIdcode(chosen.getIdcode());
+                if (part.getAtoms() == 0) {
+                    valid = false;
+                    break;
+                }
+                part.setFragment(true);
+                parts.add(part);
+            }
+            if (!valid || parts.isEmpty()) {
+                continue;
+            }
+
+            try {
+                StereoMolecule assembled = SynthonAssembler.assembleSynthons_faster(parts);
+                assembled.ensureHelperArrays(Molecule.cHelperCIP);
+                String assembledIdcode = assembled.getIDCode();
+                if (assembledIdcode == null || assembledIdcode.isBlank() || !seen.add(assembledIdcode)) {
+                    continue;
+                }
+                out.add(new RandomExampleRow(
+                        assembledIdcode,
+                        countNonHydrogenAtoms(assembled),
+                        String.join(" + ", partIds)
+                ));
+            } catch (Exception ignored) {
+                // skip failed random assembly and continue sampling
+            }
+        }
+        return out;
+    }
+
+    private int estimateSynthonNonHydrogenAtoms(RawSynthon synthon) {
+        String idcode = synthon == null ? null : synthon.getIdcode();
+        if (idcode == null || idcode.isBlank()) {
+            return 0;
+        }
+        Integer cached = nonHydrogenAtomCache.get(idcode);
+        if (cached != null) {
+            return cached;
+        }
+        int computed = countNonHydrogenAtoms(parseIdcode(idcode));
+        nonHydrogenAtomCache.put(idcode, computed);
+        return computed;
+    }
+
+    private int countNonHydrogenAtoms(StereoMolecule molecule) {
+        int count = 0;
+        for (int atom = 0; atom < molecule.getAtoms(); atom++) {
+            int atomicNo = molecule.getAtomicNo(atom);
+            if (atomicNo > 1 && atomicNo < 92) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private SynthonTreeBuilder.NodeData nodeData(DefaultMutableTreeNode node) {
@@ -811,6 +1488,15 @@ public class SynthonSpaceBrowserFrame extends JFrame {
         setPreviewMolecule(molecule);
     }
 
+    private void updatePreviewFromRandomExampleSelection() {
+        int row = randomExamplesTable.getSelectedRow();
+        if (row < 0) {
+            return;
+        }
+        RandomExampleRow selected = randomExamplesTableModel.getRow(row);
+        setPreviewMolecule(parseIdcode(selected.idcode()));
+    }
+
     private StereoMolecule parseIdcode(String idcode) {
         StereoMolecule molecule = new StereoMolecule();
         if (idcode == null || idcode.isBlank()) {
@@ -889,6 +1575,255 @@ public class SynthonSpaceBrowserFrame extends JFrame {
                              String fragmentId,
                              String connectors,
                              double similarityToRepresentative) {}
+
+    private record ReactionStats(String reactionId,
+                                 int setCount,
+                                 int synthonCount,
+                                 long estimatedCompounds,
+                                 Map<Integer, BigInteger> histogram,
+                                 List<RandomExampleRow> randomExamples,
+                                 String setSizeSummary,
+                                 int minAtoms,
+                                 int medianAtoms,
+                                 int modeAtoms,
+                                 int maxAtoms) {}
+
+    private record SpaceStats(int totalReactions,
+                              int totalSynthons,
+                              BigInteger totalCompounds,
+                              int zeroCompoundReactions,
+                              int twoSetReactions,
+                              int threeSetReactions,
+                              int otherSetReactions,
+                              List<SpaceHistogramRow> histogramRows,
+                              List<LargestReactionRow> largestReactions) {}
+
+    private record ReactionHistogramRow(int nonHydrogenAtoms,
+                                        String compounds,
+                                        String compoundsMillions,
+                                        String sharePercent) {}
+
+    private record SpaceHistogramRow(String bucket,
+                                     int reactions,
+                                     String compoundsBillions,
+                                     String sharePercent) {}
+
+    private record LargestReactionRow(String reactionId,
+                                      int setCount,
+                                      int synthonCount,
+                                      String compoundsMillions,
+                                      long estimatedCompounds) {}
+
+    private record RandomExampleRow(String idcode,
+                                    int nonHydrogenAtoms,
+                                    String fragmentIds) {}
+
+    private final class ReactionHistogramTableModel extends AbstractTableModel {
+
+        private final String[] columns = {
+                "Non-H Atoms",
+                "Compounds",
+                "Compounds [M]",
+                "Share [%]"
+        };
+        private final List<ReactionHistogramRow> rows = new ArrayList<>();
+
+        @Override
+        public int getRowCount() {
+            return rows.size();
+        }
+
+        @Override
+        public int getColumnCount() {
+            return columns.length;
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            return columns[column];
+        }
+
+        @Override
+        public Class<?> getColumnClass(int columnIndex) {
+            return columnIndex == 0 ? Integer.class : String.class;
+        }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            ReactionHistogramRow row = rows.get(rowIndex);
+            return switch (columnIndex) {
+                case 0 -> row.nonHydrogenAtoms();
+                case 1 -> row.compounds();
+                case 2 -> row.compoundsMillions();
+                case 3 -> row.sharePercent();
+                default -> "";
+            };
+        }
+
+        public void setRows(List<ReactionHistogramRow> newRows) {
+            rows.clear();
+            rows.addAll(newRows);
+            fireTableDataChanged();
+        }
+    }
+
+    private final class RandomExamplesTableModel extends AbstractTableModel {
+
+        private final String[] columns = {
+                "Random Compound[idcode]",
+                "Non-H Atoms",
+                "Selected Fragments"
+        };
+        private final List<RandomExampleRow> rows = new ArrayList<>();
+
+        @Override
+        public int getRowCount() {
+            return rows.size();
+        }
+
+        @Override
+        public int getColumnCount() {
+            return columns.length;
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            return columns[column];
+        }
+
+        @Override
+        public Class<?> getColumnClass(int columnIndex) {
+            return switch (columnIndex) {
+                case 1 -> Integer.class;
+                default -> String.class;
+            };
+        }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            RandomExampleRow row = rows.get(rowIndex);
+            return switch (columnIndex) {
+                case 0 -> row.idcode();
+                case 1 -> row.nonHydrogenAtoms();
+                case 2 -> row.fragmentIds();
+                default -> "";
+            };
+        }
+
+        public void setRows(List<RandomExampleRow> newRows) {
+            rows.clear();
+            rows.addAll(newRows);
+            fireTableDataChanged();
+        }
+
+        public RandomExampleRow getRow(int rowIndex) {
+            return rows.get(rowIndex);
+        }
+    }
+
+    private final class SpaceHistogramTableModel extends AbstractTableModel {
+
+        private final String[] columns = {
+                "Compounds Per Reaction",
+                "Reactions",
+                "Compounds [B]",
+                "Share [%]"
+        };
+        private final List<SpaceHistogramRow> rows = new ArrayList<>();
+
+        @Override
+        public int getRowCount() {
+            return rows.size();
+        }
+
+        @Override
+        public int getColumnCount() {
+            return columns.length;
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            return columns[column];
+        }
+
+        @Override
+        public Class<?> getColumnClass(int columnIndex) {
+            return switch (columnIndex) {
+                case 1 -> Integer.class;
+                default -> String.class;
+            };
+        }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            SpaceHistogramRow row = rows.get(rowIndex);
+            return switch (columnIndex) {
+                case 0 -> row.bucket();
+                case 1 -> row.reactions();
+                case 2 -> row.compoundsBillions();
+                case 3 -> row.sharePercent();
+                default -> "";
+            };
+        }
+
+        public void setRows(List<SpaceHistogramRow> newRows) {
+            rows.clear();
+            rows.addAll(newRows);
+            fireTableDataChanged();
+        }
+    }
+
+    private final class LargestReactionsTableModel extends AbstractTableModel {
+
+        private final String[] columns = {
+                "Reaction",
+                "Sets",
+                "Synthons",
+                "Compounds [M]"
+        };
+        private final List<LargestReactionRow> rows = new ArrayList<>();
+
+        @Override
+        public int getRowCount() {
+            return rows.size();
+        }
+
+        @Override
+        public int getColumnCount() {
+            return columns.length;
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            return columns[column];
+        }
+
+        @Override
+        public Class<?> getColumnClass(int columnIndex) {
+            return switch (columnIndex) {
+                case 1, 2 -> Integer.class;
+                default -> String.class;
+            };
+        }
+
+        @Override
+        public Object getValueAt(int rowIndex, int columnIndex) {
+            LargestReactionRow row = rows.get(rowIndex);
+            return switch (columnIndex) {
+                case 0 -> row.reactionId();
+                case 1 -> row.setCount();
+                case 2 -> row.synthonCount();
+                case 3 -> row.compoundsMillions();
+                default -> "";
+            };
+        }
+
+        public void setRows(List<LargestReactionRow> newRows) {
+            rows.clear();
+            rows.addAll(newRows);
+            fireTableDataChanged();
+        }
+    }
 
     private final class RepresentativeTableModel extends AbstractTableModel {
 

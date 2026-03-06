@@ -4,12 +4,15 @@ import com.idorsia.research.chem.hyperspace.rawspace.RawSynthon;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace;
 
 import javax.swing.tree.DefaultMutableTreeNode;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
 final class SynthonTreeBuilder {
+
+    private static final DecimalFormat MILLION_FORMAT = new DecimalFormat("#,##0.0");
 
     enum NodeType {
         ROOT,
@@ -61,7 +64,14 @@ final class SynthonTreeBuilder {
             }
             Map<Integer, List<RawSynthon>> sets = activeSets(rd, useDownsampledSets);
             int reactionSynthons = countSynthons(sets);
-            String reactionLabel = String.format("%s (%d sets, %d synthons)", reactionId, sets.size(), reactionSynthons);
+            long estimatedCompounds = estimateCompoundCount(sets);
+            String reactionLabel = String.format(
+                    "%s (%d sets, %d synthons, %sM compounds)",
+                    reactionId,
+                    sets.size(),
+                    reactionSynthons,
+                    formatMillions(estimatedCompounds)
+            );
             DefaultMutableTreeNode reactionNode = new DefaultMutableTreeNode(
                     new NodeData(NodeType.REACTION, reactionId, null, reactionSynthons, reactionLabel)
             );
@@ -100,6 +110,27 @@ final class SynthonTreeBuilder {
             }
         }
         return count;
+    }
+
+    static long estimateCompoundCount(Map<Integer, List<RawSynthon>> sets) {
+        long product = 1L;
+        boolean hasAnySet = false;
+        for (List<RawSynthon> synthons : sets.values()) {
+            if (synthons == null || synthons.isEmpty()) {
+                return 0L;
+            }
+            hasAnySet = true;
+            int size = synthons.size();
+            if (product > Long.MAX_VALUE / size) {
+                return Long.MAX_VALUE;
+            }
+            product *= size;
+        }
+        return hasAnySet ? product : 0L;
+    }
+
+    static String formatMillions(long count) {
+        return MILLION_FORMAT.format(count / 1_000_000.0);
     }
 
     private static String safe(String value) {

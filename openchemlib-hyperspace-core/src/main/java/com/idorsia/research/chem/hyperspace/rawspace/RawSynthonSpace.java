@@ -194,6 +194,12 @@ public class RawSynthonSpace implements Serializable {
             return this;
         }
 
+        public Builder addReactionMetadata(String reactionId, String key, String value) {
+            reactionBuilders.computeIfAbsent(reactionId, ReactionBuilder::new)
+                    .addMetadata(key, value);
+            return this;
+        }
+
         public Builder addFragmentAttribute(String reactionId, String fragmentId, String key, String value) {
             reactionBuilders.computeIfAbsent(reactionId, ReactionBuilder::new)
                     .addFragmentAttribute(fragmentId, key, value);
@@ -253,6 +259,7 @@ public class RawSynthonSpace implements Serializable {
         private final Map<Integer, List<String>> partialAssemblies;
         private final List<String> representativeCompounds;
         private final Map<String, String> descriptors;
+        private final Map<String, String> reactionMetadata;
         private final Map<String, RawSynthon> fragmentLookup;
         private final Map<String, Map<String, String>> fragmentAttributes;
         private transient Map<Integer, List<SynthonSpace.FragId>> fragmentSetsView;
@@ -264,6 +271,7 @@ public class RawSynthonSpace implements Serializable {
                              Map<Integer, List<String>> partialAssemblies,
                              List<String> representativeCompounds,
                              Map<String, String> descriptors,
+                             Map<String, String> reactionMetadata,
                              Map<String, Map<String, String>> fragmentAttributes) {
             this.rawFragmentSets = fragmentSets;
             this.rawDownsampledSets = downsampledSets;
@@ -271,6 +279,7 @@ public class RawSynthonSpace implements Serializable {
             this.partialAssemblies = partialAssemblies;
             this.representativeCompounds = representativeCompounds;
             this.descriptors = descriptors;
+            this.reactionMetadata = reactionMetadata;
             this.fragmentAttributes = fragmentAttributes;
             Map<String, RawSynthon> lookup = new HashMap<>();
             fragmentSets.values().forEach(list -> list.forEach(f -> lookup.put(f.getFragmentId(), f)));
@@ -316,6 +325,10 @@ public class RawSynthonSpace implements Serializable {
             return descriptors;
         }
 
+        public Map<String, String> getReactionMetadata() {
+            return reactionMetadata;
+        }
+
         public Map<String, Map<String, String>> getFragmentAttributes() {
             return fragmentAttributes;
         }
@@ -348,6 +361,7 @@ public class RawSynthonSpace implements Serializable {
         private final Map<Integer, List<String>> partialAssemblies = new HashMap<>();
         private final List<String> representativeCompounds = new ArrayList<>();
         private final Map<String, String> descriptors = new HashMap<>();
+        private final Map<String, String> reactionMetadata = new HashMap<>();
         private final Map<String, Map<String, String>> fragmentAttributes = new HashMap<>();
 
         private ReactionBuilder(String reactionId) {
@@ -387,6 +401,12 @@ public class RawSynthonSpace implements Serializable {
             }
         }
 
+        private void addMetadata(String key, String value) {
+            if (key != null && value != null) {
+                reactionMetadata.put(key, value);
+            }
+        }
+
         private void addFragmentAttribute(String fragmentId, String key, String value) {
             if (fragmentId == null || key == null || value == null) {
                 return;
@@ -408,6 +428,7 @@ public class RawSynthonSpace implements Serializable {
                     Collections.unmodifiableMap(partials),
                     Collections.unmodifiableList(new ArrayList<>(representativeCompounds)),
                     Collections.unmodifiableMap(new HashMap<>(descriptors)),
+                    Collections.unmodifiableMap(new HashMap<>(reactionMetadata)),
                     Collections.unmodifiableMap(attrs));
         }
 

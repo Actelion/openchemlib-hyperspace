@@ -72,6 +72,7 @@ public final class RawSynthonSpaceIO {
         reaction.partialAssemblies = stringifyKeys(data.getPartialAssemblies());
         reaction.representativeCompounds = data.getRepresentativeCompounds();
         reaction.descriptors = data.getDescriptors();
+        reaction.reactionMetadata = data.getReactionMetadata();
         reaction.fragmentAttributes = data.getFragmentAttributes();
         return reaction;
     }
@@ -135,6 +136,9 @@ public final class RawSynthonSpaceIO {
                 }
                 if (reaction.descriptors != null) {
                     reaction.descriptors.forEach((k, v) -> builder.addReactionDescriptor(reaction.reactionId, k, v));
+                }
+                if (reaction.reactionMetadata != null) {
+                    reaction.reactionMetadata.forEach((k, v) -> builder.addReactionMetadata(reaction.reactionId, k, v));
                 }
                 if (reaction.fragmentAttributes != null) {
                     reaction.fragmentAttributes.forEach((fragmentId, attributes) -> {
@@ -214,6 +218,7 @@ public final class RawSynthonSpaceIO {
         public Map<String, List<String>> partialAssemblies;
         public List<String> representativeCompounds;
         public Map<String, String> descriptors;
+        public Map<String, String> reactionMetadata;
         public Map<String, Map<String, String>> fragmentAttributes;
     }
 

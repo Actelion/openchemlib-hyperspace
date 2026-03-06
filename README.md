@@ -82,6 +82,23 @@ java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
 
 The CSV mode (powered by `SynthonSpaceParser3`) assumes one file per reaction; each row provides a synthon SMILES plus metadata (IDs, optional price, optional synthon-set index). Column names are configurable via CLI flags, and numeric metadata such as prices are stored as fragment attributes inside the raw space, ready for downstream cost-aware workflows. `--mode` mirrors the descriptors understood by the parser (FragFp, PathFp, mode_pfp, mode_ffp, mode_ppcore). Besides the JSON dump you can optionally persist a `SynthonSpace` and/or similarity side-car in one go. `--rawOut` is required and can point to either `.rawspace` or `.rawspace.gz` (compression is inferred from the extension).
 
+## Synthon space merge CLI
+
+You can merge multiple `RawSynthonSpace` files into either one combined output or two split outputs (`2s` and `3s` reactions):
+
+```
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+    com.idorsia.research.chem.hyperspace.cli.SynthonSpaceMergeCLI \
+    --inputDirectory /data/vendor_spaces \
+    --splitBySetCount \
+    --out2s /data/merged_2s.rawspace.gz \
+    --out3s /data/merged_3s.rawspace.gz \
+    --synthonListOut /data/all_synthons.tsv
+```
+
+The merge CLI preserves data fields and writes per-reaction provenance metadata (`source.spaceName`, `source.spacePath`, `source.originalReactionId`, ...). For full workflow details and all options, see:
+`openchemlib-hyperspace-cli/README_SynthonSpaceMergeCLI.md`
+
 ## Process RawSynthonSpace
 
 Once a raw dump exists you can enrich it with additional metadata (e.g. precomputed descriptors) without leaving the lightweight format:

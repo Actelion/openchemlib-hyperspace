@@ -14,8 +14,10 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -42,6 +44,7 @@ public class RawSynthonSpaceImportCLI {
         int similarityThreads = Integer.parseInt(cmd.getOptionValue("similarityThreads", "4"));
         int threads = Integer.parseInt(cmd.getOptionValue("threads", "4"));
         LinkedHashSet<String> descriptorTags = parseDescriptorTags(cmd.getOptionValues("descriptorTag"));
+        Map<String, String> metadata = parseMetadata(cmd.getOptionValues("metadata"));
 
         if (!descriptorTags.isEmpty() && rawOut == null) {
             throw new IllegalArgumentException("--descriptorTag can only be used when --rawOut is specified");
@@ -59,12 +62,40 @@ public class RawSynthonSpaceImportCLI {
                 throw new IllegalArgumentException("--input is required for Enamine format");
             }
             int maxSets = Integer.parseInt(cmd.getOptionValue("maxSets", "3"));
+            String zipEntry = cmd.getOptionValue("zipEntry");
+            String sourceFormat = cmd.getOptionValue("sourceFormat",
+                    zipEntry == null ? "enamine-tsv" : "zip-enamine-table");
             SynthonSpaceParser3.EnamineOptions.Builder builder = SynthonSpaceParser3.EnamineOptions.builder()
                     .input(Path.of(inputPath))
                     .spaceName(spaceName)
                     .mode(mode)
                     .threads(threads)
                     .maxSynthonSets(maxSets)
+                    .sourceFormat(sourceFormat)
+                    .zipEntry(zipEntry)
+                    .reactionZipEntry(cmd.getOptionValue("reactionZipEntry"))
+                    .metadata(metadata)
+                    .buildSynthonSpace(needSynthonSpace);
+            descriptorTags.forEach(builder::addDescriptorTag);
+            result = importer.importEnamine(builder.build());
+        } else if ("xtalpi".equals(format)) {
+            String inputPath = cmd.getOptionValue("input");
+            if (inputPath == null) {
+                throw new IllegalArgumentException("--input is required for Xtalpi format");
+            }
+            int maxSets = Integer.parseInt(cmd.getOptionValue("maxSets", "3"));
+            SynthonSpaceParser3.EnamineOptions.Builder builder = SynthonSpaceParser3.EnamineOptions.builder()
+                    .input(Path.of(inputPath))
+                    .spaceName(spaceName)
+                    .mode(mode)
+                    .threads(threads)
+                    .maxSynthonSets(maxSets)
+                    .sourceFormat(cmd.getOptionValue("sourceFormat", "xtalpi-csv"))
+                    .smilesColumn(cmd.getOptionValue("smilesColumn", "SMILES"))
+                    .idColumn(cmd.getOptionValue("idColumn", "synton_id"))
+                    .reactionColumn(cmd.getOptionValue("reactionColumn", "reaction_id"))
+                    .synthonSetColumn(cmd.getOptionValue("synthonSetColumn", "synton_role"))
+                    .metadata(metadata)
                     .buildSynthonSpace(needSynthonSpace);
             descriptorTags.forEach(builder::addDescriptorTag);
             result = importer.importEnamine(builder.build());
@@ -83,6 +114,7 @@ public class RawSynthonSpaceImportCLI {
                     .priceAttributeKey(cmd.getOptionValue("priceAttribute", "price"))
                     .defaultSynthonSet(Integer.parseInt(cmd.getOptionValue("synthonDefaultSet", "0")))
                     .threads(threads)
+                    .metadata(metadata)
                     .buildSynthonSpace(needSynthonSpace);
             if (cmd.hasOption("synthonSetColumn")) {
                 builder.synthonSetColumn(cmd.getOptionValue("synthonSetColumn"));
@@ -127,13 +159,21 @@ public class RawSynthonSpaceImportCLI {
     private static Options buildOptions() {
         Options options = new Options();
         options.addOption(Option.builder().longOpt("format").hasArg()
-                .desc("Input format: enamine (default) or csv").build());
+                .desc("Input format: enamine (default), xtalpi, or csv").build());
         options.addOption(Option.builder().longOpt("input").hasArg()
-                .desc("Path to vendor TSV file (Enamine format)").build());
+                .desc("Path to vendor table file, or zip archive when --zipEntry is set").build());
         options.addOption(Option.builder().longOpt("directory").hasArg()
                 .desc("Directory containing per-reaction CSV files (CSV format)").build());
+        options.addOption(Option.builder().longOpt("zipEntry").hasArg()
+                .desc("Internal table path when --input is a zip archive").build());
+        options.addOption(Option.builder().longOpt("reactionZipEntry").hasArg()
+                .desc("Optional internal reactions metadata table path for zip imports").build());
         options.addOption(Option.builder().longOpt("spaceName").hasArg().required(true)
                 .desc("Logical name of the synthon space").build());
+        options.addOption(Option.builder().longOpt("sourceFormat").hasArg()
+                .desc("Override metadata source.format for the imported rawspace").build());
+        options.addOption(Option.builder().longOpt("metadata").hasArg()
+                .desc("Add rawspace metadata as key=value (repeatable)").build());
         options.addOption(Option.builder().longOpt("mode").hasArg()
                 .desc("Descriptor mode (FragFp, PathFp, mode_pfp, mode_ffp, mode_ppcore)").build());
         options.addOption(Option.builder().longOpt("threads").hasArg()
@@ -146,6 +186,8 @@ public class RawSynthonSpaceImportCLI {
                 .desc("CSV column that stores SMILES (default SMILES)").build());
         options.addOption(Option.builder().longOpt("idColumn").hasArg()
                 .desc("CSV column that stores fragment identifiers (default bb1_parent_id)").build());
+        options.addOption(Option.builder().longOpt("reactionColumn").hasArg()
+                .desc("Single-table column that stores reaction identifiers (default reaction_id)").build());
         options.addOption(Option.builder().longOpt("priceColumn").hasArg()
                 .desc("CSV column containing price metadata (default Price)").build());
         options.addOption(Option.builder().longOpt("priceAttribute").hasArg()
@@ -177,5 +219,27 @@ public class RawSynthonSpaceImportCLI {
                 .filter(token -> !token.isEmpty())
                 .forEach(tags::add);
         return tags;
+    }
+
+    private static Map<String, String> parseMetadata(String[] rawValues) {
+        Map<String, String> metadata = new LinkedHashMap<>();
+        if (rawValues == null) {
+            return metadata;
+        }
+        for (String value : rawValues) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            int separator = value.indexOf('=');
+            if (separator <= 0) {
+                throw new IllegalArgumentException("--metadata values must be key=value: " + value);
+            }
+            String key = value.substring(0, separator).trim();
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("--metadata key must not be empty: " + value);
+            }
+            metadata.put(key, value.substring(separator + 1));
+        }
+        return metadata;
     }
 }

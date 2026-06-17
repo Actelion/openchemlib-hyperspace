@@ -16,6 +16,8 @@ import com.idorsia.research.chem.hyperspace.rawspace.SynthonReactionValidator;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +39,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 /**
  * Parser capable of ingesting classic Enamine TSV files as well as directories containing
@@ -52,19 +56,27 @@ public final class SynthonSpaceParser3 {
         DescriptorContext descriptor = DescriptorContext.forMode(options.mode());
 
         Map<String, ReactionRecord> records = parseEnamineFile(options, descriptor);
+        Map<String, Map<String, String>> reactionMetadata = parseReactionMetadata(options);
         List<ReactionRecord> filtered = filterReactions(records, options.maxSynthonSets());
 
         RawSynthonSpace.Builder builder = RawSynthonSpace.builder(options.spaceName())
-                .putMetadata(RawSynthonSpace.MetadataKeys.SOURCE_FORMAT, "enamine-tsv")
+                .putMetadata(RawSynthonSpace.MetadataKeys.SOURCE_FORMAT, options.sourceFormat())
                 .putMetadata("source.file", options.input().toAbsolutePath().toString())
                 .putMetadata("parser.mode", descriptor.modeLabel())
                 .putMetadata("parser.maxSynthonSets", Integer.toString(options.maxSynthonSets()))
                 .putMetadata("parser.threads", Integer.toString(options.threads()))
                 .putMetadata(RawSynthonSpace.MetadataKeys.DESCRIPTOR_SHORT_NAME, descriptor.shortName())
                 .putMetadata(RawSynthonSpace.MetadataKeys.DESCRIPTOR_BITS, Integer.toString(descriptor.bits()));
+        if (options.zipEntry() != null) {
+            builder.putMetadata("source.zipEntry", options.zipEntry());
+        }
+        if (options.reactionZipEntry() != null) {
+            builder.putMetadata("source.reactionZipEntry", options.reactionZipEntry());
+        }
+        options.metadata().forEach(builder::putMetadata);
         addDescriptorTags(builder, descriptor, options.descriptorTags());
 
-        validateAndApply(filtered, builder);
+        validateAndApply(filtered, builder, reactionMetadata);
         RawSynthonSpace raw = builder.build();
         SynthonSpace synthonSpace = maybeBuildSynthonSpace(raw, descriptor, options.buildSynthonSpace());
         return new ParsedSpace(raw, synthonSpace);
@@ -100,9 +112,10 @@ public final class SynthonSpaceParser3 {
                 .putMetadata("parser.threads", Integer.toString(options.threads()))
                 .putMetadata(RawSynthonSpace.MetadataKeys.DESCRIPTOR_SHORT_NAME, descriptor.shortName())
                 .putMetadata(RawSynthonSpace.MetadataKeys.DESCRIPTOR_BITS, Integer.toString(descriptor.bits()));
+        options.metadata().forEach(builder::putMetadata);
         addDescriptorTags(builder, descriptor, options.descriptorTags());
 
-        validateAndApply(records, builder);
+        validateAndApply(records, builder, Map.of());
         RawSynthonSpace raw = builder.build();
         SynthonSpace synthonSpace = maybeBuildSynthonSpace(raw, descriptor, options.buildSynthonSpace());
         return new ParsedSpace(raw, synthonSpace);
@@ -114,21 +127,24 @@ public final class SynthonSpaceParser3 {
                                                                 DescriptorContext descriptor) throws Exception {
         Map<String, ReactionRecord> records = new LinkedHashMap<>();
         Object recordLock = new Object();
-        ProgressTracker progress = ProgressTracker.create(options.input());
+        SourceReader source = openSourceReader(options.input(), options.zipEntry());
+        ProgressTracker progress = ProgressTracker.create(source.size());
         int threads = Math.max(1, options.threads());
         ExecutorService executor = threads > 1 ? Executors.newFixedThreadPool(threads) : null;
         List<Future<ChunkStats>> futures = new ArrayList<>();
-        try (BufferedReader reader = Files.newBufferedReader(options.input(), StandardCharsets.UTF_8)) {
+        try (source) {
+            BufferedReader reader = source.reader();
             String header = reader.readLine();
             if (header == null) {
-                throw new IllegalArgumentException("Empty input file: " + options.input());
+                throw new IllegalArgumentException("Empty input file: " + source.description());
             }
             List<String> batch = new ArrayList<>(DEFAULT_BATCH_SIZE);
             long batchBytes = 0L;
             String line;
-            boolean csvBatching = options.input().getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".csv");
-            if (csvBatching) {
-                parseUnifiedCsv(header, reader, options, descriptor, records);
+            boolean headerMapped = options.zipEntry() != null
+                    || options.input().getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".csv");
+            if (headerMapped) {
+                parseUnifiedTable(header, reader, options, records, source.description());
             } else {
                 while ((line = reader.readLine()) != null) {
                     String trimmed = line.trim();
@@ -186,18 +202,18 @@ public final class SynthonSpaceParser3 {
         return records;
     }
 
-    private static void parseUnifiedCsv(String firstHeaderLine,
-                                        BufferedReader reader,
-                                        EnamineOptions options,
-                                        DescriptorContext descriptor,
-                                        Map<String, ReactionRecord> records) throws Exception {
-        String headerLine = firstHeaderLine;
-        List<String> header = splitCsvLine(headerLine);
+    private static void parseUnifiedTable(String firstHeaderLine,
+                                          BufferedReader reader,
+                                          EnamineOptions options,
+                                          Map<String, ReactionRecord> records,
+                                          String sourceDescription) throws Exception {
+        char delimiter = detectDelimiter(firstHeaderLine);
+        List<String> header = splitLine(firstHeaderLine, delimiter);
         Map<String, Integer> headerIndex = buildHeaderIndex(header);
-        int smilesIdx = requireCsvColumn(headerIndex, "SMILES");
-        int idIdx = requireCsvColumn(headerIndex, "synthon_id");
-        int reactionIdx = requireCsvColumn(headerIndex, "reaction_id");
-        int synthonSetIdx = requireCsvColumn(headerIndex, "synthon#");
+        int smilesIdx = requireCsvColumn(headerIndex, options.smilesColumn());
+        int idIdx = requireCsvColumn(headerIndex, options.idColumn());
+        int reactionIdx = requireCsvColumn(headerIndex, options.reactionColumn());
+        int synthonSetIdx = requireCsvColumn(headerIndex, options.synthonSetColumn());
         Integer priceIdx = headerIndex.get("price");
         String line;
         SmilesParser parser = new SmilesParser();
@@ -207,7 +223,7 @@ public final class SynthonSpaceParser3 {
                 if (line.isEmpty()) {
                     continue;
                 }
-                List<String> parts = splitCsvLine(line);
+                List<String> parts = splitLine(line, delimiter);
                 while (parts.size() < header.size()) {
                     parts.add("");
                 }
@@ -219,10 +235,10 @@ public final class SynthonSpaceParser3 {
                 if (reactionId.isEmpty()) {
                     continue;
                 }
-                int synthonIdx = Integer.parseInt(parts.get(synthonSetIdx).trim());
+                int synthonIdx = parseSynthonIndex(parts.get(synthonSetIdx).trim());
                 ReactionRecord record = records.computeIfAbsent(reactionId, ReactionRecord::new);
                 String fragmentId = parts.get(idIdx).trim();
-                StereoMolecule molecule = parseSmiles(parser, smiles, options.input().toString());
+                StereoMolecule molecule = parseSmiles(parser, smiles, sourceDescription);
                 RawSynthon fragment = createFragment(reactionId, synthonIdx, fragmentId, molecule);
                 record.addFragment(synthonIdx, fragment);
                 if (priceIdx != null) {
@@ -245,6 +261,67 @@ public final class SynthonSpaceParser3 {
             throw new IllegalArgumentException("Column \"" + columnName + "\" not found in CSV header");
         }
         return idx;
+    }
+
+    private static Map<String, Map<String, String>> parseReactionMetadata(EnamineOptions options) throws IOException {
+        if (options.reactionZipEntry() == null) {
+            return Map.of();
+        }
+        Map<String, Map<String, String>> metadata = new LinkedHashMap<>();
+        try (SourceReader source = openSourceReader(options.input(), options.reactionZipEntry())) {
+            String headerLine = source.reader().readLine();
+            if (headerLine == null) {
+                return metadata;
+            }
+            char delimiter = detectDelimiter(headerLine);
+            List<String> header = splitLine(headerLine, delimiter);
+            Map<String, Integer> headerIndex = buildHeaderIndex(header);
+            Integer reactionIdx = headerIndex.get("reaction_id");
+            if (reactionIdx == null) {
+                throw new IllegalArgumentException("Reaction metadata file is missing reaction_id column: "
+                        + source.description());
+            }
+            String line;
+            while ((line = source.reader().readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                List<String> parts = splitLine(line, delimiter);
+                while (parts.size() < header.size()) {
+                    parts.add("");
+                }
+                String reactionId = parts.get(reactionIdx).trim();
+                if (reactionId.isEmpty()) {
+                    continue;
+                }
+                Map<String, String> values = new LinkedHashMap<>();
+                putReactionMetadata(values, headerIndex, parts, "components", "supplier.reaction.components");
+                putReactionMetadata(values, headerIndex, parts, "reaction", "supplier.reaction.smarts");
+                putReactionMetadata(values, headerIndex, parts, "product", "supplier.reaction.product");
+                for (int i = 1; i <= 4; i++) {
+                    putReactionMetadata(values, headerIndex, parts, "r" + i, "supplier.reaction.R" + i);
+                }
+                if (!values.isEmpty()) {
+                    metadata.put(reactionId, values);
+                }
+            }
+        }
+        return metadata;
+    }
+
+    private static void putReactionMetadata(Map<String, String> target,
+                                            Map<String, Integer> headerIndex,
+                                            List<String> parts,
+                                            String sourceKey,
+                                            String metadataKey) {
+        Integer idx = headerIndex.get(sourceKey);
+        if (idx == null || idx >= parts.size()) {
+            return;
+        }
+        String value = parts.get(idx).trim();
+        if (!value.isEmpty() && !"-".equals(value)) {
+            target.put(metadataKey, value);
+        }
     }
 
     private static void submitEnamineBatch(List<String> batch,
@@ -416,7 +493,8 @@ public final class SynthonSpaceParser3 {
     }
 
     private static void validateAndApply(List<ReactionRecord> records,
-                                         RawSynthonSpace.Builder builder) {
+                                         RawSynthonSpace.Builder builder,
+                                         Map<String, Map<String, String>> reactionMetadata) {
         for (ReactionRecord record : records) {
             try {
                 record.validate();
@@ -426,6 +504,10 @@ public final class SynthonSpaceParser3 {
                 continue;
             }
             record.apply(builder);
+            Map<String, String> metadata = reactionMetadata.get(record.reactionId());
+            if (metadata != null) {
+                metadata.forEach((key, value) -> builder.addReactionMetadata(record.reactionId(), key, value));
+            }
         }
     }
 
@@ -506,6 +588,17 @@ public final class SynthonSpaceParser3 {
         return index;
     }
 
+    private static char detectDelimiter(String line) {
+        return line.indexOf('\t') >= 0 ? '\t' : ',';
+    }
+
+    private static List<String> splitLine(String line, char delimiter) {
+        if (delimiter == '\t') {
+            return new ArrayList<>(List.of(line.split("\\t", -1)));
+        }
+        return splitCsvLine(line);
+    }
+
     private static List<String> splitCsvLine(String line) {
         List<String> tokens = new ArrayList<>();
         StringBuilder current = new StringBuilder();
@@ -528,6 +621,100 @@ public final class SynthonSpaceParser3 {
         }
         tokens.add(current.toString());
         return tokens;
+    }
+
+    private static int parseSynthonIndex(String token) {
+        String value = token == null ? "" : token.trim();
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException("Missing synthon index");
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ignored) {
+            int end = value.length() - 1;
+            while (end >= 0 && !Character.isDigit(value.charAt(end))) {
+                end--;
+            }
+            if (end < 0) {
+                throw new IllegalArgumentException("Invalid synthon index: " + token);
+            }
+            int start = end;
+            while (start >= 0 && Character.isDigit(value.charAt(start))) {
+                start--;
+            }
+            return Integer.parseInt(value.substring(start + 1, end + 1));
+        }
+    }
+
+    private static SourceReader openSourceReader(Path input, String zipEntry) throws IOException {
+        if (zipEntry == null || zipEntry.isBlank()) {
+            return new SourceReader(Files.newBufferedReader(input, StandardCharsets.UTF_8),
+                    Files.size(input),
+                    input.toString(),
+                    null);
+        }
+        ZipFile zipFile = new ZipFile(input.toFile());
+        ZipEntry entry = zipFile.getEntry(zipEntry);
+        if (entry == null) {
+            zipFile.close();
+            throw new IllegalArgumentException("Zip entry not found: " + zipEntry + " in " + input);
+        }
+        InputStream in = zipFile.getInputStream(entry);
+        BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        return new SourceReader(reader,
+                Math.max(0L, entry.getSize()),
+                input + "!" + zipEntry,
+                zipFile);
+    }
+
+    private static final class SourceReader implements AutoCloseable {
+        private final BufferedReader reader;
+        private final long size;
+        private final String description;
+        private final ZipFile zipFile;
+
+        private SourceReader(BufferedReader reader, long size, String description, ZipFile zipFile) {
+            this.reader = reader;
+            this.size = size;
+            this.description = description;
+            this.zipFile = zipFile;
+        }
+
+        BufferedReader reader() {
+            return reader;
+        }
+
+        long size() {
+            return size;
+        }
+
+        String description() {
+            return description;
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOException failure = null;
+            try {
+                reader.close();
+            } catch (IOException e) {
+                failure = e;
+            }
+            if (zipFile != null) {
+                try {
+                    zipFile.close();
+                } catch (IOException e) {
+                    if (failure == null) {
+                        failure = e;
+                    } else {
+                        failure.addSuppressed(e);
+                    }
+                }
+            }
+            if (failure != null) {
+                throw failure;
+            }
+        }
     }
 
     public static final class ParsedSpace {
@@ -555,6 +742,14 @@ public final class SynthonSpaceParser3 {
         private final int threads;
         private final int maxSynthonSets;
         private final List<String> descriptorTags;
+        private final String sourceFormat;
+        private final String zipEntry;
+        private final String reactionZipEntry;
+        private final Map<String, String> metadata;
+        private final String smilesColumn;
+        private final String idColumn;
+        private final String reactionColumn;
+        private final String synthonSetColumn;
         private final boolean buildSynthonSpace;
 
         private EnamineOptions(Builder builder) {
@@ -564,6 +759,16 @@ public final class SynthonSpaceParser3 {
             this.threads = builder.threads;
             this.maxSynthonSets = builder.maxSynthonSets;
             this.descriptorTags = List.copyOf(builder.descriptorTags);
+            this.sourceFormat = builder.sourceFormat == null || builder.sourceFormat.isBlank()
+                    ? "enamine-tsv"
+                    : builder.sourceFormat;
+            this.zipEntry = blankToNull(builder.zipEntry);
+            this.reactionZipEntry = blankToNull(builder.reactionZipEntry);
+            this.metadata = Map.copyOf(builder.metadata);
+            this.smilesColumn = builder.smilesColumn;
+            this.idColumn = builder.idColumn;
+            this.reactionColumn = builder.reactionColumn;
+            this.synthonSetColumn = builder.synthonSetColumn;
             this.buildSynthonSpace = builder.buildSynthonSpace;
         }
 
@@ -591,6 +796,38 @@ public final class SynthonSpaceParser3 {
             return descriptorTags;
         }
 
+        public String sourceFormat() {
+            return sourceFormat;
+        }
+
+        public String zipEntry() {
+            return zipEntry;
+        }
+
+        public String reactionZipEntry() {
+            return reactionZipEntry;
+        }
+
+        public Map<String, String> metadata() {
+            return metadata;
+        }
+
+        public String smilesColumn() {
+            return smilesColumn;
+        }
+
+        public String idColumn() {
+            return idColumn;
+        }
+
+        public String reactionColumn() {
+            return reactionColumn;
+        }
+
+        public String synthonSetColumn() {
+            return synthonSetColumn;
+        }
+
         public boolean buildSynthonSpace() {
             return buildSynthonSpace;
         }
@@ -606,6 +843,14 @@ public final class SynthonSpaceParser3 {
             private int threads = 4;
             private int maxSynthonSets = 3;
             private final LinkedHashSet<String> descriptorTags = new LinkedHashSet<>();
+            private String sourceFormat = "enamine-tsv";
+            private String zipEntry;
+            private String reactionZipEntry;
+            private final Map<String, String> metadata = new LinkedHashMap<>();
+            private String smilesColumn = "SMILES";
+            private String idColumn = "synthon_id";
+            private String reactionColumn = "reaction_id";
+            private String synthonSetColumn = "synthon#";
             private boolean buildSynthonSpace = false;
 
             public Builder input(Path input) {
@@ -643,6 +888,55 @@ public final class SynthonSpaceParser3 {
                 return this;
             }
 
+            public Builder sourceFormat(String sourceFormat) {
+                this.sourceFormat = sourceFormat;
+                return this;
+            }
+
+            public Builder zipEntry(String zipEntry) {
+                this.zipEntry = zipEntry;
+                return this;
+            }
+
+            public Builder reactionZipEntry(String reactionZipEntry) {
+                this.reactionZipEntry = reactionZipEntry;
+                return this;
+            }
+
+            public Builder putMetadata(String key, String value) {
+                if (key != null && !key.isBlank() && value != null) {
+                    this.metadata.put(key.trim(), value);
+                }
+                return this;
+            }
+
+            public Builder metadata(Map<String, String> metadata) {
+                if (metadata != null) {
+                    metadata.forEach(this::putMetadata);
+                }
+                return this;
+            }
+
+            public Builder smilesColumn(String smilesColumn) {
+                this.smilesColumn = smilesColumn;
+                return this;
+            }
+
+            public Builder idColumn(String idColumn) {
+                this.idColumn = idColumn;
+                return this;
+            }
+
+            public Builder reactionColumn(String reactionColumn) {
+                this.reactionColumn = reactionColumn;
+                return this;
+            }
+
+            public Builder synthonSetColumn(String synthonSetColumn) {
+                this.synthonSetColumn = synthonSetColumn;
+                return this;
+            }
+
             public Builder buildSynthonSpace(boolean build) {
                 this.buildSynthonSpace = build;
                 return this;
@@ -667,6 +961,7 @@ public final class SynthonSpaceParser3 {
         private final boolean includeAllFiles;
         private final int threads;
         private final List<String> descriptorTags;
+        private final Map<String, String> metadata;
         private final boolean buildSynthonSpace;
         private final boolean autoDetectIdColumn;
 
@@ -683,6 +978,7 @@ public final class SynthonSpaceParser3 {
             this.includeAllFiles = builder.includeAllFiles;
             this.threads = builder.threads;
             this.descriptorTags = List.copyOf(builder.descriptorTags);
+            this.metadata = Map.copyOf(builder.metadata);
             this.buildSynthonSpace = builder.buildSynthonSpace;
             this.autoDetectIdColumn = builder.autoDetectIdColumn;
         }
@@ -735,6 +1031,10 @@ public final class SynthonSpaceParser3 {
             return descriptorTags;
         }
 
+        public Map<String, String> metadata() {
+            return metadata;
+        }
+
         public boolean buildSynthonSpace() {
             return buildSynthonSpace;
         }
@@ -760,6 +1060,7 @@ public final class SynthonSpaceParser3 {
             private boolean includeAllFiles = false;
             private int threads = Math.max(1, Runtime.getRuntime().availableProcessors());
             private final LinkedHashSet<String> descriptorTags = new LinkedHashSet<>();
+            private final Map<String, String> metadata = new LinkedHashMap<>();
             private boolean buildSynthonSpace = false;
             private boolean autoDetectIdColumn = false;
 
@@ -826,6 +1127,20 @@ public final class SynthonSpaceParser3 {
                     if (!trimmed.isEmpty()) {
                         descriptorTags.add(trimmed);
                     }
+                }
+                return this;
+            }
+
+            public Builder putMetadata(String key, String value) {
+                if (key != null && !key.isBlank() && value != null) {
+                    this.metadata.put(key.trim(), value);
+                }
+                return this;
+            }
+
+            public Builder metadata(Map<String, String> metadata) {
+                if (metadata != null) {
+                    metadata.forEach(this::putMetadata);
                 }
                 return this;
             }
@@ -944,6 +1259,10 @@ public final class SynthonSpaceParser3 {
             } catch (IOException ignored) {
             }
             return new ProgressTracker(total);
+        }
+
+        static ProgressTracker create(long totalBytes) {
+            return new ProgressTracker(Math.max(0L, totalBytes));
         }
 
         void increment(ChunkStats stats) {
@@ -1183,7 +1502,7 @@ public final class SynthonSpaceParser3 {
                 return defaultSynthonIdx;
             }
             try {
-                return Integer.parseInt(token);
+                return parseSynthonIndex(token);
             } catch (NumberFormatException ex) {
                 throw new IllegalArgumentException("Invalid synthon index: " + token, ex);
             }
@@ -1217,5 +1536,12 @@ public final class SynthonSpaceParser3 {
             }
             return headerIndex.get(columnName.toLowerCase(Locale.ROOT));
         }
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value;
     }
 }

@@ -84,6 +84,8 @@ java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
 
 The CSV mode (powered by `SynthonSpaceParser3`) assumes one file per reaction; each row provides a synthon SMILES plus metadata (IDs, optional price, optional synthon-set index). Column names are configurable via CLI flags, and numeric metadata such as prices are stored as fragment attributes inside the raw space, ready for downstream cost-aware workflows. `--mode` mirrors the descriptors understood by the parser (FragFp, PathFp, mode_pfp, mode_ffp, mode_ppcore). Besides the JSON dump you can optionally persist a `SynthonSpace` and/or similarity side-car in one go. `--rawOut` is required and can point to either `.rawspace` or `.rawspace.gz` (compression is inferred from the extension).
 
+For the full list of rawspace import formats, expected columns, filename conventions, and batch import options, see [`RAWSPACE_IMPORTERS.md`](RAWSPACE_IMPORTERS.md). The checked Enamine, ChemSpace, Xtalpi, Molecule.One, Synple, and toy supplier files are listed with runnable import commands in [`SUPPLIER_SPACE_IMPORTS.md`](SUPPLIER_SPACE_IMPORTS.md).
+
 ## Synthon space merge CLI
 
 You can merge multiple `RawSynthonSpace` files into either one combined output or two split outputs (`2s` and `3s` reactions):

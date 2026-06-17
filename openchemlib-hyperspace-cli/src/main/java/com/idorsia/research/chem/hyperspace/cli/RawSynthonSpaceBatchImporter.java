@@ -98,17 +98,30 @@ public final class RawSynthonSpaceBatchImporter {
                 return importer.importEnamine(builder.build()).getRawSpace();
             }
             case SYNPLE -> {
-                SynthonSpaceParser3.EnamineOptions.Builder builder = SynthonSpaceParser3.EnamineOptions.builder()
-                        .input(input)
+                if (Files.isRegularFile(input)) {
+                    SynthonSpaceParser3.EnamineOptions.Builder builder = SynthonSpaceParser3.EnamineOptions.builder()
+                            .input(input)
+                            .spaceName(entry.spaceName)
+                            .threads(threads)
+                            .maxSynthonSets(maxSets)
+                            .sourceFormat("synple-csv")
+                            .buildSynthonSpace(false);
+                    if (mode != null && !mode.isBlank()) {
+                        builder.mode(mode);
+                    }
+                    entry.descriptorTags.forEach(builder::addDescriptorTag);
+                    return importer.importEnamine(builder.build()).getRawSpace();
+                }
+                SynthonSpaceParser3.CsvDirectoryOptions.Builder builder = SynthonSpaceParser3.CsvDirectoryOptions.builder()
+                        .directory(input)
                         .spaceName(entry.spaceName)
                         .threads(threads)
-                        .maxSynthonSets(maxSets)
                         .buildSynthonSpace(false);
                 if (mode != null && !mode.isBlank()) {
                     builder.mode(mode);
                 }
                 entry.descriptorTags.forEach(builder::addDescriptorTag);
-                return importer.importEnamine(builder.build()).getRawSpace();
+                return importer.importCsvDirectory(builder.build()).getRawSpace();
             }
             default -> throw new IllegalStateException("Unsupported format " + entry.format);
         }
@@ -155,7 +168,7 @@ public final class RawSynthonSpaceBatchImporter {
         options.addOption(Option.builder().longOpt("enamine").hasArg()
                 .desc("TSV manifest listing Enamine-format sources").build());
         options.addOption(Option.builder().longOpt("synple").hasArg()
-                .desc("TSV manifest listing Synple CSV directories").build());
+                .desc("TSV manifest listing Synple CSV directories or consolidated CSV files").build());
         options.addOption(Option.builder().longOpt("out").hasArg().required(true)
                 .desc("Output directory for RawSynthonSpace JSON(.gz) files").build());
         options.addOption(Option.builder().longOpt("threads").hasArg()

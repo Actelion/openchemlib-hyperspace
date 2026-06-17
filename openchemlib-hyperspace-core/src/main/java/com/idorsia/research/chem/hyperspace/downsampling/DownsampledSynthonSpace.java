@@ -1,6 +1,7 @@
 package com.idorsia.research.chem.hyperspace.downsampling;
 
 import com.idorsia.research.chem.hyperspace.SynthonSpace;
+import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -25,6 +26,61 @@ public class DownsampledSynthonSpace implements Serializable {
         this.algorithmName = Objects.requireNonNull(algorithmName, "algorithmName");
         this.request = Objects.requireNonNull(request, "request");
         this.downsampledSets = buildNestedMap(Objects.requireNonNull(representatives, "representatives"));
+    }
+
+    public static DownsampledSynthonSpace fromRawFragmentSets(RawSynthonSpace rawSpace) {
+        Objects.requireNonNull(rawSpace, "rawSpace");
+        Map<SynthonSpace.FragType, List<SynthonSpace.FragId>> representatives = new HashMap<>();
+        rawSpace.getReactions().forEach((rxnId, data) ->
+                data.getFragmentSets().forEach((idx, synthons) ->
+                        representatives.put(new SynthonSpace.FragType(rxnId, idx), synthons)));
+        String algorithm = rawSpace.getMetadata().getOrDefault(
+                RawSynthonSpace.MetadataKeys.DOWNSAMPLING_ALGORITHM,
+                "RawSynthonSpace");
+        return new DownsampledSynthonSpace(algorithm, requestFromMetadata(rawSpace), representatives);
+    }
+
+    private static SynthonDownsamplingRequest requestFromMetadata(RawSynthonSpace rawSpace) {
+        Map<String, String> metadata = rawSpace.getMetadata();
+        SynthonDownsamplingRequest.Builder builder = SynthonDownsamplingRequest.builder()
+                .withMaxCenters(parseInt(metadata.get(RawSynthonSpace.MetadataKeys.DOWNSAMPLING_MAX_CENTERS), 0))
+                .withSizeCapScale(parseDouble(metadata.get(RawSynthonSpace.MetadataKeys.DOWNSAMPLING_SIZE_CAP_SCALE), 0.0))
+                .withSizeCapOffset(parseDouble(metadata.get(RawSynthonSpace.MetadataKeys.DOWNSAMPLING_SIZE_CAP_OFFSET), 0.0))
+                .withMinSimilarity(parseDouble(metadata.get(RawSynthonSpace.MetadataKeys.DOWNSAMPLING_MIN_SIMILARITY), 0.0))
+                .withRandomSeed(parseLong(metadata.get(RawSynthonSpace.MetadataKeys.DOWNSAMPLING_SEED), 1L))
+                .enforceConnectorEquivalence(parseBoolean(
+                        metadata.get(RawSynthonSpace.MetadataKeys.DOWNSAMPLING_ENFORCE_CONNECTOR_EQUIVALENCE), true))
+                .includeClusterMembers(parseBoolean(
+                        metadata.get(RawSynthonSpace.MetadataKeys.DOWNSAMPLING_INCLUDE_CLUSTER_MEMBERS), false));
+        return builder.build();
+    }
+
+    private static int parseInt(String value, int defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return Integer.parseInt(value);
+    }
+
+    private static long parseLong(String value, long defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return Long.parseLong(value);
+    }
+
+    private static double parseDouble(String value, double defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return Double.parseDouble(value);
+    }
+
+    private static boolean parseBoolean(String value, boolean defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return Boolean.parseBoolean(value);
     }
 
     private static Map<String, Map<Integer, List<SynthonSpace.FragId>>> buildNestedMap(Map<SynthonSpace.FragType, List<SynthonSpace.FragId>> representatives) {

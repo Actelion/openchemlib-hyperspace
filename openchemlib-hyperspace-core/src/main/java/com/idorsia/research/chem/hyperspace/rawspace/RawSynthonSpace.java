@@ -1,7 +1,6 @@
 package com.idorsia.research.chem.hyperspace.rawspace;
 
 import com.idorsia.research.chem.hyperspace.SynthonSpace;
-import com.idorsia.research.chem.hyperspace.downsampling.DownsampledSynthonSpace;
 import com.idorsia.research.chem.hyperspace.downsampling.SynthonDownsamplingRequest;
 
 import java.io.Serializable;
@@ -9,11 +8,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Lightweight representation of synthon reactions and fragments enriched with optional metadata.
@@ -25,6 +22,17 @@ public class RawSynthonSpace implements Serializable {
         public static final String DESCRIPTOR_BITS = "descriptor.bits";
         public static final String SOURCE_FORMAT = "source.format";
         public static final String DESCRIPTOR_TAGS = "descriptor.tags";
+        public static final String SPACE_ROLE = "space.role";
+        public static final String SPACE_ROLE_FULL = "full";
+        public static final String SPACE_ROLE_DOWNSAMPLED = "downsampled";
+        public static final String DOWNSAMPLING_ALGORITHM = "downsampling.algorithm";
+        public static final String DOWNSAMPLING_MAX_CENTERS = "downsampling.maxCenters";
+        public static final String DOWNSAMPLING_MIN_SIMILARITY = "downsampling.minSimilarity";
+        public static final String DOWNSAMPLING_SEED = "downsampling.seed";
+        public static final String DOWNSAMPLING_ENFORCE_CONNECTOR_EQUIVALENCE = "downsampling.enforceConnectorEquivalence";
+        public static final String DOWNSAMPLING_SIZE_CAP_SCALE = "downsampling.sizeCapScale";
+        public static final String DOWNSAMPLING_SIZE_CAP_OFFSET = "downsampling.sizeCapOffset";
+        public static final String DOWNSAMPLING_INCLUDE_CLUSTER_MEMBERS = "downsampling.includeClusterMembers";
 
         private MetadataKeys() {
         }
@@ -34,8 +42,6 @@ public class RawSynthonSpace implements Serializable {
     private final String version;
     private final Map<String, String> metadata;
     private final Map<String, ReactionData> reactions;
-    private final String downsamplingAlgorithm;
-    private final SynthonDownsamplingRequest downsamplingRequest;
 
     private RawSynthonSpace(Builder builder) {
         this.name = builder.name;
@@ -44,8 +50,6 @@ public class RawSynthonSpace implements Serializable {
         Map<String, ReactionData> map = new LinkedHashMap<>();
         builder.reactionBuilders.forEach((id, reactionBuilder) -> map.put(id, reactionBuilder.build()));
         this.reactions = Collections.unmodifiableMap(map);
-        this.downsamplingAlgorithm = builder.downsamplingAlgorithm;
-        this.downsamplingRequest = builder.downsamplingRequest;
     }
 
     public String getName() {
@@ -72,48 +76,12 @@ public class RawSynthonSpace implements Serializable {
         return data.getFragmentSets();
     }
 
-    public Map<Integer, List<SynthonSpace.FragId>> getDownsampledSets(String reactionId) {
-        ReactionData data = reactions.get(reactionId);
-        if (data == null) {
-            return Collections.emptyMap();
-        }
-        return data.getDownsampledSets();
-    }
-
     public SynthonSpace.FragId findFragment(String reactionId, String fragmentId) {
         ReactionData data = reactions.get(reactionId);
         if (data == null) {
             return null;
         }
         return data.findFragment(fragmentId);
-    }
-
-    public boolean hasDownsampledSets() {
-        return reactions.values().stream().anyMatch(d -> !d.getDownsampledSets().isEmpty());
-    }
-
-    public Optional<String> getDownsamplingAlgorithm() {
-        return Optional.ofNullable(downsamplingAlgorithm);
-    }
-
-    public Optional<SynthonDownsamplingRequest> getDownsamplingRequest() {
-        return Optional.ofNullable(downsamplingRequest);
-    }
-
-    public DownsampledSynthonSpace toDownsampledSpace() {
-        if (!hasDownsampledSets()) {
-            throw new IllegalStateException("Raw synthon space does not contain downsampled sets");
-        }
-        Map<SynthonSpace.FragType, List<SynthonSpace.FragId>> representatives = new HashMap<>();
-        reactions.forEach((rxnId, data) -> data.getDownsampledSets().forEach((idx, synthons) -> {
-            SynthonSpace.FragType type = new SynthonSpace.FragType(rxnId, idx);
-            representatives.put(type, synthons);
-        }));
-        String algorithm = downsamplingAlgorithm == null ? "RawSynthonSpace" : downsamplingAlgorithm;
-        SynthonDownsamplingRequest request = downsamplingRequest == null
-                ? SynthonDownsamplingRequest.builder().build()
-                : downsamplingRequest;
-        return new DownsampledSynthonSpace(algorithm, request, representatives);
     }
 
     public static Builder builder(String name) {
@@ -125,8 +93,6 @@ public class RawSynthonSpace implements Serializable {
         private String version = "1.0";
         private final Map<String, String> metadata = new LinkedHashMap<>();
         private final Map<String, ReactionBuilder> reactionBuilders = new LinkedHashMap<>();
-        private String downsamplingAlgorithm;
-        private SynthonDownsamplingRequest downsamplingRequest;
 
         private Builder(String name) {
             this.name = Objects.requireNonNull(name, "name");
@@ -144,12 +110,6 @@ public class RawSynthonSpace implements Serializable {
             return this;
         }
 
-        private void putMetadataIfAbsent(String key, String value) {
-            if (key != null && value != null && !metadata.containsKey(key)) {
-                metadata.put(key, value);
-            }
-        }
-
         public Builder addRawFragments(String reactionId, int fragIdx, List<RawSynthon> fragments) {
             reactionBuilders.computeIfAbsent(reactionId, ReactionBuilder::new)
                     .addRawFragments(fragIdx, fragments);
@@ -158,16 +118,6 @@ public class RawSynthonSpace implements Serializable {
 
         public Builder addFragments(String reactionId, int fragIdx, List<SynthonSpace.FragId> fragments) {
             return addRawFragments(reactionId, fragIdx, toRawSynthons(fragments));
-        }
-
-        public Builder addRawDownsampledFragments(String reactionId, int fragIdx, List<RawSynthon> fragments) {
-            reactionBuilders.computeIfAbsent(reactionId, ReactionBuilder::new)
-                    .addRawDownsampledFragments(fragIdx, fragments);
-            return this;
-        }
-
-        public Builder addDownsampledFragments(String reactionId, int fragIdx, List<SynthonSpace.FragId> fragments) {
-            return addRawDownsampledFragments(reactionId, fragIdx, toRawSynthons(fragments));
         }
 
         public Builder addExampleScaffolds(String reactionId, List<String> idcodes) {
@@ -223,18 +173,21 @@ public class RawSynthonSpace implements Serializable {
             return this;
         }
 
-        public Builder withDownsampledSpace(DownsampledSynthonSpace downsampled,
-                                            String algorithm,
-                                            SynthonDownsamplingRequest request) {
-            Map<String, Map<Integer, List<SynthonSpace.FragId>>> sets = downsampled.getDownsampledSets();
-            sets.forEach((rxnId, fragMap) -> fragMap.forEach((idx, synthons) -> addRawDownsampledFragments(rxnId, idx, toRawSynthons(synthons))));
-            return withDownsamplingMetadata(algorithm, request);
-        }
-
         public Builder withDownsamplingMetadata(String algorithm,
                                                 SynthonDownsamplingRequest request) {
-            this.downsamplingAlgorithm = algorithm;
-            this.downsamplingRequest = request;
+            putMetadata(MetadataKeys.SPACE_ROLE, MetadataKeys.SPACE_ROLE_DOWNSAMPLED);
+            putMetadata(MetadataKeys.DOWNSAMPLING_ALGORITHM, algorithm);
+            if (request != null) {
+                putMetadata(MetadataKeys.DOWNSAMPLING_MAX_CENTERS, Integer.toString(request.getMaxCenters()));
+                putMetadata(MetadataKeys.DOWNSAMPLING_MIN_SIMILARITY, Double.toString(request.getMinSimilarity()));
+                putMetadata(MetadataKeys.DOWNSAMPLING_SEED, Long.toString(request.getRandomSeed()));
+                putMetadata(MetadataKeys.DOWNSAMPLING_ENFORCE_CONNECTOR_EQUIVALENCE,
+                        Boolean.toString(request.isEnforceConnectorEquivalence()));
+                putMetadata(MetadataKeys.DOWNSAMPLING_SIZE_CAP_SCALE, Double.toString(request.getSizeCapScale()));
+                putMetadata(MetadataKeys.DOWNSAMPLING_SIZE_CAP_OFFSET, Double.toString(request.getSizeCapOffset()));
+                putMetadata(MetadataKeys.DOWNSAMPLING_INCLUDE_CLUSTER_MEMBERS,
+                        Boolean.toString(request.isIncludeClusterMembers()));
+            }
             return this;
         }
 
@@ -254,7 +207,6 @@ public class RawSynthonSpace implements Serializable {
 
     public static final class ReactionData implements Serializable {
         private final Map<Integer, List<RawSynthon>> rawFragmentSets;
-        private final Map<Integer, List<RawSynthon>> rawDownsampledSets;
         private final List<String> exampleScaffolds;
         private final Map<Integer, List<String>> partialAssemblies;
         private final List<String> representativeCompounds;
@@ -263,10 +215,8 @@ public class RawSynthonSpace implements Serializable {
         private final Map<String, RawSynthon> fragmentLookup;
         private final Map<String, Map<String, String>> fragmentAttributes;
         private transient Map<Integer, List<SynthonSpace.FragId>> fragmentSetsView;
-        private transient Map<Integer, List<SynthonSpace.FragId>> downsampledSetsView;
 
         private ReactionData(Map<Integer, List<RawSynthon>> fragmentSets,
-                             Map<Integer, List<RawSynthon>> downsampledSets,
                              List<String> exampleScaffolds,
                              Map<Integer, List<String>> partialAssemblies,
                              List<String> representativeCompounds,
@@ -274,7 +224,6 @@ public class RawSynthonSpace implements Serializable {
                              Map<String, String> reactionMetadata,
                              Map<String, Map<String, String>> fragmentAttributes) {
             this.rawFragmentSets = fragmentSets;
-            this.rawDownsampledSets = downsampledSets;
             this.exampleScaffolds = exampleScaffolds;
             this.partialAssemblies = partialAssemblies;
             this.representativeCompounds = representativeCompounds;
@@ -283,7 +232,6 @@ public class RawSynthonSpace implements Serializable {
             this.fragmentAttributes = fragmentAttributes;
             Map<String, RawSynthon> lookup = new HashMap<>();
             fragmentSets.values().forEach(list -> list.forEach(f -> lookup.put(f.getFragmentId(), f)));
-            downsampledSets.values().forEach(list -> list.forEach(f -> lookup.putIfAbsent(f.getFragmentId(), f)));
             this.fragmentLookup = Collections.unmodifiableMap(lookup);
         }
 
@@ -294,19 +242,8 @@ public class RawSynthonSpace implements Serializable {
             return fragmentSetsView;
         }
 
-        public Map<Integer, List<SynthonSpace.FragId>> getDownsampledSets() {
-            if (downsampledSetsView == null) {
-                downsampledSetsView = buildFragIdView(rawDownsampledSets);
-            }
-            return downsampledSetsView;
-        }
-
         public Map<Integer, List<RawSynthon>> getRawFragmentSets() {
             return rawFragmentSets;
-        }
-
-        public Map<Integer, List<RawSynthon>> getRawDownsampledSets() {
-            return rawDownsampledSets;
         }
 
         public List<String> getExampleScaffolds() {
@@ -356,7 +293,6 @@ public class RawSynthonSpace implements Serializable {
     private static final class ReactionBuilder {
         private final String reactionId;
         private final Map<Integer, List<RawSynthon>> fragmentSets = new HashMap<>();
-        private final Map<Integer, List<RawSynthon>> downsampledSets = new HashMap<>();
         private final List<String> exampleScaffolds = new ArrayList<>();
         private final Map<Integer, List<String>> partialAssemblies = new HashMap<>();
         private final List<String> representativeCompounds = new ArrayList<>();
@@ -370,10 +306,6 @@ public class RawSynthonSpace implements Serializable {
 
         private void addRawFragments(int fragIdx, List<RawSynthon> synthons) {
             fragmentSets.put(fragIdx, immutableCopyRaw(synthons));
-        }
-
-        private void addRawDownsampledFragments(int fragIdx, List<RawSynthon> synthons) {
-            downsampledSets.put(fragIdx, immutableCopyRaw(synthons));
         }
 
         private void addExampleScaffolds(List<String> idcodes) {
@@ -416,14 +348,12 @@ public class RawSynthonSpace implements Serializable {
 
         private ReactionData build() {
             Map<Integer, List<RawSynthon>> fragments = wrapRawMap(fragmentSets);
-            Map<Integer, List<RawSynthon>> downsampled = wrapRawMap(downsampledSets);
             Map<Integer, List<String>> partials = new HashMap<>();
             partialAssemblies.forEach((idx, list) -> partials.put(idx, Collections.unmodifiableList(new ArrayList<>(list))));
             Map<String, Map<String, String>> attrs = new HashMap<>();
             fragmentAttributes.forEach((fragId, attr) -> attrs.put(fragId,
                     Collections.unmodifiableMap(new LinkedHashMap<>(attr))));
             return new ReactionData(fragments,
-                    downsampled,
                     Collections.unmodifiableList(new ArrayList<>(exampleScaffolds)),
                     Collections.unmodifiableMap(partials),
                     Collections.unmodifiableList(new ArrayList<>(representativeCompounds)),

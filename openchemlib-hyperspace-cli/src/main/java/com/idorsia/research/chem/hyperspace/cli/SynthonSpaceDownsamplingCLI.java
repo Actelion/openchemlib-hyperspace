@@ -5,7 +5,6 @@ import com.idorsia.research.chem.hyperspace.SynthonSpace;
 import com.idorsia.research.chem.hyperspace.downsampling.*;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthon;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace;
-import com.idorsia.research.chem.hyperspace.io.RawSynthonSpaceProcessor;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -16,6 +15,7 @@ import org.apache.commons.cli.ParseException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Lightweight CLI to trigger synthon space downsampling from the command line.
@@ -71,36 +71,25 @@ public class SynthonSpaceDownsamplingCLI {
                 .build();
 
         SynthonDownsamplingResult result;
-        DownsampledSynthonSpace downsampledSpace;
         String algorithmName;
 
         if (rawSource != null) {
             RawSynthonDownsampler downsampler = new SkelSpheresKCentersRawDownsampler();
             RawSynthonDownsamplingOrchestrator orchestrator = new RawSynthonDownsamplingOrchestrator();
             result = orchestrator.downsample(rawSource, downsampler, request, threads);
-            downsampledSpace = result.toDownsampledSpace();
             algorithmName = downsampler.getName();
         } else {
             SynthonDownsampler downsampler = new SkelSpheresKCentersDownsampler();
             SynthonDownsamplingOrchestrator orchestrator = new SynthonDownsamplingOrchestrator();
             result = orchestrator.downsample(space, downsampler, request, threads);
-            downsampledSpace = result.toDownsampledSpace();
             algorithmName = downsampler.getName();
         }
         if (rawOut != null) {
-            RawSynthonSpace rawSpace;
-            if (rawSource != null) {
-                try {
-                    rawSpace = attachDownsampledSets(rawSource, downsampledSpace, algorithmName, request);
-                } catch (Exception e) {
-                    throw new IllegalStateException("Failed to merge downsampled sets into raw space", e);
-                }
-            } else {
-                rawSpace = RawSynthonSpace.builder(new java.io.File(spaceIn).getName())
-                        .withFullSynthonSpace(space)
-                        .withDownsampledSpace(downsampledSpace, algorithmName, request)
-                        .build();
-            }
+            RawSynthonSpace rawSpace = buildDownsampledRawSpace(rawSource,
+                    spaceIn == null ? rawIn : new java.io.File(spaceIn).getName(),
+                    result,
+                    algorithmName,
+                    request);
             try {
                 HyperspaceIOUtils.saveRawSynthonSpace(rawSpace, rawOut);
                 System.out.println("Raw synthon space written to: " + rawOut);
@@ -113,7 +102,7 @@ public class SynthonSpaceDownsamplingCLI {
         System.out.println("Original synthons: " + result.getTotalOriginalSynthons());
         System.out.println("Retained synthons: " + result.getTotalRetainedSynthons());
         System.out.println("Discarded synthons: " + result.getTotalDiscardedSynthons());
-        System.out.println("Downsampled representatives stored in: " + rawOut);
+        System.out.println("Downsampled rawspace stored in: " + rawOut);
     }
 
     private static Options buildOptions() {
@@ -137,45 +126,70 @@ public class SynthonSpaceDownsamplingCLI {
         options.addOption(Option.builder().longOpt("allowConnectorMixing")
                 .desc("Allow synthons with different connector patterns to join the same center").build());
         options.addOption(Option.builder().longOpt("rawOut").hasArg().required(true)
-                .desc("Output RawSynthonSpace file ( .rawspace or .rawspace.gz ) containing downsampled sets").build());
+                .desc("Output reduced RawSynthonSpace file ( .rawspace or .rawspace.gz )").build());
         return options;
     }
 
-    private static RawSynthonSpace attachDownsampledSets(RawSynthonSpace source,
-                                                         DownsampledSynthonSpace downsampledSpace,
-                                                         String algorithm,
-                                                         SynthonDownsamplingRequest request) throws Exception {
-        return RawSynthonSpaceProcessor.process(source,
-                List.of(new DownsampledSetsTask(downsampledSpace, algorithm, request)));
+    private static RawSynthonSpace buildDownsampledRawSpace(RawSynthonSpace source,
+                                                            String fallbackName,
+                                                            SynthonDownsamplingResult result,
+                                                            String algorithm,
+                                                            SynthonDownsamplingRequest request) {
+        String name = source != null ? source.getName() : fallbackName;
+        RawSynthonSpace.Builder builder = RawSynthonSpace.builder(name == null ? "downsampled_rawspace" : name);
+        if (source != null) {
+            builder.version(source.getVersion());
+            source.getMetadata().forEach(builder::putMetadata);
+        }
+        builder.withDownsamplingMetadata(algorithm, request);
+
+        for (SynthonSetDownsamplingResult setResult : result.getSetResults()) {
+            SynthonSpace.FragType type = setResult.getFragType();
+            String reactionId = type.rxn_id;
+            builder.addRawFragments(reactionId, type.frag, toRawSynthons(setResult.getRepresentatives()));
+            copyRetainedFragmentAttributes(source, builder, reactionId, setResult.getRepresentatives());
+        }
+
+        if (source != null) {
+            source.getReactions().forEach((reactionId, data) -> {
+                builder.addExampleScaffolds(reactionId, data.getExampleScaffolds());
+                data.getPartialAssemblies().forEach((missingIdx, assemblies) ->
+                        builder.addPartialAssemblies(reactionId, missingIdx, assemblies));
+                builder.addRepresentativeCompounds(reactionId, data.getRepresentativeCompounds());
+                data.getDescriptors().forEach((key, value) -> builder.addReactionDescriptor(reactionId, key, value));
+                data.getReactionMetadata().forEach((key, value) -> builder.addReactionMetadata(reactionId, key, value));
+            });
+        }
+        return builder.build();
     }
 
-    private static final class DownsampledSetsTask implements RawSynthonSpaceProcessor.Task {
-        private final DownsampledSynthonSpace downsampledSpace;
-        private final String algorithm;
-        private final SynthonDownsamplingRequest request;
-
-        private DownsampledSetsTask(DownsampledSynthonSpace downsampledSpace,
-                                    String algorithm,
-                                    SynthonDownsamplingRequest request) {
-            this.downsampledSpace = downsampledSpace;
-            this.algorithm = algorithm;
-            this.request = request;
+    private static void copyRetainedFragmentAttributes(RawSynthonSpace source,
+                                                       RawSynthonSpace.Builder builder,
+                                                       String reactionId,
+                                                       List<SynthonSpace.FragId> representatives) {
+        if (source == null) {
+            return;
         }
-
-        @Override
-        public void apply(RawSynthonSpaceProcessor.Context context) {
-            context.getBuilder().withDownsamplingMetadata(algorithm, request);
-            downsampledSpace.getDownsampledSets().forEach((rxnId, fragMap) ->
-                    fragMap.forEach((idx, synthons) ->
-                            context.getBuilder().addRawDownsampledFragments(rxnId, idx, toRawSynthons(synthons))));
+        RawSynthonSpace.ReactionData data = source.getReactions().get(reactionId);
+        if (data == null) {
+            return;
         }
-
-        private List<RawSynthon> toRawSynthons(List<SynthonSpace.FragId> synthons) {
-            List<RawSynthon> raws = new ArrayList<>(synthons.size());
-            for (SynthonSpace.FragId frag : synthons) {
-                raws.add(RawSynthon.fromFragId(frag));
+        Map<String, Map<String, String>> attributes = data.getFragmentAttributes();
+        for (SynthonSpace.FragId representative : representatives) {
+            Map<String, String> fragmentAttributes = attributes.get(representative.fragment_id);
+            if (fragmentAttributes == null) {
+                continue;
             }
-            return raws;
+            fragmentAttributes.forEach((key, value) ->
+                    builder.addFragmentAttribute(reactionId, representative.fragment_id, key, value));
         }
+    }
+
+    private static List<RawSynthon> toRawSynthons(List<SynthonSpace.FragId> synthons) {
+        List<RawSynthon> raws = new ArrayList<>(synthons.size());
+        for (SynthonSpace.FragId frag : synthons) {
+            raws.add(RawSynthon.fromFragId(frag));
+        }
+        return raws;
     }
 }

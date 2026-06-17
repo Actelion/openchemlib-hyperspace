@@ -304,11 +304,8 @@ public class SynthonSpaceBrowserFrame extends JFrame {
                     largestReactionsTableModel.setRows(List.of());
                     spaceSummaryLabel.setText("Select the space node to inspect global statistics.");
                     rightTopCards.show(rightTopPanel, CARD_SYNTHONS);
-                    boolean hasDownsampled = currentSpace.hasDownsampledSets();
-                    downsampledSetsCheckBox.setEnabled(hasDownsampled);
-                    if (!hasDownsampled) {
-                        downsampledSetsCheckBox.setSelected(false);
-                    }
+                    downsampledSetsCheckBox.setEnabled(false);
+                    downsampledSetsCheckBox.setSelected(false);
                     rebuildTreeModel();
                     statusLabel.setText(String.format(
                             "Loaded %s (reactions=%d, mode=%s)",

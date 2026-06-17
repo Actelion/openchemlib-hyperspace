@@ -81,9 +81,8 @@ public class SynthonLocalOptimizerCLI {
             String mode = cmd.getOptionValue("rawMode", "FULL").toUpperCase();
             switch (mode) {
                 case "FULL":
-                    return new SynthonSetAccessor(rawSpace);
                 case "DOWNSAMPLED":
-                    return new SynthonSetAccessor(rawSpace.toDownsampledSpace());
+                    return new SynthonSetAccessor(rawSpace);
                 default:
                     throw new IllegalArgumentException("Unknown --rawMode value: " + mode);
             }
@@ -158,7 +157,7 @@ public class SynthonLocalOptimizerCLI {
         options.addOption(Option.builder().longOpt("raw").hasArg()
                 .desc("Path to RawSynthonSpace JSON file").build());
         options.addOption(Option.builder().longOpt("rawMode").hasArg()
-                .desc("When using --raw choose FULL or DOWNSAMPLED view (default FULL)").build());
+                .desc("When using --raw choose FULL or DOWNSAMPLED view (both use raw fragmentSets; default FULL)").build());
         options.addOption(Option.builder().longOpt("querySmiles").hasArg()
                 .desc("Query ligand as SMILES").build());
         options.addOption(Option.builder().longOpt("queryIdcode").hasArg()

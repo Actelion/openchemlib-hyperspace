@@ -58,10 +58,6 @@ public final class SynthonSpaceCleaner {
         RawSynthonSpace.Builder builder = RawSynthonSpace.builder(source.getName())
                 .version(source.getVersion());
         source.getMetadata().forEach(builder::putMetadata);
-        if (source.getDownsamplingAlgorithm().isPresent() || source.getDownsamplingRequest().isPresent()) {
-            builder.withDownsamplingMetadata(source.getDownsamplingAlgorithm().orElse(null),
-                    source.getDownsamplingRequest().orElse(null));
-        }
 
         ExecutorService executor = Executors.newFixedThreadPool(options.getMaxParallelism());
         try {
@@ -103,7 +99,6 @@ public final class SynthonSpaceCleaner {
         }
 
         cleanedSets.forEach((idx, list) -> builder.addRawFragments(reactionId, idx, list));
-        rebuildDownsampledSets(builder, reactionId, data.getRawDownsampledSets(), cleanedById);
         if (!data.getExampleScaffolds().isEmpty()) {
             builder.addExampleScaffolds(reactionId, data.getExampleScaffolds());
         }
@@ -114,24 +109,6 @@ public final class SynthonSpaceCleaner {
         data.getDescriptors().forEach((key, value) -> builder.addReactionDescriptor(reactionId, key, value));
         cleanedAttributes.forEach((fragmentId, attrs) ->
                 attrs.forEach((key, value) -> builder.addFragmentAttribute(reactionId, fragmentId, key, value)));
-    }
-
-    private void rebuildDownsampledSets(RawSynthonSpace.Builder builder,
-                                        String reactionId,
-                                        Map<Integer, List<RawSynthon>> originalDownsampled,
-                                        Map<String, RawSynthon> cleanedById) {
-        originalDownsampled.forEach((idx, fragments) -> {
-            List<RawSynthon> rebuilt = new ArrayList<>();
-            for (RawSynthon fragment : fragments) {
-                RawSynthon replacement = cleanedById.get(fragment.getFragmentId());
-                if (replacement != null) {
-                    rebuilt.add(replacement);
-                }
-            }
-            if (!rebuilt.isEmpty()) {
-                builder.addRawDownsampledFragments(reactionId, idx, rebuilt);
-            }
-        });
     }
 
     private Map<Integer, List<SynthonFragment>> decodeFragments(Map<Integer, List<RawSynthon>> rawSets) {

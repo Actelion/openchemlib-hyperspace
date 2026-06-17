@@ -46,8 +46,10 @@ java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
     --threads 4
 ```
 
-`--spaceIn` expects a serialized `SynthonSpace`. The optional parameters configure the SkelSpheres-based k-centers routine (max representatives per synthon set, similarity cut-off, shuffling seed, connector grouping). If you point the CLI to a raw dump via `--rawIn toy.rawspace`, it now runs a native raw downsampler (`SkelSpheresKCentersRaw`) without hydratring a full `SynthonSpace`, then persists the representatives back into a new raw file alongside the existing metadata. Downsampled spaces are always emitted as raw dumps (plain `.rawspace` or compressed `.rawspace.gz`), so the same file can be reused by the seed finder, local optimizer, and any future processors.
+`--spaceIn` expects a serialized `SynthonSpace`. The optional parameters configure the SkelSpheres-based k-centers routine (max representatives per synthon set, similarity cut-off, shuffling seed, connector grouping). If you point the CLI to a raw dump via `--rawIn toy.rawspace`, it now runs a native raw downsampler (`SkelSpheresKCentersRaw`) without hydrating a full `SynthonSpace`, then persists the representatives back into a new raw file alongside the existing metadata. Downsampled spaces are always emitted as raw dumps (plain `.rawspace` or compressed `.rawspace.gz`), so the same file can be reused by the seed finder, local optimizer, and any future processors.
 `--threads` controls how many synthon sets are downsampled in parallel. For size-aware caps you can add `--sizeCapScale` and `--sizeCapOffset` to apply `ceil(scale * sqrt(n) + offset)` per set; the effective cap is `min(--maxCenters, sizeCap)` when both are provided.
+
+The rawspace JSON format, concepts, and metadata conventions are documented in [`RAWSPACE_FORMAT.md`](RAWSPACE_FORMAT.md).
 
 ## Raw synthon space import CLI
 

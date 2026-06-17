@@ -57,7 +57,7 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
     private final LocalOptimizationRequest microRequest;
 
     public ContinuousScreeningOrchestrator(Config config) throws IOException {
-        DownsampledSynthonSpace downsampledView = config.downsampledRaw.toDownsampledSpace();
+        DownsampledSynthonSpace downsampledView = DownsampledSynthonSpace.fromRawFragmentSets(config.downsampledRaw);
         this.sampler = new CandidateSampler(downsampledView,
                 config.queryDescriptor,
                 config.samplerConfig,
@@ -111,7 +111,7 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
         this.minReportedSimilarity = config.minReportedSimilarity;
         this.microEnabled = config.microEnabled;
         if (microEnabled) {
-            SynthonSetAccessor downsampledAccessor = new SynthonSetAccessor(downsampledView);
+            SynthonSetAccessor downsampledAccessor = new SynthonSetAccessor(config.downsampledRaw);
             SkelSpheresNeighborSampler microNeighborSampler =
                     new SkelSpheresNeighborSampler(fullNeighborSampler.getDescriptorCache());
             this.microOptimizer = new LocalBeamOptimizer(downsampledAccessor,
@@ -520,6 +520,12 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
         public void validate() {
             if (fullRaw == null || downsampledRaw == null) {
                 throw new IllegalArgumentException("Both full and downsampled raw spaces are required");
+            }
+            String downsampledRole = downsampledRaw.getMetadata().get(RawSynthonSpace.MetadataKeys.SPACE_ROLE);
+            if (!RawSynthonSpace.MetadataKeys.SPACE_ROLE_DOWNSAMPLED.equals(downsampledRole)) {
+                throw new IllegalArgumentException("Downsampled raw space must have metadata "
+                        + RawSynthonSpace.MetadataKeys.SPACE_ROLE + "="
+                        + RawSynthonSpace.MetadataKeys.SPACE_ROLE_DOWNSAMPLED);
             }
             if (queryDescriptor == null) {
                 throw new IllegalArgumentException("Query descriptor missing");

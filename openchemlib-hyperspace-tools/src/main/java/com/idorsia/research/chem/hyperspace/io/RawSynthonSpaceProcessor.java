@@ -3,7 +3,6 @@ package com.idorsia.research.chem.hyperspace.io;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace.Builder;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace.ReactionData;
-import com.idorsia.research.chem.hyperspace.downsampling.SynthonDownsamplingRequest;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -27,12 +26,6 @@ public final class RawSynthonSpaceProcessor {
         }
         Builder builder = RawSynthonSpace.builder(source.getName()).version(source.getVersion());
         source.getMetadata().forEach(builder::putMetadata);
-        source.getDownsamplingAlgorithm().ifPresent(algorithm -> {
-            SynthonDownsamplingRequest request = source.getDownsamplingRequest().orElse(null);
-            if (request != null) {
-                builder.withDownsamplingMetadata(algorithm, request);
-            }
-        });
         copyReactions(source, builder);
 
         Context context = new Context(source, builder);
@@ -46,7 +39,6 @@ public final class RawSynthonSpaceProcessor {
     private static void copyReactions(RawSynthonSpace source, Builder builder) {
         source.getReactions().forEach((reactionId, data) -> {
             data.getRawFragmentSets().forEach((idx, fragments) -> builder.addRawFragments(reactionId, idx, fragments));
-            data.getRawDownsampledSets().forEach((idx, fragments) -> builder.addRawDownsampledFragments(reactionId, idx, fragments));
             builder.addExampleScaffolds(reactionId, data.getExampleScaffolds());
             data.getPartialAssemblies().forEach((missingIdx, assemblies) ->
                     builder.addPartialAssemblies(reactionId, missingIdx, assemblies));

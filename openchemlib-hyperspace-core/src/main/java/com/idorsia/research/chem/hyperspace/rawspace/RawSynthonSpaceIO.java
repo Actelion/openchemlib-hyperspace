@@ -2,7 +2,6 @@ package com.idorsia.research.chem.hyperspace.rawspace;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.idorsia.research.chem.hyperspace.downsampling.SynthonDownsamplingRequest;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -54,10 +53,6 @@ public final class RawSynthonSpaceIO {
         json.name = space.getName();
         json.version = space.getVersion();
         json.metadata = space.getMetadata();
-        json.downsamplingAlgorithm = space.getDownsamplingAlgorithm().orElse(null);
-        json.downsamplingRequest = space.getDownsamplingRequest()
-                .map(RawSynthonSpaceIO::toJsonRequest)
-                .orElse(null);
         json.reactions = new ArrayList<>();
         space.getReactions().forEach((rxnId, data) -> json.reactions.add(toJsonReaction(rxnId, data)));
         return json;
@@ -67,7 +62,6 @@ public final class RawSynthonSpaceIO {
         JsonReaction reaction = new JsonReaction();
         reaction.reactionId = reactionId;
         reaction.fragmentSets = encodeFragmentMap(data.getRawFragmentSets());
-        reaction.downsampledFragmentSets = encodeFragmentMap(data.getRawDownsampledSets());
         reaction.exampleScaffolds = data.getExampleScaffolds();
         reaction.partialAssemblies = stringifyKeys(data.getPartialAssemblies());
         reaction.representativeCompounds = data.getRepresentativeCompounds();
@@ -118,11 +112,6 @@ public final class RawSynthonSpaceIO {
                             Integer.parseInt(key),
                             decodeFragments(list)));
                 }
-                if (reaction.downsampledFragmentSets != null) {
-                    reaction.downsampledFragmentSets.forEach((key, list) -> builder.addRawDownsampledFragments(reaction.reactionId,
-                            Integer.parseInt(key),
-                            decodeFragments(list)));
-                }
                 if (reaction.exampleScaffolds != null) {
                     builder.addExampleScaffolds(reaction.reactionId, reaction.exampleScaffolds);
                 }
@@ -149,12 +138,6 @@ public final class RawSynthonSpaceIO {
                     });
                 }
             }
-        }
-        if (json.downsamplingAlgorithm != null || json.downsamplingRequest != null) {
-            SynthonDownsamplingRequest request = json.downsamplingRequest == null
-                    ? SynthonDownsamplingRequest.builder().build()
-                    : fromJsonRequest(json.downsamplingRequest);
-            builder.withDownsamplingMetadata(json.downsamplingAlgorithm, request);
         }
         return builder.build();
     }
@@ -205,15 +188,12 @@ public final class RawSynthonSpaceIO {
         public String name;
         public String version;
         public Map<String, String> metadata;
-        public String downsamplingAlgorithm;
-        public JsonDownsamplingRequest downsamplingRequest;
         public List<JsonReaction> reactions;
     }
 
     private static final class JsonReaction {
         public String reactionId;
         public Map<String, List<JsonFragment>> fragmentSets;
-        public Map<String, List<JsonFragment>> downsampledFragmentSets;
         public List<String> exampleScaffolds;
         public Map<String, List<String>> partialAssemblies;
         public List<String> representativeCompounds;
@@ -230,42 +210,4 @@ public final class RawSynthonSpaceIO {
         public String connectors;
     }
 
-    private static final class JsonDownsamplingRequest {
-        public int maxCenters;
-        public double sizeCapScale;
-        public double sizeCapOffset;
-        public double minSimilarity;
-        public long randomSeed;
-        public boolean enforceConnectorEquivalence;
-        public boolean includeClusterMembers;
-        public Map<String, Object> attributes;
-    }
-
-    private static JsonDownsamplingRequest toJsonRequest(SynthonDownsamplingRequest request) {
-        JsonDownsamplingRequest json = new JsonDownsamplingRequest();
-        json.maxCenters = request.getMaxCenters();
-        json.sizeCapScale = request.getSizeCapScale();
-        json.sizeCapOffset = request.getSizeCapOffset();
-        json.minSimilarity = request.getMinSimilarity();
-        json.randomSeed = request.getRandomSeed();
-        json.enforceConnectorEquivalence = request.isEnforceConnectorEquivalence();
-        json.includeClusterMembers = request.isIncludeClusterMembers();
-        json.attributes = request.getAttributes();
-        return json;
-    }
-
-    private static SynthonDownsamplingRequest fromJsonRequest(JsonDownsamplingRequest json) {
-        SynthonDownsamplingRequest.Builder builder = SynthonDownsamplingRequest.builder()
-                .withMaxCenters(json.maxCenters)
-                .withSizeCapScale(json.sizeCapScale)
-                .withSizeCapOffset(json.sizeCapOffset)
-                .withMinSimilarity(json.minSimilarity)
-                .withRandomSeed(json.randomSeed)
-                .enforceConnectorEquivalence(json.enforceConnectorEquivalence)
-                .includeClusterMembers(json.includeClusterMembers);
-        if (json.attributes != null) {
-            json.attributes.forEach(builder::putAttribute);
-        }
-        return builder.build();
-    }
 }

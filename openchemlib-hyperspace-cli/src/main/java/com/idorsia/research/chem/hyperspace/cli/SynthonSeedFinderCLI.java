@@ -70,7 +70,8 @@ public class SynthonSeedFinderCLI {
                 throw new IllegalArgumentException("Specify only one of --downsampled or --raw");
             }
             RawSynthonSpace rawSpace = HyperspaceIOUtils.loadRawSynthonSpace(rawArg);
-            downsampledSpace = rawSpace.toDownsampledSpace();
+            requireDownsampledRole(rawSpace, rawArg);
+            downsampledSpace = DownsampledSynthonSpace.fromRawFragmentSets(rawSpace);
         } else {
             if (downsampledArg == null) {
                 throw new IllegalArgumentException("Provide either --downsampled or --raw");
@@ -125,7 +126,7 @@ public class SynthonSeedFinderCLI {
         options.addOption(Option.builder().longOpt("downsampled").hasArg()
                 .desc("Path to the downsampled synthon space file").build());
         options.addOption(Option.builder().longOpt("raw").hasArg()
-                .desc("Path to a raw synthon space JSON that includes downsampled sets").build());
+                .desc("Path to a downsampled raw synthon space JSON").build());
         options.addOption(Option.builder().longOpt("output").hasArg().required(true)
                 .desc("Output TSV path for hits").build());
         options.addOption(Option.builder().longOpt("querySmiles").hasArg()
@@ -149,5 +150,14 @@ public class SynthonSeedFinderCLI {
         options.addOption(Option.builder().longOpt("threads").hasArg()
                 .desc("Number of worker threads").build());
         return options;
+    }
+
+    private static void requireDownsampledRole(RawSynthonSpace rawSpace, String path) {
+        String role = rawSpace.getMetadata().get(RawSynthonSpace.MetadataKeys.SPACE_ROLE);
+        if (!RawSynthonSpace.MetadataKeys.SPACE_ROLE_DOWNSAMPLED.equals(role)) {
+            throw new IllegalArgumentException("--raw must point to a downsampled rawspace with metadata "
+                    + RawSynthonSpace.MetadataKeys.SPACE_ROLE + "="
+                    + RawSynthonSpace.MetadataKeys.SPACE_ROLE_DOWNSAMPLED + ": " + path);
+        }
     }
 }

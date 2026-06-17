@@ -202,8 +202,6 @@ public final class SynthonSpaceMergeCLI {
 
         source.getRawFragmentSets().forEach((setIndex, synthons) ->
                 builder.addRawFragments(reactionId, setIndex, rewriteReactionIds(synthons, reactionId, setIndex)));
-        source.getRawDownsampledSets().forEach((setIndex, synthons) ->
-                builder.addRawDownsampledFragments(reactionId, setIndex, rewriteReactionIds(synthons, reactionId, setIndex)));
         source.getExampleScaffolds().forEach(scaffold ->
                 builder.addExampleScaffolds(reactionId, List.of(scaffold)));
         source.getPartialAssemblies().forEach((missingIndex, assemblies) ->

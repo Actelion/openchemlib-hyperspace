@@ -96,9 +96,6 @@ final class SynthonTreeBuilder {
             RawSynthonSpace.ReactionData reactionData,
             boolean useDownsampledSets
     ) {
-        if (useDownsampledSets && reactionData.getRawDownsampledSets() != null && !reactionData.getRawDownsampledSets().isEmpty()) {
-            return reactionData.getRawDownsampledSets();
-        }
         return reactionData.getRawFragmentSets();
     }
 

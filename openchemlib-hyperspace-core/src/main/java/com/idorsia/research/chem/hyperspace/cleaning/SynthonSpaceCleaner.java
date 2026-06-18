@@ -81,7 +81,8 @@ public final class SynthonSpaceCleaner {
         Map<String, Map<String, String>> cleanedAttributes = new LinkedHashMap<>();
 
         Map<Integer, List<SynthonFragment>> fragmentsBySet = filterByMaxSynthonAtoms(reactionId,
-                indexFragments(data.getRawFragmentSets()));
+                indexFragments(data.getRawFragmentSets()),
+                executor);
         Map<String, Map<String, String>> originalAttributes = data.getFragmentAttributes();
 
         for (Map.Entry<Integer, List<SynthonFragment>> entry : fragmentsBySet.entrySet()) {
@@ -135,31 +136,78 @@ public final class SynthonSpaceCleaner {
     }
 
     private Map<Integer, List<SynthonFragment>> filterByMaxSynthonAtoms(String reactionId,
-                                                                       Map<Integer, List<SynthonFragment>> fragmentsBySet) {
+                                                                       Map<Integer, List<SynthonFragment>> fragmentsBySet,
+                                                                       ExecutorService executor) {
         int maxAtoms = options.getMaxSynthonAtoms();
         if (maxAtoms <= 0) {
             return fragmentsBySet;
         }
-        IDCodeParser parser = new IDCodeParser();
         Map<Integer, List<SynthonFragment>> filtered = new LinkedHashMap<>();
         fragmentsBySet.forEach((setIndex, fragments) -> {
-            List<SynthonFragment> retained = new ArrayList<>(fragments.size());
-            int skipped = 0;
-            for (SynthonFragment fragment : fragments) {
-                StereoMolecule molecule = decodeMolecule(parser, fragment.rawSynthon);
-                if (molecule.getAtoms() <= maxAtoms) {
-                    retained.add(fragment);
-                } else {
-                    skipped++;
-                }
-            }
+            FilterTaskResult result = filterSynthonSetByMaxAtoms(reactionId, setIndex, fragments, maxAtoms, executor);
+            int skipped = result.skipped;
             if (skipped > 0) {
                 System.out.printf("Filtered reaction %s set %d: skipped %d synthons above %d atoms%n",
                         reactionId, setIndex, skipped, maxAtoms);
             }
-            filtered.put(setIndex, retained);
+            filtered.put(setIndex, result.retained);
         });
         return filtered;
+    }
+
+    private FilterTaskResult filterSynthonSetByMaxAtoms(String reactionId,
+                                                        int setIndex,
+                                                        List<SynthonFragment> fragments,
+                                                        int maxAtoms,
+                                                        ExecutorService executor) {
+        if (fragments.isEmpty()) {
+            return new FilterTaskResult(Collections.emptyList(), 0);
+        }
+
+        int taskCount = Math.min(fragments.size(), options.getMaxParallelism());
+        List<Future<FilterTaskResult>> futures = new ArrayList<>(taskCount);
+        for (int task = 0; task < taskCount; task++) {
+            int from = task * fragments.size() / taskCount;
+            int to = (task + 1) * fragments.size() / taskCount;
+            futures.add(executor.submit(() -> filterSynthonRangeByMaxAtoms(fragments, from, to, maxAtoms)));
+        }
+
+        List<SynthonFragment> retained = new ArrayList<>(fragments.size());
+        int skipped = 0;
+        for (Future<FilterTaskResult> future : futures) {
+            FilterTaskResult result;
+            try {
+                result = future.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Max-synthon-atoms filtering interrupted", e);
+            } catch (ExecutionException e) {
+                throw new IllegalStateException("Max-synthon-atoms filtering failed for reaction "
+                        + reactionId + " set " + setIndex, e.getCause());
+            }
+            retained.addAll(result.retained);
+            skipped += result.skipped;
+        }
+        return new FilterTaskResult(retained, skipped);
+    }
+
+    private FilterTaskResult filterSynthonRangeByMaxAtoms(List<SynthonFragment> fragments,
+                                                          int from,
+                                                          int to,
+                                                          int maxAtoms) {
+        IDCodeParser parser = new IDCodeParser();
+        List<SynthonFragment> retained = new ArrayList<>(to - from);
+        int skipped = 0;
+        for (int idx = from; idx < to; idx++) {
+            SynthonFragment fragment = fragments.get(idx);
+            StereoMolecule molecule = decodeMolecule(parser, fragment.rawSynthon);
+            if (molecule.getAtoms() <= maxAtoms) {
+                retained.add(fragment);
+            } else {
+                skipped++;
+            }
+        }
+        return new FilterTaskResult(retained, skipped);
     }
 
     private List<RawSynthon> cleanSynthonSet(String reactionId,
@@ -372,6 +420,16 @@ public final class SynthonSpaceCleaner {
         private CleanTaskResult(SynthonFragment fragment, List<RawSynthon> replacements) {
             this.fragment = fragment;
             this.replacements = replacements;
+        }
+    }
+
+    private static final class FilterTaskResult {
+        private final List<SynthonFragment> retained;
+        private final int skipped;
+
+        private FilterTaskResult(List<SynthonFragment> retained, int skipped) {
+            this.retained = retained;
+            this.skipped = skipped;
         }
     }
 }

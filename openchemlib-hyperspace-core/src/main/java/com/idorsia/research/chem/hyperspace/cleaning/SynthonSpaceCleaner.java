@@ -10,13 +10,11 @@ import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -58,6 +56,9 @@ public final class SynthonSpaceCleaner {
         RawSynthonSpace.Builder builder = RawSynthonSpace.builder(source.getName())
                 .version(source.getVersion());
         source.getMetadata().forEach(builder::putMetadata);
+        if (options.getMaxSynthonAtoms() > 0) {
+            builder.putMetadata("cleaning.maxSynthonAtoms", Integer.toString(options.getMaxSynthonAtoms()));
+        }
 
         ExecutorService executor = Executors.newFixedThreadPool(options.getMaxParallelism());
         try {
@@ -77,22 +78,31 @@ public final class SynthonSpaceCleaner {
                                  Random seedGenerator,
                                  ExecutorService executor) {
         Map<Integer, List<RawSynthon>> cleanedSets = new LinkedHashMap<>();
-        Map<String, RawSynthon> cleanedById = new HashMap<>();
         Map<String, Map<String, String>> cleanedAttributes = new LinkedHashMap<>();
 
-        Map<Integer, List<SynthonFragment>> fragmentsBySet = decodeFragments(data.getRawFragmentSets());
+        Map<Integer, List<SynthonFragment>> fragmentsBySet = filterByMaxSynthonAtoms(reactionId,
+                indexFragments(data.getRawFragmentSets()));
         Map<String, Map<String, String>> originalAttributes = data.getFragmentAttributes();
 
         for (Map.Entry<Integer, List<SynthonFragment>> entry : fragmentsBySet.entrySet()) {
+            if (entry.getValue().isEmpty()) {
+                System.out.printf("Skipping reaction %s because set %d is empty after max-synthon-atoms filtering%n",
+                        reactionId, entry.getKey());
+                return;
+            }
             List<RawSynthon> cleanedSet = cleanSynthonSet(reactionId,
                     entry.getKey(),
                     entry.getValue(),
                     fragmentsBySet,
-                    cleanedById,
                     originalAttributes,
                     cleanedAttributes,
                     seedGenerator,
                     executor);
+            if (cleanedSet.isEmpty()) {
+                System.out.printf("Skipping reaction %s because set %d has no cleaned synthons%n",
+                        reactionId, entry.getKey());
+                return;
+            }
             cleanedSets.put(entry.getKey(), cleanedSet);
             System.out.printf("Cleaned reaction %s set %d: %d synthons -> %d cleaned variants%n",
                     reactionId, entry.getKey(), entry.getValue().size(), cleanedSet.size());
@@ -107,30 +117,55 @@ public final class SynthonSpaceCleaner {
             builder.addRepresentativeCompounds(reactionId, data.getRepresentativeCompounds());
         }
         data.getDescriptors().forEach((key, value) -> builder.addReactionDescriptor(reactionId, key, value));
+        data.getReactionMetadata().forEach((key, value) -> builder.addReactionMetadata(reactionId, key, value));
         cleanedAttributes.forEach((fragmentId, attrs) ->
                 attrs.forEach((key, value) -> builder.addFragmentAttribute(reactionId, fragmentId, key, value)));
     }
 
-    private Map<Integer, List<SynthonFragment>> decodeFragments(Map<Integer, List<RawSynthon>> rawSets) {
-        IDCodeParser parser = new IDCodeParser();
+    private Map<Integer, List<SynthonFragment>> indexFragments(Map<Integer, List<RawSynthon>> rawSets) {
         Map<Integer, List<SynthonFragment>> fragmentsBySet = new LinkedHashMap<>();
         rawSets.forEach((idx, list) -> {
             List<SynthonFragment> fragments = new ArrayList<>(list.size());
             for (RawSynthon raw : list) {
-                StereoMolecule mol = parser.getCompactMolecule(raw.getIdcode());
-                mol.ensureHelperArrays(Molecule.cHelperCIP);
-                fragments.add(new SynthonFragment(raw, mol));
+                fragments.add(new SynthonFragment(raw));
             }
             fragmentsBySet.put(idx, fragments);
         });
         return fragmentsBySet;
     }
 
+    private Map<Integer, List<SynthonFragment>> filterByMaxSynthonAtoms(String reactionId,
+                                                                       Map<Integer, List<SynthonFragment>> fragmentsBySet) {
+        int maxAtoms = options.getMaxSynthonAtoms();
+        if (maxAtoms <= 0) {
+            return fragmentsBySet;
+        }
+        IDCodeParser parser = new IDCodeParser();
+        Map<Integer, List<SynthonFragment>> filtered = new LinkedHashMap<>();
+        fragmentsBySet.forEach((setIndex, fragments) -> {
+            List<SynthonFragment> retained = new ArrayList<>(fragments.size());
+            int skipped = 0;
+            for (SynthonFragment fragment : fragments) {
+                StereoMolecule molecule = decodeMolecule(parser, fragment.rawSynthon);
+                if (molecule.getAtoms() <= maxAtoms) {
+                    retained.add(fragment);
+                } else {
+                    skipped++;
+                }
+            }
+            if (skipped > 0) {
+                System.out.printf("Filtered reaction %s set %d: skipped %d synthons above %d atoms%n",
+                        reactionId, setIndex, skipped, maxAtoms);
+            }
+            filtered.put(setIndex, retained);
+        });
+        return filtered;
+    }
+
     private List<RawSynthon> cleanSynthonSet(String reactionId,
                                              int fragmentIndex,
                                              List<SynthonFragment> fragments,
                                              Map<Integer, List<SynthonFragment>> fragmentsBySet,
-                                             Map<String, RawSynthon> cleanedById,
                                              Map<String, Map<String, String>> originalAttributes,
                                              Map<String, Map<String, String>> cleanedAttributes,
                                              Random seedGenerator,
@@ -163,7 +198,6 @@ public final class SynthonSpaceCleaner {
             cleaned.addAll(replacements);
             Map<String, String> attrs = originalAttributes.get(result.fragment.rawSynthon.getFragmentId());
             for (RawSynthon repl : replacements) {
-                cleanedById.put(repl.getFragmentId(), repl);
                 if (attrs != null && !attrs.isEmpty()) {
                     cleanedAttributes.put(repl.getFragmentId(), new LinkedHashMap<>(attrs));
                 }
@@ -179,12 +213,14 @@ public final class SynthonSpaceCleaner {
                                           Map<Integer, List<SynthonFragment>> fragmentsBySet,
                                           long randomSeed) {
         Random random = new Random(randomSeed);
+        IDCodeParser parser = new IDCodeParser();
+        StereoMolecule targetMolecule = decodeMolecule(parser, fragment.rawSynthon);
         StructureCleaner cleaner = cleanerProvider.acquire();
         try {
             List<StereoMolecule> cleanedSynthonMolecules = new ArrayList<>();
             int assemblies = options.getAssembliesPerSynthon();
             for (int run = 0; run < assemblies; run++) {
-                SynthonAssemblyResult assembly = assembleExample(fragment, fragmentsBySet, fragmentIndex, random);
+                SynthonAssemblyResult assembly = assembleExample(parser, targetMolecule, fragmentsBySet, fragmentIndex, random);
                 int[] atomMap = assembly.atomMaps.get(0);
                 StereoMolecule cleanerInput = new StereoMolecule(assembly.assembled);
                 cleanerInput.ensureHelperArrays(Molecule.cHelperCIP);
@@ -194,11 +230,11 @@ public final class SynthonSpaceCleaner {
                 }
                 for (StereoMolecule cleanedAssembly : cleanedAssemblies) {
                     cleanedAssembly.ensureHelperArrays(Molecule.cHelperCIP);
-                    cleanedSynthonMolecules.add(projectSynthon(fragment.molecule, cleanedAssembly, atomMap));
+                    cleanedSynthonMolecules.add(projectSynthon(targetMolecule, cleanedAssembly, atomMap));
                 }
             }
             if (cleanedSynthonMolecules.isEmpty()) {
-                cleanedSynthonMolecules.add(new StereoMolecule(fragment.molecule));
+                cleanedSynthonMolecules.add(new StereoMolecule(targetMolecule));
             }
             List<RawSynthon> replacements = deduplicateByIdcode(
                     toRawSynthons(reactionId, fragmentIndex, fragment.rawSynthon.getFragmentId(), cleanedSynthonMolecules));
@@ -210,13 +246,14 @@ public final class SynthonSpaceCleaner {
         }
     }
 
-    private SynthonAssemblyResult assembleExample(SynthonFragment target,
+    private SynthonAssemblyResult assembleExample(IDCodeParser parser,
+                                                  StereoMolecule targetMolecule,
                                                   Map<Integer, List<SynthonFragment>> fragmentsBySet,
                                                   int targetIndex,
                                                   Random random) {
         List<StereoMolecule> parts = new ArrayList<>();
         List<int[]> atomMaps = new ArrayList<>();
-        parts.add(new StereoMolecule(target.molecule));
+        parts.add(new StereoMolecule(targetMolecule));
         fragmentsBySet.forEach((idx, list) -> {
             if (idx == targetIndex || list.isEmpty()) {
                 return;
@@ -224,11 +261,17 @@ public final class SynthonSpaceCleaner {
             SynthonFragment partner = list.size() == 1
                     ? list.get(0)
                     : list.get(random.nextInt(list.size()));
-            parts.add(new StereoMolecule(partner.molecule));
+            parts.add(decodeMolecule(parser, partner.rawSynthon));
         });
         StereoMolecule assembled = SynthonAssembler.assembleSynthons_faster(parts, atomMaps);
         assembled.ensureHelperArrays(Molecule.cHelperCIP);
         return new SynthonAssemblyResult(assembled, atomMaps);
+    }
+
+    private StereoMolecule decodeMolecule(IDCodeParser parser, RawSynthon rawSynthon) {
+        StereoMolecule molecule = parser.getCompactMolecule(rawSynthon.getIdcode());
+        molecule.ensureHelperArrays(Molecule.cHelperCIP);
+        return molecule;
     }
 
     private StereoMolecule projectSynthon(StereoMolecule template,
@@ -306,11 +349,9 @@ public final class SynthonSpaceCleaner {
 
     private static final class SynthonFragment {
         private final RawSynthon rawSynthon;
-        private final StereoMolecule molecule;
 
-        private SynthonFragment(RawSynthon rawSynthon, StereoMolecule molecule) {
+        private SynthonFragment(RawSynthon rawSynthon) {
             this.rawSynthon = rawSynthon;
-            this.molecule = molecule;
         }
     }
 

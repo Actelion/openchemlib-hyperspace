@@ -15,6 +15,7 @@ public final class SynthonCleaningOptions {
     private final String fragmentIdFormat;
     private final Long randomSeed;
     private final int maxParallelism;
+    private final int maxSynthonAtoms;
 
     private SynthonCleaningOptions(Builder builder) {
         this.assembliesPerSynthon = builder.assembliesPerSynthon;
@@ -22,6 +23,7 @@ public final class SynthonCleaningOptions {
         this.fragmentIdFormat = builder.fragmentIdFormat;
         this.randomSeed = builder.randomSeed;
         this.maxParallelism = builder.maxParallelism;
+        this.maxSynthonAtoms = builder.maxSynthonAtoms;
     }
 
     public static Builder builder() {
@@ -49,12 +51,17 @@ public final class SynthonCleaningOptions {
         return maxParallelism;
     }
 
+    public int getMaxSynthonAtoms() {
+        return maxSynthonAtoms;
+    }
+
     public static final class Builder {
         private int assembliesPerSynthon = 1;
         private boolean reuseFragmentIdWhenSingleResult = true;
         private String fragmentIdFormat = DEFAULT_FRAGMENT_ID_FORMAT;
         private Long randomSeed;
         private int maxParallelism = Runtime.getRuntime().availableProcessors();
+        private int maxSynthonAtoms = 0;
 
         public Builder assembliesPerSynthon(int assembliesPerSynthon) {
             if (assembliesPerSynthon < 1) {
@@ -95,6 +102,18 @@ public final class SynthonCleaningOptions {
                 throw new IllegalArgumentException("maxParallelism must be >= 1");
             }
             this.maxParallelism = maxParallelism;
+            return this;
+        }
+
+        /**
+         * Sets an optional atom-count cutoff for individual synthons before structure cleaning.
+         * A value of 0 disables the cutoff.
+         */
+        public Builder maxSynthonAtoms(int maxSynthonAtoms) {
+            if (maxSynthonAtoms < 0) {
+                throw new IllegalArgumentException("maxSynthonAtoms must be >= 0");
+            }
+            this.maxSynthonAtoms = maxSynthonAtoms;
             return this;
         }
 

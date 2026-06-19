@@ -1,9 +1,9 @@
 package com.idorsia.research.chem.hyperspace.downsampling;
 
+import com.actelion.research.chem.IDCodeParser;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.StereoMolecule;
 import com.actelion.research.chem.descriptor.DescriptorHandlerBinarySkelSpheres;
-import com.idorsia.research.chem.hyperspace.CachedStereoMoleculeProvider;
 import com.idorsia.research.chem.hyperspace.SynthonSpace;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthon;
 import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSet;
@@ -19,11 +19,12 @@ import java.util.Random;
  */
 public class SkelSpheresKCentersRawDownsampler implements RawSynthonDownsampler {
 
-    private final CachedStereoMoleculeProvider moleculeProvider = new CachedStereoMoleculeProvider();
     private final RawSynthonDescriptorCache<int[]> descriptorCache;
+    private final ThreadLocal<IDCodeParser> parsers;
     private final ThreadLocal<DescriptorHandlerBinarySkelSpheres> descriptorHandlers;
 
     public SkelSpheresKCentersRawDownsampler() {
+        this.parsers = ThreadLocal.withInitial(IDCodeParser::new);
         this.descriptorHandlers = ThreadLocal.withInitial(DescriptorHandlerBinarySkelSpheres::new);
         this.descriptorCache = new RawSynthonDescriptorCache<>(this::createDescriptor);
     }
@@ -36,56 +37,60 @@ public class SkelSpheresKCentersRawDownsampler implements RawSynthonDownsampler 
     @Override
     public SynthonSetDownsamplingResult downsample(RawSynthonSet synthonSet,
                                                    SynthonDownsamplingRequest request) {
-        List<RawSynthon> synthons = synthonSet.getSynthons();
-        if (synthons.isEmpty()) {
-            return new SynthonSetDownsamplingResult(synthonSet.toFragType(),
-                    Collections.emptyList(),
-                    Collections.emptyList(),
-                    0);
-        }
-
-        List<RawSynthon> working = new ArrayList<>(synthons);
-        Collections.shuffle(working, new Random(request.getRandomSeed()));
-
-        int maxCenters = request.getEffectiveMaxCenters(working.size());
-        boolean includeClusterMembers = request.isIncludeClusterMembers();
-        List<CenterRecord> centers = new ArrayList<>();
-        for (RawSynthon candidate : working) {
-            int[] descriptor = descriptorCache.getOrCompute(candidate);
-            if (descriptor == null) {
-                continue;
+        try {
+            List<RawSynthon> synthons = synthonSet.getSynthons();
+            if (synthons.isEmpty()) {
+                return new SynthonSetDownsamplingResult(synthonSet.toFragType(),
+                        Collections.emptyList(),
+                        Collections.emptyList(),
+                        0);
             }
-            CenterWithSimilarity best = findBestCenter(candidate, descriptor, centers, request.isEnforceConnectorEquivalence());
-            boolean belowThreshold = best == null || best.similarity < request.getMinSimilarity();
-            boolean canCreateCenter = maxCenters <= 0 || centers.size() < maxCenters;
-            if ((best == null || belowThreshold) && canCreateCenter) {
-                centers.add(new CenterRecord(candidate, descriptor, includeClusterMembers));
-                continue;
-            }
-            if (best != null) {
-                best.center.registerAssignment(candidate, best.similarity);
-            } else if (!centers.isEmpty()) {
-                CenterWithSimilarity fallback = findBestCenter(candidate, descriptor, centers, false);
-                if (fallback != null) {
-                    fallback.center.registerAssignment(candidate, fallback.similarity);
+
+            List<RawSynthon> working = new ArrayList<>(synthons);
+            Collections.shuffle(working, new Random(request.getRandomSeed()));
+
+            int maxCenters = request.getEffectiveMaxCenters(working.size());
+            boolean includeClusterMembers = request.isIncludeClusterMembers();
+            List<CenterRecord> centers = new ArrayList<>();
+            for (RawSynthon candidate : working) {
+                int[] descriptor = descriptorCache.getOrCompute(candidate);
+                if (descriptor == null) {
+                    continue;
                 }
-            } else {
-                centers.add(new CenterRecord(candidate, descriptor, includeClusterMembers));
+                CenterWithSimilarity best = findBestCenter(candidate, descriptor, centers, request.isEnforceConnectorEquivalence());
+                boolean belowThreshold = best == null || best.similarity < request.getMinSimilarity();
+                boolean canCreateCenter = maxCenters <= 0 || centers.size() < maxCenters;
+                if ((best == null || belowThreshold) && canCreateCenter) {
+                    centers.add(new CenterRecord(candidate, descriptor, includeClusterMembers));
+                    continue;
+                }
+                if (best != null) {
+                    best.center.registerAssignment(candidate, best.similarity);
+                } else if (!centers.isEmpty()) {
+                    CenterWithSimilarity fallback = findBestCenter(candidate, descriptor, centers, false);
+                    if (fallback != null) {
+                        fallback.center.registerAssignment(candidate, fallback.similarity);
+                    }
+                } else {
+                    centers.add(new CenterRecord(candidate, descriptor, includeClusterMembers));
+                }
             }
-        }
 
-        List<SynthonSpace.FragId> representatives = new ArrayList<>();
-        List<SynthonSetDownsamplingResult.ClusterInfo> clusters = new ArrayList<>();
-        for (CenterRecord center : centers) {
-            SynthonSpace.FragId frag = center.representative.toFragId();
-            representatives.add(frag);
-            clusters.add(center.toClusterInfo());
-        }
+            List<SynthonSpace.FragId> representatives = new ArrayList<>();
+            List<SynthonSetDownsamplingResult.ClusterInfo> clusters = new ArrayList<>();
+            for (CenterRecord center : centers) {
+                SynthonSpace.FragId frag = center.representative.toFragId();
+                representatives.add(frag);
+                clusters.add(center.toClusterInfo());
+            }
 
-        return new SynthonSetDownsamplingResult(synthonSet.toFragType(),
-                representatives,
-                clusters,
-                synthons.size());
+            return new SynthonSetDownsamplingResult(synthonSet.toFragType(),
+                    representatives,
+                    clusters,
+                    synthons.size());
+        } finally {
+            descriptorCache.clear();
+        }
     }
 
     private CenterWithSimilarity findBestCenter(RawSynthon candidate,
@@ -120,7 +125,7 @@ public class SkelSpheresKCentersRawDownsampler implements RawSynthonDownsampler 
 
     private int[] createDescriptor(RawSynthon synthon) {
         try {
-            StereoMolecule mol = moleculeProvider.parseIDCode(synthon.getIdcode());
+            StereoMolecule mol = parsers.get().getCompactMolecule(synthon.getIdcode());
             mol.ensureHelperArrays(Molecule.cHelperCIP);
             return descriptorHandlers.get().createDescriptor(mol);
         } catch (Exception e) {

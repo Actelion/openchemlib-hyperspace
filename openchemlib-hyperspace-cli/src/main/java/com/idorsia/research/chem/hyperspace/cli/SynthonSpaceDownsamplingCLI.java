@@ -15,6 +15,7 @@ import org.apache.commons.cli.ParseException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -43,10 +44,14 @@ public class SynthonSpaceDownsamplingCLI {
         double minSimilarity = Double.parseDouble(cmd.getOptionValue("minSimilarity", "0.7"));
         long seed = Long.parseLong(cmd.getOptionValue("seed", "13"));
         int threads = Integer.parseInt(cmd.getOptionValue("threads", "1"));
+        int setProgressIntervalSeconds = Integer.parseInt(cmd.getOptionValue("setProgressIntervalSeconds", "60"));
         boolean enforceConnectors = !cmd.hasOption("allowConnectorMixing");
         String rawOut = cmd.getOptionValue("rawOut");
         if (threads <= 0) {
             throw new IllegalArgumentException("--threads must be positive");
+        }
+        if (setProgressIntervalSeconds < 0) {
+            throw new IllegalArgumentException("--setProgressIntervalSeconds must be >= 0");
         }
 
         SynthonSpace space = null;
@@ -61,14 +66,18 @@ public class SynthonSpaceDownsamplingCLI {
             throw new IllegalStateException("Failed to load input space", e);
         }
 
-        SynthonDownsamplingRequest request = SynthonDownsamplingRequest.builder()
+        SynthonDownsamplingRequest.Builder requestBuilder = SynthonDownsamplingRequest.builder()
                 .withMaxCenters(maxCenters)
                 .withSizeCapScale(sizeCapScale)
                 .withSizeCapOffset(sizeCapOffset)
                 .withMinSimilarity(minSimilarity)
                 .withRandomSeed(seed)
                 .enforceConnectorEquivalence(enforceConnectors)
-                .build();
+                .withProgressReportIntervalSeconds(setProgressIntervalSeconds);
+        if (setProgressIntervalSeconds > 0) {
+            requestBuilder.withProgressReporter(SynthonSpaceDownsamplingCLI::printSetProgress);
+        }
+        SynthonDownsamplingRequest request = requestBuilder.build();
 
         SynthonDownsamplingResult result;
         String algorithmName;
@@ -105,6 +114,41 @@ public class SynthonSpaceDownsamplingCLI {
         System.out.println("Downsampled rawspace stored in: " + rawOut);
     }
 
+    private static synchronized void printSetProgress(SynthonDownsamplingRequest.ProgressEvent event) {
+        int pct = event.getTotalSynthons() == 0
+                ? 100
+                : (int) Math.round(event.getProcessedSynthons() * 100.0 / event.getTotalSynthons());
+        String centerLimit = event.getEffectiveMaxCenters() <= 0
+                ? "unlimited"
+                : Integer.toString(event.getEffectiveMaxCenters());
+        System.out.println(String.format(Locale.ROOT,
+                "Downsampling set rxn=%s frag=%d processed=%,d/%,d (%d%%) centers=%,d/%s skipped=%,d elapsed=%s%s",
+                event.getReactionId(),
+                event.getFragmentIndex(),
+                event.getProcessedSynthons(),
+                event.getTotalSynthons(),
+                pct,
+                event.getCenterCount(),
+                centerLimit,
+                event.getSkippedDescriptors(),
+                formatDuration(event.getElapsedMillis()),
+                event.isCompleted() ? " done" : ""));
+    }
+
+    private static String formatDuration(long elapsedMillis) {
+        long totalSeconds = Math.max(0L, elapsedMillis / 1000L);
+        long hours = totalSeconds / 3600L;
+        long minutes = (totalSeconds % 3600L) / 60L;
+        long seconds = totalSeconds % 60L;
+        if (hours > 0) {
+            return String.format(Locale.ROOT, "%dh%02dm%02ds", hours, minutes, seconds);
+        }
+        if (minutes > 0) {
+            return String.format(Locale.ROOT, "%dm%02ds", minutes, seconds);
+        }
+        return seconds + "s";
+    }
+
     private static Options buildOptions() {
         Options options = new Options();
         options.addOption(Option.builder().longOpt("spaceIn").hasArg()
@@ -123,6 +167,8 @@ public class SynthonSpaceDownsamplingCLI {
                 .desc("Random seed for shuffling synthons").build());
         options.addOption(Option.builder().longOpt("threads").hasArg()
                 .desc("Worker threads for downsampling (default 1)").build());
+        options.addOption(Option.builder().longOpt("setProgressIntervalSeconds").hasArg()
+                .desc("Seconds between progress reports for running synthon sets (default 60, 0 = disabled)").build());
         options.addOption(Option.builder().longOpt("allowConnectorMixing")
                 .desc("Allow synthons with different connector patterns to join the same center").build());
         options.addOption(Option.builder().longOpt("rawOut").hasArg().required(true)

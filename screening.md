@@ -41,7 +41,8 @@
     "workerThreads": 11
   },
   "run": {
-    "iterations": 10000
+    "maxRuntime": "24h",
+    "randomSeed": null
   },
   "output": {
     "hitsTsv": "screening_hits_runA.tsv",

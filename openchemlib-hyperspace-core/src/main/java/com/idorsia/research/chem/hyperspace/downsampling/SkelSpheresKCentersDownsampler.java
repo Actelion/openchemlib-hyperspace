@@ -51,9 +51,22 @@ public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
         int maxCenters = request.getEffectiveMaxCenters(working.size());
         boolean includeClusterMembers = request.isIncludeClusterMembers();
         List<CenterRecord> centers = new ArrayList<>();
-        for (SynthonSpace.FragId candidate : working) {
+        long startNanos = System.nanoTime();
+        long intervalNanos = request.getProgressReportIntervalSeconds() * 1_000_000_000L;
+        long lastReportNanos = startNanos;
+        int skippedDescriptors = 0;
+        reportProgress(fragType, request, 0, working.size(), centers, maxCenters, startNanos, skippedDescriptors, false);
+        for (int idx = 0; idx < working.size(); idx++) {
+            SynthonSpace.FragId candidate = working.get(idx);
+            int processed = idx + 1;
             int[] descriptor = descriptorCache.getOrCompute(candidate);
             if (descriptor == null) {
+                skippedDescriptors++;
+                long now = System.nanoTime();
+                if (shouldReport(now, lastReportNanos, intervalNanos)) {
+                    reportProgress(fragType, request, processed, working.size(), centers, maxCenters, startNanos, skippedDescriptors, false);
+                    lastReportNanos = now;
+                }
                 continue;
             }
             CenterWithSimilarity best = findBestCenter(candidate, descriptor, centers, request.isEnforceConnectorEquivalence());
@@ -61,9 +74,7 @@ public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
             boolean canCreateCenter = maxCenters <= 0 || centers.size() < maxCenters;
             if ((best == null || belowThreshold) && canCreateCenter) {
                 centers.add(new CenterRecord(candidate, descriptor, includeClusterMembers));
-                continue;
-            }
-            if (best != null) {
+            } else if (best != null) {
                 best.center.registerAssignment(candidate, best.similarity);
             } else if (!centers.isEmpty()) {
                 // all centers filtered by connector equivalence but limit reached -> assign to overall best ignoring connectors
@@ -74,7 +85,13 @@ public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
             } else {
                 centers.add(new CenterRecord(candidate, descriptor, includeClusterMembers));
             }
+            long now = System.nanoTime();
+            if (shouldReport(now, lastReportNanos, intervalNanos)) {
+                reportProgress(fragType, request, processed, working.size(), centers, maxCenters, startNanos, skippedDescriptors, false);
+                lastReportNanos = now;
+            }
         }
+        reportProgress(fragType, request, working.size(), working.size(), centers, maxCenters, startNanos, skippedDescriptors, true);
 
         List<SynthonSpace.FragId> representatives = new ArrayList<>();
         List<SynthonSetDownsamplingResult.ClusterInfo> clusterInfos = new ArrayList<>();
@@ -84,6 +101,35 @@ public class SkelSpheresKCentersDownsampler implements SynthonDownsampler {
         }
 
         return new SynthonSetDownsamplingResult(fragType, representatives, clusterInfos, synthons.size());
+    }
+
+    private boolean shouldReport(long nowNanos, long lastReportNanos, long intervalNanos) {
+        return intervalNanos > 0 && nowNanos - lastReportNanos >= intervalNanos;
+    }
+
+    private void reportProgress(SynthonSpace.FragType fragType,
+                                SynthonDownsamplingRequest request,
+                                int processed,
+                                int total,
+                                List<CenterRecord> centers,
+                                int maxCenters,
+                                long startNanos,
+                                int skippedDescriptors,
+                                boolean completed) {
+        try {
+            request.getProgressReporter().onProgress(new SynthonDownsamplingRequest.ProgressEvent(
+                    fragType.rxn_id,
+                    fragType.frag,
+                    processed,
+                    total,
+                    centers.size(),
+                    maxCenters,
+                    (System.nanoTime() - startNanos) / 1_000_000L,
+                    skippedDescriptors,
+                    completed));
+        } catch (RuntimeException ignored) {
+            // Progress reporting is diagnostic only and must not affect downsampling results.
+        }
     }
 
     private CenterWithSimilarity findBestCenter(SynthonSpace.FragId candidate,

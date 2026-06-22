@@ -188,7 +188,7 @@ The JSON is grouped by pipeline step:
 - `microOptimization`: optional downsampled-space local optimization stage
 - `fullOptimization`: full-space local optimization request parameters
 - `orchestration`: worker pool size, queue, progress reporting, reaction weighting, and dedupe cache
-- `run`: `iterations` (`-1` for continuous) and `randomSeed`
+- `run`: preferred wall-clock limit (`maxRuntime`, for example `24h`) or legacy `iterations`, plus `randomSeed`
 - `output`: hit TSV path + global reporting gate (`minReportedSimilarity`)
 
 Query input modes:
@@ -201,8 +201,12 @@ Inside the `query` object (inline or external), specify exactly one of:
 - `smiles`
 - `idcode`
 - `sdfFile` (optional `sdfRecordIndex`, default `0`)
+- `phesaFile` (string-serialized encoded PheSA descriptor)
 
 `sdfFile` uses the molecule conformation from the SDF record directly (no conformer generation). The CLI adds implicit hydrogens as explicit 3D hydrogens before building a single-conformation PheSA descriptor.
+
+
+`run.maxRuntime` accepts ISO-8601 durations such as `PT24H` or compact values such as `24h`, `90m`, or `3600s`. When the time limit is reached, the CLI stops queueing new jobs, drops queued-but-not-started work, and waits for active jobs to finish writing. `run.iterations` is still accepted for bounded test runs or legacy configs. Set `run.randomSeed` to `null` to generate a time-derived seed; the effective seed is printed at startup.
 
 `output.minReportedSimilarity` applies a final global reporting threshold: candidates below this score are not written, even when optimizer stages run with `reportAllCandidates=true`.
 

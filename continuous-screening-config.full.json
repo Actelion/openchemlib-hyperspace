@@ -7,6 +7,7 @@
     "smiles": "c1ccc(cc1)NC(=O)N",
     "idcode": null,
     "sdfFile": null,
+    "phesaFile": null,
     "sdfRecordIndex": 0
   },
   "queryFile": null,
@@ -31,7 +32,7 @@
       "improvementTolerance": 0.0001,
       "reportAllCandidates": true,
       "randomSeed": null,
-      "logLevel": "NONE"
+      "logLevel": "SUMMARY"
     }
   },
   "fullOptimization": {
@@ -47,7 +48,7 @@
       "improvementTolerance": 0.0001,
       "reportAllCandidates": true,
       "randomSeed": null,
-      "logLevel": "NONE"
+      "logLevel": "SUMMARY"
     }
   },
   "orchestration": {
@@ -56,11 +57,20 @@
     "progressIntervalSeconds": 60,
     "reactionWeightExponent": 1.0,
     "reactionMinWeight": 0.01,
+    "reactionWeighting": {
+      "mode": "BUCKETED_PRODUCT",
+      "buckets": [
+        { "maxProductExclusive": 2000, "weight": 0.01 },
+        { "maxProductExclusive": 50000, "weight": 0.1 },
+        { "maxProductExclusive": 750000, "weight": 0.5 },
+        { "weight": 5.0 }
+      ]
+    },
     "duplicateCacheSize": 200000
   },
   "run": {
-    "iterations": 10000,
-    "randomSeed": 13
+    "maxRuntime": "24h",
+    "randomSeed": null
   },
   "output": {
     "hitsTsv": "screening_hits.tsv",

@@ -5,10 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.idorsia.research.chem.hyperspace.localopt.LocalOptimizationLogLevel;
 import com.idorsia.research.chem.hyperspace.localopt.LocalOptimizationRequest;
 import com.idorsia.research.chem.hyperspace.screening.CandidateSampler;
+import com.idorsia.research.chem.hyperspace.screening.ReactionScheduler;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
@@ -75,22 +79,30 @@ public final class ContinuousScreeningConfig {
         boolean hasInlineSmiles = hasText(query.smiles);
         boolean hasInlineIdcode = hasText(query.idcode);
         boolean hasInlineSdfFile = hasText(query.sdfFile);
-        int inlineSourceCount = (hasInlineSmiles ? 1 : 0) + (hasInlineIdcode ? 1 : 0) + (hasInlineSdfFile ? 1 : 0);
+        boolean hasInlinePhesaFile = hasText(query.phesaFile);
+        int inlineSourceCount = (hasInlineSmiles ? 1 : 0)
+                + (hasInlineIdcode ? 1 : 0)
+                + (hasInlineSdfFile ? 1 : 0)
+                + (hasInlinePhesaFile ? 1 : 0);
         boolean hasInlineQuery = inlineSourceCount > 0;
         boolean hasExternalQuery = hasText(queryFile);
         if (hasInlineQuery == hasExternalQuery) {
             throw new IllegalArgumentException("Specify exactly one query source: inline query or queryFile");
         }
         if (hasInlineQuery && inlineSourceCount != 1) {
-            throw new IllegalArgumentException("Specify exactly one of query.smiles, query.idcode, or query.sdfFile");
+            throw new IllegalArgumentException("Specify exactly one of query.smiles, query.idcode, query.sdfFile, or query.phesaFile");
         }
         if (hasInlineSdfFile && query.sdfRecordIndex < 0) {
             throw new IllegalArgumentException("query.sdfRecordIndex must be >= 0");
         }
 
-        if (run.iterations < -1) {
+        if (run.iterations != null && run.iterations < -1) {
             throw new IllegalArgumentException("run.iterations must be >= -1");
         }
+        if (hasText(run.maxRuntime) && run.maxRuntimeSeconds != null) {
+            throw new IllegalArgumentException("Specify only one of run.maxRuntime or run.maxRuntimeSeconds");
+        }
+        run.resolveMaxRuntime();
 
         if (sampling.attemptsPerReaction <= 0) {
             throw new IllegalArgumentException("sampling.attemptsPerReaction must be positive");
@@ -130,6 +142,9 @@ public final class ContinuousScreeningConfig {
         if (orchestration.reactionMinWeight < 0.0) {
             throw new IllegalArgumentException("orchestration.reactionMinWeight must be >= 0");
         }
+        if (orchestration.reactionWeighting != null) {
+            orchestration.reactionWeighting.validate("orchestration.reactionWeighting");
+        }
     }
 
     public Path resolveRawFull(Path configPath) {
@@ -154,11 +169,11 @@ public final class ContinuousScreeningConfig {
             ObjectMapper mapper = new ObjectMapper()
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
             QueryInput loadedQuery = mapper.readValue(resolvedQueryPath.toFile(), QueryInput.class);
-            QueryInput resolvedQuery = resolveQuerySdfPath(loadedQuery, resolvedQueryPath);
+            QueryInput resolvedQuery = resolveQueryPaths(loadedQuery, resolvedQueryPath);
             validateResolvedQuery(resolvedQuery, "queryFile");
             return resolvedQuery;
         }
-        QueryInput resolvedQuery = resolveQuerySdfPath(query, configPath);
+        QueryInput resolvedQuery = resolveQueryPaths(query, configPath);
         validateResolvedQuery(resolvedQuery, "query");
         return resolvedQuery;
     }
@@ -174,11 +189,18 @@ public final class ContinuousScreeningConfig {
     }
 
     public LocalOptimizationRequest toFullOptimizationRequest() {
-        return fullOptimization.request.toLocalOptimizationRequest(run.randomSeed);
+        return fullOptimization.request.toLocalOptimizationRequest(run.getEffectiveRandomSeed());
     }
 
     public LocalOptimizationRequest toMicroOptimizationRequest() {
-        return microOptimization.request.toLocalOptimizationRequest(run.randomSeed);
+        return microOptimization.request.toLocalOptimizationRequest(run.getEffectiveRandomSeed());
+    }
+
+    public ReactionScheduler.Weighting toReactionWeighting() {
+        if (orchestration.reactionWeighting == null) {
+            return null;
+        }
+        return orchestration.reactionWeighting.toSchedulerWeighting();
     }
 
     private static Path resolveRelativeToConfig(String value, Path configPath) {
@@ -216,16 +238,20 @@ public final class ContinuousScreeningConfig {
         boolean hasSmiles = hasText(resolvedQuery.smiles);
         boolean hasIdcode = hasText(resolvedQuery.idcode);
         boolean hasSdfFile = hasText(resolvedQuery.sdfFile);
-        int sourceCount = (hasSmiles ? 1 : 0) + (hasIdcode ? 1 : 0) + (hasSdfFile ? 1 : 0);
+        boolean hasPhesaFile = hasText(resolvedQuery.phesaFile);
+        int sourceCount = (hasSmiles ? 1 : 0)
+                + (hasIdcode ? 1 : 0)
+                + (hasSdfFile ? 1 : 0)
+                + (hasPhesaFile ? 1 : 0);
         if (sourceCount != 1) {
-            throw new IllegalArgumentException(sourceName + " must specify exactly one of smiles, idcode, or sdfFile");
+            throw new IllegalArgumentException(sourceName + " must specify exactly one of smiles, idcode, sdfFile, or phesaFile");
         }
         if (hasSdfFile && resolvedQuery.sdfRecordIndex < 0) {
             throw new IllegalArgumentException(sourceName + ".sdfRecordIndex must be >= 0");
         }
     }
 
-    private static QueryInput resolveQuerySdfPath(QueryInput sourceQuery, Path sourcePath) {
+    private static QueryInput resolveQueryPaths(QueryInput sourceQuery, Path sourcePath) {
         if (sourceQuery == null) {
             return null;
         }
@@ -235,6 +261,9 @@ public final class ContinuousScreeningConfig {
         resolved.setSdfRecordIndex(sourceQuery.sdfRecordIndex);
         if (hasText(sourceQuery.sdfFile)) {
             resolved.setSdfFile(resolveRelativeToConfig(sourceQuery.sdfFile, sourcePath).toString());
+        }
+        if (hasText(sourceQuery.phesaFile)) {
+            resolved.setPhesaFile(resolveRelativeToConfig(sourceQuery.phesaFile, sourcePath).toString());
         }
         return resolved;
     }
@@ -264,6 +293,7 @@ public final class ContinuousScreeningConfig {
         private String smiles;
         private String idcode;
         private String sdfFile;
+        private String phesaFile;
         private int sdfRecordIndex = 0;
 
         public String getSmiles() {
@@ -288,6 +318,14 @@ public final class ContinuousScreeningConfig {
 
         public void setSdfFile(String sdfFile) {
             this.sdfFile = sdfFile;
+        }
+
+        public String getPhesaFile() {
+            return phesaFile;
+        }
+
+        public void setPhesaFile(String phesaFile) {
+            this.phesaFile = phesaFile;
         }
 
         public int getSdfRecordIndex() {
@@ -386,6 +424,7 @@ public final class ContinuousScreeningConfig {
         private int progressIntervalSeconds = 20;
         private double reactionWeightExponent = 1.0;
         private double reactionMinWeight = 0.01;
+        private ReactionWeightingSettings reactionWeighting;
         private int duplicateCacheSize = 200_000;
 
         public int getWorkerThreads() {
@@ -428,6 +467,14 @@ public final class ContinuousScreeningConfig {
             this.reactionMinWeight = reactionMinWeight;
         }
 
+        public ReactionWeightingSettings getReactionWeighting() {
+            return reactionWeighting;
+        }
+
+        public void setReactionWeighting(ReactionWeightingSettings reactionWeighting) {
+            this.reactionWeighting = reactionWeighting;
+        }
+
         public int getDuplicateCacheSize() {
             return duplicateCacheSize;
         }
@@ -437,24 +484,200 @@ public final class ContinuousScreeningConfig {
         }
     }
 
-    public static final class RunControl {
-        private long iterations = -1;
-        private long randomSeed = 13L;
+    public static final class ReactionWeightingSettings {
+        private String mode = ReactionScheduler.Mode.EXPONENT.name();
+        private List<ReactionWeightBucketSettings> buckets = new ArrayList<>();
 
-        public long getIterations() {
-            return iterations;
+        private void validate(String prefix) {
+            ReactionScheduler.Mode parsedMode = parseMode(prefix + ".mode");
+            if (parsedMode == ReactionScheduler.Mode.EXPONENT) {
+                return;
+            }
+            toSchedulerWeighting();
         }
 
-        public void setIterations(long iterations) {
+        private ReactionScheduler.Weighting toSchedulerWeighting() {
+            ReactionScheduler.Mode parsedMode = parseMode("reactionWeighting.mode");
+            if (parsedMode == ReactionScheduler.Mode.EXPONENT) {
+                return null;
+            }
+            List<ReactionScheduler.Bucket> schedulerBuckets = new ArrayList<>();
+            if (buckets != null) {
+                for (ReactionWeightBucketSettings bucket : buckets) {
+                    if (bucket == null) {
+                        schedulerBuckets.add(null);
+                    } else {
+                        schedulerBuckets.add(new ReactionScheduler.Bucket(bucket.maxProductExclusive, bucket.weight));
+                    }
+                }
+            }
+            return ReactionScheduler.Weighting.bucketedProduct(schedulerBuckets);
+        }
+
+        private ReactionScheduler.Mode parseMode(String key) {
+            if (mode == null || mode.isBlank()) {
+                throw new IllegalArgumentException(key + " must not be blank");
+            }
+            try {
+                return ReactionScheduler.Mode.valueOf(mode.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                String options = Arrays.stream(ReactionScheduler.Mode.values())
+                        .map(Enum::name)
+                        .collect(Collectors.joining(", "));
+                throw new IllegalArgumentException(key + " must be one of: " + options);
+            }
+        }
+
+        public String getMode() {
+            return mode;
+        }
+
+        public void setMode(String mode) {
+            this.mode = mode;
+        }
+
+        public List<ReactionWeightBucketSettings> getBuckets() {
+            return buckets;
+        }
+
+        public void setBuckets(List<ReactionWeightBucketSettings> buckets) {
+            this.buckets = buckets;
+        }
+    }
+
+    public static final class ReactionWeightBucketSettings {
+        private Double maxProductExclusive;
+        private double weight;
+
+        public Double getMaxProductExclusive() {
+            return maxProductExclusive;
+        }
+
+        public void setMaxProductExclusive(Double maxProductExclusive) {
+            this.maxProductExclusive = maxProductExclusive;
+        }
+
+        public double getWeight() {
+            return weight;
+        }
+
+        public void setWeight(double weight) {
+            this.weight = weight;
+        }
+    }
+
+    public static final class RunControl {
+        private Long iterations = null;
+        private String maxRuntime;
+        private Long maxRuntimeSeconds;
+        private Long randomSeed = 13L;
+        private Long effectiveRandomSeed;
+
+        public long getIterations() {
+            return iterations == null ? -1L : iterations;
+        }
+
+        public void setIterations(Long iterations) {
             this.iterations = iterations;
         }
 
-        public long getRandomSeed() {
+        public String getMaxRuntime() {
+            return maxRuntime;
+        }
+
+        public void setMaxRuntime(String maxRuntime) {
+            this.maxRuntime = maxRuntime;
+        }
+
+        public Long getMaxRuntimeSeconds() {
+            return maxRuntimeSeconds;
+        }
+
+        public void setMaxRuntimeSeconds(Long maxRuntimeSeconds) {
+            this.maxRuntimeSeconds = maxRuntimeSeconds;
+        }
+
+        public Long getRandomSeed() {
             return randomSeed;
         }
 
-        public void setRandomSeed(long randomSeed) {
+        public void setRandomSeed(Long randomSeed) {
             this.randomSeed = randomSeed;
+        }
+
+        public long getEffectiveRandomSeed() {
+            if (effectiveRandomSeed == null) {
+                effectiveRandomSeed = randomSeed != null ? randomSeed : createTimeBasedSeed();
+            }
+            return effectiveRandomSeed;
+        }
+
+        public Duration resolveMaxRuntime() {
+            if (maxRuntimeSeconds != null) {
+                if (maxRuntimeSeconds <= 0L) {
+                    throw new IllegalArgumentException("run.maxRuntimeSeconds must be positive");
+                }
+                return Duration.ofSeconds(maxRuntimeSeconds);
+            }
+            if (!hasText(maxRuntime)) {
+                return null;
+            }
+            return parseDuration(maxRuntime);
+        }
+
+        private static Duration parseDuration(String value) {
+            String trimmed = value.trim();
+            if (trimmed.isEmpty()) {
+                throw new IllegalArgumentException("run.maxRuntime must not be blank");
+            }
+            try {
+                Duration duration = Duration.parse(trimmed);
+                if (duration.isZero() || duration.isNegative()) {
+                    throw new IllegalArgumentException("run.maxRuntime must be positive");
+                }
+                return duration;
+            } catch (Exception ignored) {
+                // Also accept compact values like 24h, 90m, 3600s, or plain seconds.
+            }
+
+            String lower = trimmed.toLowerCase(Locale.ROOT);
+            long multiplier = 1L;
+            String numberPart = lower;
+            if (lower.endsWith("ms")) {
+                multiplier = -1L;
+                numberPart = lower.substring(0, lower.length() - 2);
+            } else if (lower.endsWith("s")) {
+                numberPart = lower.substring(0, lower.length() - 1);
+            } else if (lower.endsWith("m")) {
+                multiplier = 60L;
+                numberPart = lower.substring(0, lower.length() - 1);
+            } else if (lower.endsWith("h")) {
+                multiplier = 3600L;
+                numberPart = lower.substring(0, lower.length() - 1);
+            } else if (lower.endsWith("d")) {
+                multiplier = 86_400L;
+                numberPart = lower.substring(0, lower.length() - 1);
+            }
+
+            try {
+                long amount = Long.parseLong(numberPart.trim());
+                Duration duration = multiplier < 0L
+                        ? Duration.ofMillis(amount)
+                        : Duration.ofSeconds(Math.multiplyExact(amount, multiplier));
+                if (duration.isZero() || duration.isNegative()) {
+                    throw new IllegalArgumentException("run.maxRuntime must be positive");
+                }
+                return duration;
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException("run.maxRuntime must be an ISO-8601 duration or a value like 24h, 90m, 3600s", e);
+            }
+        }
+
+        private static long createTimeBasedSeed() {
+            long now = System.nanoTime();
+            long wall = System.currentTimeMillis();
+            long thread = Thread.currentThread().getId();
+            return now ^ Long.rotateLeft(wall, 21) ^ Long.rotateLeft(thread, 42);
         }
     }
 

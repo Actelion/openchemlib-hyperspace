@@ -18,7 +18,9 @@ import com.idorsia.research.chem.hyperspace.screening.CandidateSampler;
 import com.idorsia.research.chem.hyperspace.screening.ContinuousScreeningOrchestrator;
 import com.idorsia.research.chem.hyperspace.screening.ScreeningMetrics;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 
 public final class ContinuousScreeningCLI {
 
@@ -45,18 +47,25 @@ public final class ContinuousScreeningCLI {
                 .withProgressIntervalSeconds(cliConfig.getOrchestration().getProgressIntervalSeconds())
                 .withReactionWeightExponent(cliConfig.getOrchestration().getReactionWeightExponent())
                 .withReactionMinWeight(cliConfig.getOrchestration().getReactionMinWeight())
+                .withReactionWeighting(cliConfig.toReactionWeighting())
                 .withHitOutput(cliConfig.resolveOutputHits(configPath))
                 .withMinReportedSimilarity(cliConfig.getMinReportedSimilarity())
                 .withDuplicateCacheSize(cliConfig.getOrchestration().getDuplicateCacheSize())
-                .withRandomSeed(cliConfig.getRun().getRandomSeed());
+                .withRandomSeed(cliConfig.getRun().getEffectiveRandomSeed());
         if (microEnabled) {
             config.withMicroEnabled(true).withMicroOptimizationRequest(microRequest);
         }
         config.validate();
 
         long iterations = cliConfig.getRun().getIterations();
+        Duration maxRuntime = cliConfig.getRun().resolveMaxRuntime();
+        System.out.println("Continuous screening random seed: " + cliConfig.getRun().getEffectiveRandomSeed());
         try (ContinuousScreeningOrchestrator orchestrator = new ContinuousScreeningOrchestrator(config)) {
-            orchestrator.run(iterations);
+            if (maxRuntime != null) {
+                orchestrator.run(iterations, maxRuntime);
+            } else {
+                orchestrator.run(iterations);
+            }
             ScreeningMetrics metrics = orchestrator.getMetrics();
             System.out.println("Sampled evaluations: " + metrics.getSampled());
             System.out.println("Duplicate seeds skipped: " + metrics.getDuplicateSeeds());
@@ -85,7 +94,10 @@ public final class ContinuousScreeningCLI {
         System.err.println("   or: ContinuousScreeningCLI --config <config.json>");
     }
 
-    private static PheSAMolecule buildQueryDescriptor(ContinuousScreeningConfig.QueryInput queryInput) throws Exception {
+    static PheSAMolecule buildQueryDescriptor(ContinuousScreeningConfig.QueryInput queryInput) throws Exception {
+        if (hasText(queryInput.getPhesaFile())) {
+            return loadPhesaQueryDescriptor(queryInput);
+        }
         if (hasText(queryInput.getSdfFile())) {
             return buildSdfQueryDescriptor(queryInput);
         }
@@ -99,6 +111,20 @@ public final class ContinuousScreeningCLI {
         PheSAMolecule descriptor = handler.createDescriptor(conformers);
         if (handler.calculationFailed(descriptor)) {
             throw new IllegalStateException("Unable to create PheSA descriptor for query molecule");
+        }
+        return descriptor;
+    }
+
+    private static PheSAMolecule loadPhesaQueryDescriptor(ContinuousScreeningConfig.QueryInput queryInput) throws Exception {
+        Path phesaPath = Path.of(queryInput.getPhesaFile());
+        String encoded = Files.readString(phesaPath).trim();
+        if (encoded.isBlank()) {
+            throw new IllegalArgumentException("query.phesaFile is empty: " + phesaPath);
+        }
+        DescriptorHandlerShape handler = new DescriptorHandlerShape();
+        PheSAMolecule descriptor = handler.decode(encoded);
+        if (descriptor == null || handler.calculationFailed(descriptor)) {
+            throw new IllegalArgumentException("Unable to decode PheSA descriptor from query.phesaFile: " + phesaPath);
         }
         return descriptor;
     }

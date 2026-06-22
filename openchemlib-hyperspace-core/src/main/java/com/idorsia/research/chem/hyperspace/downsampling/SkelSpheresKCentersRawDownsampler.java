@@ -52,9 +52,22 @@ public class SkelSpheresKCentersRawDownsampler implements RawSynthonDownsampler 
             int maxCenters = request.getEffectiveMaxCenters(working.size());
             boolean includeClusterMembers = request.isIncludeClusterMembers();
             List<CenterRecord> centers = new ArrayList<>();
-            for (RawSynthon candidate : working) {
+            long startNanos = System.nanoTime();
+            long intervalNanos = request.getProgressReportIntervalSeconds() * 1_000_000_000L;
+            long lastReportNanos = startNanos;
+            int skippedDescriptors = 0;
+            reportProgress(synthonSet, request, 0, working.size(), centers, maxCenters, startNanos, skippedDescriptors, false);
+            for (int idx = 0; idx < working.size(); idx++) {
+                RawSynthon candidate = working.get(idx);
+                int processed = idx + 1;
                 int[] descriptor = descriptorCache.getOrCompute(candidate);
                 if (descriptor == null) {
+                    skippedDescriptors++;
+                    long now = System.nanoTime();
+                    if (shouldReport(now, lastReportNanos, intervalNanos)) {
+                        reportProgress(synthonSet, request, processed, working.size(), centers, maxCenters, startNanos, skippedDescriptors, false);
+                        lastReportNanos = now;
+                    }
                     continue;
                 }
                 CenterWithSimilarity best = findBestCenter(candidate, descriptor, centers, request.isEnforceConnectorEquivalence());
@@ -62,9 +75,7 @@ public class SkelSpheresKCentersRawDownsampler implements RawSynthonDownsampler 
                 boolean canCreateCenter = maxCenters <= 0 || centers.size() < maxCenters;
                 if ((best == null || belowThreshold) && canCreateCenter) {
                     centers.add(new CenterRecord(candidate, descriptor, includeClusterMembers));
-                    continue;
-                }
-                if (best != null) {
+                } else if (best != null) {
                     best.center.registerAssignment(candidate, best.similarity);
                 } else if (!centers.isEmpty()) {
                     CenterWithSimilarity fallback = findBestCenter(candidate, descriptor, centers, false);
@@ -74,7 +85,13 @@ public class SkelSpheresKCentersRawDownsampler implements RawSynthonDownsampler 
                 } else {
                     centers.add(new CenterRecord(candidate, descriptor, includeClusterMembers));
                 }
+                long now = System.nanoTime();
+                if (shouldReport(now, lastReportNanos, intervalNanos)) {
+                    reportProgress(synthonSet, request, processed, working.size(), centers, maxCenters, startNanos, skippedDescriptors, false);
+                    lastReportNanos = now;
+                }
             }
+            reportProgress(synthonSet, request, working.size(), working.size(), centers, maxCenters, startNanos, skippedDescriptors, true);
 
             List<SynthonSpace.FragId> representatives = new ArrayList<>();
             List<SynthonSetDownsamplingResult.ClusterInfo> clusters = new ArrayList<>();
@@ -90,6 +107,35 @@ public class SkelSpheresKCentersRawDownsampler implements RawSynthonDownsampler 
                     synthons.size());
         } finally {
             descriptorCache.clear();
+        }
+    }
+
+    private boolean shouldReport(long nowNanos, long lastReportNanos, long intervalNanos) {
+        return intervalNanos > 0 && nowNanos - lastReportNanos >= intervalNanos;
+    }
+
+    private void reportProgress(RawSynthonSet synthonSet,
+                                SynthonDownsamplingRequest request,
+                                int processed,
+                                int total,
+                                List<CenterRecord> centers,
+                                int maxCenters,
+                                long startNanos,
+                                int skippedDescriptors,
+                                boolean completed) {
+        try {
+            request.getProgressReporter().onProgress(new SynthonDownsamplingRequest.ProgressEvent(
+                    synthonSet.getReactionId(),
+                    synthonSet.getFragmentIndex(),
+                    processed,
+                    total,
+                    centers.size(),
+                    maxCenters,
+                    (System.nanoTime() - startNanos) / 1_000_000L,
+                    skippedDescriptors,
+                    completed));
+        } catch (RuntimeException ignored) {
+            // Progress reporting is diagnostic only and must not affect downsampling results.
         }
     }
 

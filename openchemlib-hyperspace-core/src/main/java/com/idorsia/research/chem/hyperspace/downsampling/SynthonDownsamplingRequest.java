@@ -17,6 +17,8 @@ public class SynthonDownsamplingRequest implements Serializable {
     private final long randomSeed;
     private final boolean enforceConnectorEquivalence;
     private final boolean includeClusterMembers;
+    private final transient ProgressReporter progressReporter;
+    private final int progressReportIntervalSeconds;
     private final Map<String, Object> attributes;
 
     private SynthonDownsamplingRequest(Builder builder) {
@@ -27,6 +29,8 @@ public class SynthonDownsamplingRequest implements Serializable {
         this.randomSeed = builder.randomSeed;
         this.enforceConnectorEquivalence = builder.enforceConnectorEquivalence;
         this.includeClusterMembers = builder.includeClusterMembers;
+        this.progressReporter = builder.progressReporter;
+        this.progressReportIntervalSeconds = builder.progressReportIntervalSeconds;
         this.attributes = Collections.unmodifiableMap(new HashMap<>(builder.attributes));
     }
 
@@ -71,6 +75,14 @@ public class SynthonDownsamplingRequest implements Serializable {
         return attributes;
     }
 
+    public ProgressReporter getProgressReporter() {
+        return progressReporter == null ? ProgressReporter.NO_OP : progressReporter;
+    }
+
+    public int getProgressReportIntervalSeconds() {
+        return progressReportIntervalSeconds;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -83,6 +95,8 @@ public class SynthonDownsamplingRequest implements Serializable {
         private long randomSeed = 1L;
         private boolean enforceConnectorEquivalence = true;
         private boolean includeClusterMembers = false;
+        private ProgressReporter progressReporter = ProgressReporter.NO_OP;
+        private int progressReportIntervalSeconds = 60;
         private final Map<String, Object> attributes = new HashMap<>();
 
         public Builder withMaxCenters(int maxCenters) {
@@ -120,6 +134,19 @@ public class SynthonDownsamplingRequest implements Serializable {
             return this;
         }
 
+        public Builder withProgressReporter(ProgressReporter progressReporter) {
+            this.progressReporter = progressReporter == null ? ProgressReporter.NO_OP : progressReporter;
+            return this;
+        }
+
+        public Builder withProgressReportIntervalSeconds(int seconds) {
+            if (seconds < 0) {
+                throw new IllegalArgumentException("Progress report interval must be >= 0");
+            }
+            this.progressReportIntervalSeconds = seconds;
+            return this;
+        }
+
         public Builder putAttribute(String key, Object value) {
             if (key != null && value != null) {
                 this.attributes.put(key, value);
@@ -129,6 +156,80 @@ public class SynthonDownsamplingRequest implements Serializable {
 
         public SynthonDownsamplingRequest build() {
             return new SynthonDownsamplingRequest(this);
+        }
+    }
+
+    public interface ProgressReporter {
+        ProgressReporter NO_OP = event -> { };
+
+        void onProgress(ProgressEvent event);
+    }
+
+    public static final class ProgressEvent {
+        private final String reactionId;
+        private final int fragmentIndex;
+        private final int processedSynthons;
+        private final int totalSynthons;
+        private final int centerCount;
+        private final int effectiveMaxCenters;
+        private final long elapsedMillis;
+        private final int skippedDescriptors;
+        private final boolean completed;
+
+        public ProgressEvent(String reactionId,
+                             int fragmentIndex,
+                             int processedSynthons,
+                             int totalSynthons,
+                             int centerCount,
+                             int effectiveMaxCenters,
+                             long elapsedMillis,
+                             int skippedDescriptors,
+                             boolean completed) {
+            this.reactionId = reactionId;
+            this.fragmentIndex = fragmentIndex;
+            this.processedSynthons = processedSynthons;
+            this.totalSynthons = totalSynthons;
+            this.centerCount = centerCount;
+            this.effectiveMaxCenters = effectiveMaxCenters;
+            this.elapsedMillis = elapsedMillis;
+            this.skippedDescriptors = skippedDescriptors;
+            this.completed = completed;
+        }
+
+        public String getReactionId() {
+            return reactionId;
+        }
+
+        public int getFragmentIndex() {
+            return fragmentIndex;
+        }
+
+        public int getProcessedSynthons() {
+            return processedSynthons;
+        }
+
+        public int getTotalSynthons() {
+            return totalSynthons;
+        }
+
+        public int getCenterCount() {
+            return centerCount;
+        }
+
+        public int getEffectiveMaxCenters() {
+            return effectiveMaxCenters;
+        }
+
+        public long getElapsedMillis() {
+            return elapsedMillis;
+        }
+
+        public int getSkippedDescriptors() {
+            return skippedDescriptors;
+        }
+
+        public boolean isCompleted() {
+            return completed;
         }
     }
 

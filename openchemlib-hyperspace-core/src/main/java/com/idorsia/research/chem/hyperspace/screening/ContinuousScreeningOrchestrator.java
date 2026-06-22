@@ -14,6 +14,7 @@ import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSpace;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -21,7 +22,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -40,7 +40,7 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
     private final ScreeningMetrics metrics = new ScreeningMetrics();
     private final LocalBeamOptimizer fullOptimizer;
     private final LocalOptimizationRequest fullRequest;
-    private final ExecutorService executor;
+    private final ThreadPoolExecutor executor;
     private final LocalOptimizationResultWriter writer;
     private final ScheduledExecutorService progressExecutor;
     private final int progressIntervalSeconds;
@@ -79,9 +79,14 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
                         metrics.recordSampledScore(similarity);
                     }
                 });
-        this.scheduler = new ReactionScheduler(computeReactionSizes(downsampledView),
-                config.reactionMinWeight,
-                config.reactionWeightExponent);
+        if (config.reactionWeighting != null) {
+            this.scheduler = new ReactionScheduler(computeReactionSizes(downsampledView),
+                    config.reactionWeighting);
+        } else {
+            this.scheduler = new ReactionScheduler(computeReactionSizes(downsampledView),
+                    config.reactionMinWeight,
+                    config.reactionWeightExponent);
+        }
         this.duplicateFilter = new DuplicateFilter(config.duplicateCacheSize);
         SkelSpheresNeighborSampler fullNeighborSampler = new SkelSpheresNeighborSampler();
         SynthonSetAccessor fullAccessor = new SynthonSetAccessor(config.fullRaw);
@@ -91,7 +96,9 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
                         metrics.fullOptComparisonCounter()),
                 fullNeighborSampler);
         this.fullRequest = config.fullOptimizationRequest;
-        this.writer = new LocalOptimizationResultWriter(config.hitOutput);
+        Map<String, String> reactionSourceSpaces = buildReactionSourceSpaceLookup(config.fullRaw);
+        this.writer = new LocalOptimizationResultWriter(config.hitOutput,
+                reactionId -> reactionSourceSpaces.getOrDefault(reactionId, ""));
         this.progressIntervalSeconds = config.progressIntervalSeconds;
         int threads = Math.max(1, config.workerThreads);
         int queueCapacity = Math.max(1, config.queueCapacity);
@@ -136,23 +143,85 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
         return sizes;
     }
 
+    private Map<String, String> buildReactionSourceSpaceLookup(RawSynthonSpace rawSpace) {
+        Map<String, String> lookup = new HashMap<>();
+        rawSpace.getReactions().forEach((reactionId, data) -> {
+            String source = findReactionMetadataValue(data.getReactionMetadata(), "source.spaceName", ".spaceName");
+            if (source == null || source.isBlank()) {
+                source = findReactionMetadataValue(data.getReactionMetadata(), "source.spacePath", ".spacePath");
+            }
+            if (source != null && !source.isBlank()) {
+                lookup.put(reactionId, source);
+            }
+        });
+        return lookup;
+    }
+
+    private String findReactionMetadataValue(Map<String, String> metadata, String preferredKey, String fallbackSuffix) {
+        String preferred = metadata.get(preferredKey);
+        if (preferred != null && !preferred.isBlank()) {
+            return preferred;
+        }
+        for (Map.Entry<String, String> entry : metadata.entrySet()) {
+            if (entry.getKey().endsWith(fallbackSuffix) && entry.getValue() != null && !entry.getValue().isBlank()) {
+                return entry.getValue();
+            }
+        }
+        return "";
+    }
+
     public void run(long iterations) {
+        run(iterations, null);
+    }
+
+    public void runFor(Duration maxRuntime) {
+        run(-1L, maxRuntime);
+    }
+
+    public void run(long iterations, Duration maxRuntime) {
+        if (iterations < -1L) {
+            throw new IllegalArgumentException("Iterations must be >= -1");
+        }
+        if (maxRuntime != null && (maxRuntime.isZero() || maxRuntime.isNegative())) {
+            throw new IllegalArgumentException("Max runtime must be positive");
+        }
         long remaining = iterations < 0 ? Long.MAX_VALUE : iterations;
         long runStartNanos = System.nanoTime();
+        long deadlineNanos = computeDeadlineNanos(runStartNanos, maxRuntime);
         this.startTimeNanos = runStartNanos;
         try {
-            startProgressReporter(iterations);
-            while (remaining > 0) {
+            startProgressReporter(iterations, deadlineNanos);
+            while (remaining > 0 && System.nanoTime() < deadlineNanos && !Thread.currentThread().isInterrupted()) {
                 remaining--;
                 long jobId = jobCounter.getAndIncrement();
                 submitJob(jobId);
             }
-            shutdownAndAwait();
+            if (maxRuntime != null && System.nanoTime() >= deadlineNanos) {
+                clearPendingAndAwait();
+            } else {
+                shutdownAndAwait();
+            }
         } finally {
             stopProgressReporter();
             reportFinalSummary(runStartNanos);
             closeWriter();
         }
+    }
+
+    private long computeDeadlineNanos(long startNanos, Duration maxRuntime) {
+        if (maxRuntime == null) {
+            return Long.MAX_VALUE;
+        }
+        long runtimeNanos;
+        try {
+            runtimeNanos = maxRuntime.toNanos();
+        } catch (ArithmeticException e) {
+            return Long.MAX_VALUE;
+        }
+        if (Long.MAX_VALUE - startNanos < runtimeNanos) {
+            return Long.MAX_VALUE;
+        }
+        return startNanos + runtimeNanos;
     }
 
     private void submitJob(long jobId) {
@@ -165,6 +234,18 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
 
     private void shutdownAndAwait() {
         executor.shutdown();
+        awaitExecutorTermination();
+    }
+
+    private void clearPendingAndAwait() {
+        int queued = executor.getQueue().size();
+        executor.getQueue().clear();
+        System.out.println("[Screening] max runtime reached; cleared " + queued + " queued jobs and waiting for active jobs");
+        executor.shutdown();
+        awaitExecutorTermination();
+    }
+
+    private void awaitExecutorTermination() {
         try {
             while (!executor.awaitTermination(1, TimeUnit.MINUTES)) {
                 // keep waiting
@@ -219,7 +300,9 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
         }
     }
 
-    private void startProgressReporter(long iterations) {
+    private volatile long targetDeadlineNanos = Long.MAX_VALUE;
+
+    private void startProgressReporter(long iterations, long deadlineNanos) {
         if (!progressStarted.compareAndSet(false, true)) {
             return;
         }
@@ -227,6 +310,7 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
             return;
         }
         this.targetIterations = iterations;
+        this.targetDeadlineNanos = deadlineNanos;
         this.startTimeNanos = System.nanoTime();
         progressExecutor.scheduleAtFixedRate(this::reportProgress,
                 progressIntervalSeconds,
@@ -265,6 +349,10 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
             if (targetIterations > 0) {
                 int pct = (int) Math.min(100L, Math.round(completed * 100.0 / targetIterations));
                 sb.append(" progress=").append(pct).append("%");
+            }
+            if (targetDeadlineNanos != Long.MAX_VALUE) {
+                long remainingSeconds = Math.max(0L, (targetDeadlineNanos - System.nanoTime()) / 1_000_000_000L);
+                sb.append(" timeRemaining=").append(remainingSeconds).append("s");
             }
             sb.append(" comps=").append(candidateComparisons + microComparisons + fullComparisons)
                     .append(" (cand=").append(candidateComparisons)
@@ -386,6 +474,7 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
                     metrics.recordFullGain(result.getBestObservedScore() - preFullScore);
                 }
                 LocalOptimizationResult reported = applyReportingThreshold(result);
+                logFullOptimizationSummary(jobId, candidate, preMicroScore, preFullScore, result, reported);
                 if (!reported.getBeamEntries().isEmpty()) {
                     metrics.recordHit(reported.getReactionId());
                     metrics.recordPostFullReportedScore(reported.getBeamEntries().get(0).getScore());
@@ -416,7 +505,45 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
         return new LocalOptimizationResult(result.getReactionId(),
                 filtered,
                 result.getSeedFragments(),
-                result.getBestObservedScore());
+                result.getBestObservedScore(),
+                result.getStats());
+    }
+
+    private void logFullOptimizationSummary(long jobId,
+                                            ScreeningCandidate candidate,
+                                            double sampledScore,
+                                            double preFullScore,
+                                            LocalOptimizationResult result,
+                                            LocalOptimizationResult reported) {
+        if (!fullRequest.getLogLevel().isSummaryEnabled()) {
+            return;
+        }
+        LocalOptimizationResult.OptimizationStats stats = result.getStats();
+        double gain = Double.isFinite(result.getBestObservedScore())
+                ? result.getBestObservedScore() - preFullScore
+                : Double.NaN;
+        StringBuilder sb = new StringBuilder();
+        sb.append("[FullOpt] job=").append(jobId)
+                .append(" rxn=").append(candidate.getReactionId())
+                .append(" sampled=").append(formatScoreValue(sampledScore));
+        if (microEnabled) {
+            sb.append(" micro=").append(formatScoreValue(preFullScore));
+        }
+        sb.append(" fullBest=").append(formatScoreValue(result.getBestObservedScore()))
+                .append(" gain=").append(formatScoreValue(gain))
+                .append(" reported=").append(reported.getBeamEntries().size())
+                .append(" candidates=").append(stats.getScoredCandidates())
+                .append(" rounds=").append(stats.getRoundsCompleted())
+                .append('/').append(stats.getRoundsAttempted())
+                .append(" stop=").append(stats.getStopReason());
+        System.out.println(sb);
+    }
+
+    private String formatScoreValue(double score) {
+        if (!Double.isFinite(score)) {
+            return "-";
+        }
+        return String.format(Locale.ROOT, "%.4f", score);
     }
 
     public static final class Config {
@@ -432,6 +559,7 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
         private int progressIntervalSeconds = 60;
         private double reactionWeightExponent = 1.0;
         private double reactionMinWeight = 0.01;
+        private ReactionScheduler.Weighting reactionWeighting;
         private Path hitOutput;
         private double minReportedSimilarity = 0.0;
         private int duplicateCacheSize = 200_000;
@@ -497,6 +625,11 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
             return this;
         }
 
+        public Config withReactionWeighting(ReactionScheduler.Weighting weighting) {
+            this.reactionWeighting = weighting;
+            return this;
+        }
+
         public Config withHitOutput(Path output) {
             this.hitOutput = output;
             return this;
@@ -551,11 +684,13 @@ public final class ContinuousScreeningOrchestrator implements AutoCloseable {
             if (progressIntervalSeconds < 0) {
                 throw new IllegalArgumentException("Progress interval must be >= 0");
             }
-            if (reactionWeightExponent <= 0) {
-                throw new IllegalArgumentException("Reaction weight exponent must be positive");
-            }
-            if (reactionMinWeight < 0) {
-                throw new IllegalArgumentException("Reaction min weight must be >= 0");
+            if (reactionWeighting == null) {
+                if (reactionWeightExponent <= 0) {
+                    throw new IllegalArgumentException("Reaction weight exponent must be positive");
+                }
+                if (reactionMinWeight < 0) {
+                    throw new IllegalArgumentException("Reaction min weight must be >= 0");
+                }
             }
             if (!Double.isFinite(minReportedSimilarity)) {
                 throw new IllegalArgumentException("Min reported similarity must be finite");

@@ -4,6 +4,8 @@ import com.actelion.research.chem.SmilesParser;
 import com.actelion.research.chem.StereoMolecule;
 import com.idorsia.research.chem.hyperspace.SynthonSpace;
 import com.idorsia.research.chem.hyperspace.descriptor.DescriptorHandlerLongFFP1024_plus;
+import com.idorsia.research.chem.hyperspace.rawspace.RawSynthon;
+import com.idorsia.research.chem.hyperspace.rawspace.RawSynthonSet;
 import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
@@ -80,6 +82,82 @@ class SkelSpheresKCentersDownsamplerTest {
                 assertEquals(cluster.getMembers(), cluster.getMemberAssignments().size());
             });
         });
+    }
+
+    @Test
+    void synthonSpaceDownsamplingReportsSetProgress() throws Exception {
+        SynthonSpace space = loadToySpace("testdata/idorsia_toy_space_a.txt",
+                Collections.singleton("benzoimidazole_b-8"));
+        SynthonSpace.FragType fragType = space.getFragTypes("benzoimidazole_b-8").get(0);
+        List<SynthonSpace.FragId> synthons = space.getSynthonSet(fragType.rxn_id, fragType.frag);
+        List<SynthonDownsamplingRequest.ProgressEvent> events = new ArrayList<>();
+
+        SynthonDownsamplingRequest request = SynthonDownsamplingRequest.builder()
+                .withMaxCenters(4)
+                .withMinSimilarity(0.75)
+                .withRandomSeed(42L)
+                .enforceConnectorEquivalence(true)
+                .withProgressReportIntervalSeconds(0)
+                .withProgressReporter(events::add)
+                .build();
+
+        SynthonSetDownsamplingResult result = new SkelSpheresKCentersDownsampler()
+                .downsample(space, fragType, synthons, request);
+
+        assertEquals(4, result.getRetainedSize());
+        assertTrue(events.size() >= 2);
+        SynthonDownsamplingRequest.ProgressEvent first = events.get(0);
+        SynthonDownsamplingRequest.ProgressEvent last = events.get(events.size() - 1);
+        assertEquals("benzoimidazole_b-8", first.getReactionId());
+        assertEquals(0, first.getFragmentIndex());
+        assertEquals(0, first.getProcessedSynthons());
+        assertFalse(first.isCompleted());
+        assertEquals(synthons.size(), last.getProcessedSynthons());
+        assertEquals(synthons.size(), last.getTotalSynthons());
+        assertEquals(result.getRetainedSize(), last.getCenterCount());
+        assertEquals(4, last.getEffectiveMaxCenters());
+        assertTrue(last.isCompleted());
+        events.forEach(event -> assertTrue(event.getCenterCount() <= event.getEffectiveMaxCenters()));
+    }
+
+    @Test
+    void rawDownsamplingReportsSetProgress() throws Exception {
+        SynthonSpace space = loadToySpace("testdata/idorsia_toy_space_a.txt",
+                Collections.singleton("benzoimidazole_b-8"));
+        SynthonSpace.FragType fragType = space.getFragTypes("benzoimidazole_b-8").get(1);
+        List<RawSynthon> rawSynthons = new ArrayList<>();
+        for (SynthonSpace.FragId fragId : space.getSynthonSet(fragType.rxn_id, fragType.frag)) {
+            rawSynthons.add(RawSynthon.fromFragId(fragId));
+        }
+        RawSynthonSet rawSet = new RawSynthonSet(fragType.rxn_id, fragType.frag, rawSynthons);
+        List<SynthonDownsamplingRequest.ProgressEvent> events = new ArrayList<>();
+
+        SynthonDownsamplingRequest request = SynthonDownsamplingRequest.builder()
+                .withMaxCenters(4)
+                .withMinSimilarity(0.75)
+                .withRandomSeed(42L)
+                .enforceConnectorEquivalence(true)
+                .withProgressReportIntervalSeconds(0)
+                .withProgressReporter(events::add)
+                .build();
+
+        SynthonSetDownsamplingResult result = new SkelSpheresKCentersRawDownsampler()
+                .downsample(rawSet, request);
+
+        assertEquals(4, result.getRetainedSize());
+        assertTrue(events.size() >= 2);
+        SynthonDownsamplingRequest.ProgressEvent first = events.get(0);
+        SynthonDownsamplingRequest.ProgressEvent last = events.get(events.size() - 1);
+        assertEquals("benzoimidazole_b-8", first.getReactionId());
+        assertEquals(1, first.getFragmentIndex());
+        assertEquals(0, first.getProcessedSynthons());
+        assertFalse(first.isCompleted());
+        assertEquals(rawSynthons.size(), last.getProcessedSynthons());
+        assertEquals(rawSynthons.size(), last.getTotalSynthons());
+        assertEquals(result.getRetainedSize(), last.getCenterCount());
+        assertEquals(4, last.getEffectiveMaxCenters());
+        assertTrue(last.isCompleted());
+        events.forEach(event -> assertTrue(event.getCenterCount() <= event.getEffectiveMaxCenters()));
     }
 
     private SynthonSpace loadToySpace(String resource, Set<String> allowedReactions) throws Exception {

@@ -179,7 +179,7 @@ public class SynthonLocalOptimizerCLI {
         options.addOption(Option.builder().longOpt("seed").hasArg()
                 .desc("Random seed").build());
         options.addOption(Option.builder().longOpt("log").hasArg()
-                .desc("Log level: NONE, IMPROVEMENTS, VERBOSE").build());
+                .desc("Log level: NONE, SUMMARY, IMPROVEMENTS, VERBOSE").build());
         options.addOption(Option.builder().longOpt("seedThreads").hasArg()
                 .desc("Number of parallel seed optimizations").build());
         return options;

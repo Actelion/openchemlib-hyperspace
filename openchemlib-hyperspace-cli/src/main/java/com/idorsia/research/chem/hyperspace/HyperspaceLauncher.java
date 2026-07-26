@@ -2,6 +2,7 @@ package com.idorsia.research.chem.hyperspace;
 
 import com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceBuildCLI;
 import com.idorsia.research.chem.hyperspace.cli.ChEMBLSynthonSpaceMinerCLI;
+import com.idorsia.research.chem.hyperspace.cli.ChEMBLSynthonSpaceExpansionCLI;
 import com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceImportCLI;
 import com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceProcessorCLI;
 import com.idorsia.research.chem.hyperspace.gui.HyperspaceSearchGUI;
@@ -43,6 +44,9 @@ public class HyperspaceLauncher {
         }
         else if(args[0].equalsIgnoreCase("MINECHEMBLSPACE")) {
             ChEMBLSynthonSpaceMinerCLI.main(args2);
+        }
+        else if(args[0].equalsIgnoreCase("EXPANDCHEMBLSPACE")) {
+            ChEMBLSynthonSpaceExpansionCLI.main(args2);
         }
         else if(args[0].equalsIgnoreCase("CONTINUOUSSCREENING")) {
             com.idorsia.research.chem.hyperspace.cli.ContinuousScreeningCLI.main(args2);

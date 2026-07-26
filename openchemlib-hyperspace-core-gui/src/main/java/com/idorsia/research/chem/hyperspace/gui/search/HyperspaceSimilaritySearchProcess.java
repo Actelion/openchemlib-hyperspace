@@ -90,7 +90,7 @@ public class HyperspaceSimilaritySearchProcess extends AbstractHyperspaceSearchP
 
             CachedDescriptorProvider cdp = new CachedDescriptorProvider("FragFp");
             SynthonSimilaritySpaceExplorer3 explorer = new SynthonSimilaritySpaceExplorer3(space3,cdp);
-            SynthonSimilaritySpaceExplorer3.SimilaritySearchConfig3 search_config = new SynthonSimilaritySpaceExplorer3.SimilaritySearchConfig3(number_of_threads,3 ,3 ,0.8 ,4000);
+            SynthonSimilaritySpaceExplorer3.SimilaritySearchConfig3 search_config = new SynthonSimilaritySpaceExplorer3.SimilaritySearchConfig3(number_of_threads,3 ,3 ,0.8 ,4000, 10_000);
 
             Consumer<Double> f_progress = new Consumer<Double>() {
                 @Override

@@ -179,11 +179,25 @@ public class SynthonSimilaritySpaceExplorer3 {
         public final SynthonSimilaritySpace3.TopoConstraints topo_constraints;
 
         public final int max_hits_per_split_level;
+        public final int max_cut_combinations_per_split_level;
 
         public SimilaritySearchConfig3(int threads,
                                        int max_splits, int max_fragments,
                                        double initial_tanimoto,
                                        int max_hits_per_split_level) {
+            this(threads,
+                    max_splits,
+                    max_fragments,
+                    initial_tanimoto,
+                    max_hits_per_split_level,
+                    Integer.MAX_VALUE);
+        }
+
+        public SimilaritySearchConfig3(int threads,
+                                       int max_splits, int max_fragments,
+                                       double initial_tanimoto,
+                                       int max_hits_per_split_level,
+                                       int max_cut_combinations_per_split_level) {
             this.num_threads = threads;
 
             this.max_splits = max_splits;
@@ -193,6 +207,7 @@ public class SynthonSimilaritySpaceExplorer3 {
             // load default
             this.topo_constraints = new SynthonSimilaritySpace3.TopoConstraints();
             this.max_hits_per_split_level = max_hits_per_split_level;
+            this.max_cut_combinations_per_split_level = max_cut_combinations_per_split_level;
         }
     }
 
@@ -360,10 +375,14 @@ public class SynthonSimilaritySpaceExplorer3 {
             splits.add(new int[0]);
         }
         else {
-            List<int[]> combi_list = CombinationGenerator.getAllOutOf(nb, num_splits);
-            // !! returns null if b > a..
-            if(combi_list==null) { return new ArrayList<>(); }
-            splits = combi_list.stream().filter(ci -> ci.length == num_splits).collect(Collectors.toList());
+            splits = generateCutCombinations(nb, num_splits, config.max_cut_combinations_per_split_level);
+            long totalCutCombinations = countCombinations(nb, num_splits);
+            if(totalCutCombinations > splits.size() && LOG_LEVEL_SEARCH > 0) {
+                System.out.println("[INFO] Cut combinations truncated for split level " + num_splits
+                        + ": generated " + splits.size()
+                        + " of " + formatCombinationCount(totalCutCombinations)
+                        + " combinations (query bonds=" + nb + ")");
+            }
         }
 
         List<SynthonShredder.SplitResult> labeled_splits = Collections.synchronizedList(new ArrayList<>());
@@ -777,6 +796,70 @@ public class SynthonSimilaritySpaceExplorer3 {
 
         System.out.println("mkay.. :) assembly candidates: "+assemblies.size());
         return unique_assemblies;
+    }
+
+    static List<int[]> generateCutCombinations(int bonds, int cuts, int maxCombinations) {
+        List<int[]> combinations = new ArrayList<>();
+        if(cuts < 0 || bonds < 0 || cuts > bonds || maxCombinations <= 0) {
+            return combinations;
+        }
+        if(cuts == 0) {
+            combinations.add(new int[0]);
+            return combinations;
+        }
+        generateCutCombinationsRecursive(bonds, cuts, 0, 0, new int[cuts], maxCombinations, combinations);
+        return combinations;
+    }
+
+    private static void generateCutCombinationsRecursive(int bonds,
+                                                         int cuts,
+                                                         int depth,
+                                                         int start,
+                                                         int[] current,
+                                                         int maxCombinations,
+                                                         List<int[]> combinations) {
+        if(combinations.size() >= maxCombinations) {
+            return;
+        }
+        if(depth == cuts) {
+            combinations.add(Arrays.copyOf(current, current.length));
+            return;
+        }
+        int remaining = cuts - depth - 1;
+        for(int bond = start; bond < bonds - remaining; bond++) {
+            current[depth] = bond;
+            generateCutCombinationsRecursive(bonds, cuts, depth + 1, bond + 1, current, maxCombinations, combinations);
+            if(combinations.size() >= maxCombinations) {
+                return;
+            }
+        }
+    }
+
+    static long countCombinations(int n, int k) {
+        if(k < 0 || n < 0 || k > n) {
+            return 0L;
+        }
+        if(k == 0 || k == n) {
+            return 1L;
+        }
+        int effectiveK = Math.min(k, n - k);
+        long result = 1L;
+        for(int i = 1; i <= effectiveK; i++) {
+            int factor = n - effectiveK + i;
+            if(result > Long.MAX_VALUE / factor) {
+                return Long.MAX_VALUE;
+            }
+            result *= factor;
+            result /= i;
+        }
+        return result;
+    }
+
+    private static String formatCombinationCount(long count) {
+        if(count == Long.MAX_VALUE) {
+            return "more than " + Long.MAX_VALUE;
+        }
+        return Long.toString(count);
     }
 
     /**

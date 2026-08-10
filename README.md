@@ -182,6 +182,8 @@ java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
 
 The CLI now accepts a single JSON config file (`<config.json>` or `--config <config.json>`). Use [`continuous-screening-config.example.json`](continuous-screening-config.example.json) as template.
 
+For a fuller getting-started guide to the JSON options, thresholds, logging, runtime limits, and output columns, see [`CONTINUOUS_SCREENING_CONFIG.md`](CONTINUOUS_SCREENING_CONFIG.md).
+
 The JSON is grouped by pipeline step:
 - `inputs` + query source: full/downsampled raw space paths and either inline `query` or external `queryFile`
 - `sampling`: candidate generation and filtering knobs

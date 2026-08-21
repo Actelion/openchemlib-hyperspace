@@ -1,0 +1,183 @@
+{
+  "artifactType": "deepspace7-feature-schema",
+  "atom": {
+    "binaryTargets": [
+      "aromatic",
+      "in_ring",
+      "small_ring",
+      "large_ring"
+    ],
+    "chiralityClasses": [
+      "NONE",
+      "R",
+      "S",
+      "OTHER"
+    ],
+    "deploymentPharmacophorePolicy": {
+      "note": "Temporary V3 compatibility channels; the original 50 atom channels remain strict-parity.",
+      "provider": "openchemlib_native",
+      "strictParityRequired": false
+    },
+    "elementClasses": [
+      "PAD",
+      "UNK",
+      "B",
+      "C",
+      "N",
+      "O",
+      "F",
+      "Si",
+      "P",
+      "S",
+      "Cl",
+      "Br",
+      "I"
+    ],
+    "formalChargeClasses": [
+      -3,
+      -2,
+      -1,
+      0,
+      1,
+      2,
+      3,
+      "OTHER"
+    ],
+    "hybridizationClasses": [
+      "SP",
+      "SP2",
+      "SP3",
+      "SP3D",
+      "SP3D2",
+      "OTHER"
+    ],
+    "normalizedScalars": {
+      "degreeDivisor": 4.0,
+      "totalHydrogenDivisor": 4.0,
+      "totalValenceDivisor": 6.0
+    },
+    "pharmacophoreFeatures": [
+      "donor",
+      "acceptor",
+      "positive_ionizable",
+      "negative_ionizable",
+      "aromatic",
+      "hydrophobic"
+    ],
+    "pharmacophoreProvider": {
+      "definition_file": "BaseFeatures.fdef",
+      "definition_sha256": "766f9790513f8f94c67ec6d1c8b6d5bede59b81f6da8c2081f57e49fb28d9784",
+      "features": [
+        "donor",
+        "acceptor",
+        "positive_ionizable",
+        "negative_ionizable",
+        "aromatic",
+        "hydrophobic"
+      ],
+      "hydrophobic_families": [
+        "Hydrophobe",
+        "LumpedHydrophobe"
+      ],
+      "multi_atom_policy": "mark_all_member_atoms",
+      "provider": "rdkit_base_features",
+      "rdkit_version": "2026.03.5"
+    },
+    "ringCountClasses": [
+      0,
+      1,
+      2,
+      ">=3"
+    ],
+    "ringSizeClasses": [
+      "NONE",
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      ">8"
+    ]
+  },
+  "atomFeatureDim": 56,
+  "filters": {
+    "allowAtomMaps": false,
+    "allowIsotopes": false,
+    "allowRadicals": false,
+    "allowedElements": [
+      "B",
+      "C",
+      "N",
+      "O",
+      "F",
+      "Si",
+      "P",
+      "S",
+      "Cl",
+      "Br",
+      "I"
+    ],
+    "explicitHydrogenPolicy": "remove",
+    "maxHeavyAtoms": 32,
+    "maxTotalFormalCharge": 2,
+    "minHeavyAtoms": 6,
+    "minTotalFormalCharge": -2,
+    "requireCarbon": true,
+    "singleFragment": true
+  },
+  "formatVersion": 1,
+  "graphFeatureContract": "deepspace7-v3",
+  "maxAtoms": 32,
+  "pair": {
+    "bondBinaryTargets": [
+      "conjugated",
+      "aromatic"
+    ],
+    "bondStereoClasses": [
+      "NONE",
+      "E",
+      "Z",
+      "CIS",
+      "TRANS",
+      "OTHER"
+    ],
+    "bondTypeClasses": [
+      "NONE",
+      "SINGLE",
+      "DOUBLE",
+      "TRIPLE",
+      "AROMATIC"
+    ],
+    "distanceType": "topological_shortest_path",
+    "graphDistanceClasses": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      ">8"
+    ],
+    "orderedPairs": true,
+    "pairBinaryTargets": [
+      "same_ring",
+      "same_small_ring",
+      "same_large_ring"
+    ],
+    "ringSizeClasses": [
+      "NONE",
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      ">8"
+    ]
+  },
+  "pairFeatureDim": 36
+}

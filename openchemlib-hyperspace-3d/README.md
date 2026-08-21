@@ -1,0 +1,120 @@
+# Hyperspace3D
+
+Hyperspace3D is the learned, graph-only 3D screening extension for
+OpenChemLib Hyperspace. This initial module provides the deployable vertical
+slice: OCL graph featurization, batched ONNX inference, a sampled-product
+fingerprint index, streaming elite screening, and the batch contract needed
+by a later local/beam optimizer.
+
+## Data boundaries
+
+The raw synthon space remains the authoritative source of reactions,
+synthon sets, IDs, and structures. SkelSpheres downsampling/neighbor data
+remains a separate layer used to choose representatives and local
+substitutions. Complete sampled products and their 128D learned embeddings
+live in sharded product-index files; they are never added to rawspace JSON.
+
+## Selected model
+
+The deployed model is the original compact Deepspace7 V1 similarity
+architecture: the protected six-layer chemistry/geometry trunk (node latent
+16, pair latent 14) followed by the graph-only, node-pair, normalized 128D
+molecular encoder and the trained symmetric comparator (token hidden 64,
+pair-comparison hidden 128). Inference uses no conformer, physical
+coordinates, query-pose distance matrix, reconstruction heads, or loss code.
+
+Following the corrected deployment decision, the current graph input is the
+V3 contract:
+
+* atom tensor: float32 `[B,32,56]`
+* ordered pair tensor: float32 `[B,32,32,36]`
+* atom mask: bool `[B,32]`
+
+The first 50 atom channels and all 36 pair channels have strict
+Python/RDKit golden-fixture parity. The final six atom channels are the
+temporary pharmacophore compatibility channels (donor, acceptor, positive,
+negative, aromatic, hydrophobic). They deliberately use native OCL PheSA
+perception and are not required to exactly match RDKit.
+
+## Model bundle
+
+The canonical model used by this initial vertical slice is included at
+`model-bundles/deepspace7-v1`:
+
+```text
+model-bundles/deepspace7-v1/
+  manifest.json
+  feature-schema.json
+  encoder.onnx
+  comparator.onnx
+  checksums.sha256
+  verification.json
+```
+
+The original training checkpoints and optimizer state are not included.
+Future or substantially larger production bundles should remain external and
+use the same versioned directory contract.
+
+The loader verifies the manifest contract and SHA-256 hashes before opening
+sessions. CPU and CUDA selection is explicit; a CUDA request fails if the
+CUDA provider is unavailable. The default Maven dependency is CPU ONNX
+Runtime. Build with `-Pcuda` for `onnxruntime_gpu`. Packaging is a normal
+thin JAR plus `target/lib`, avoiding native-resource risks from shading.
+
+The comparator preserves manifest target order:
+`ffp_similarity`, `skelspheres_similarity`, `flexophore_similarity`,
+`phesa_total`, `phesa_pharmacophore`, and `phesa_shape`.
+`phesaPpWeight` is read from the bundle and is not treated as a universal
+constant.
+
+## Search flow
+
+The query is featurized and encoded once. `FingerprintIndexScreener`
+streams product embeddings in large batches, performs exact tuple
+deduplication, and retains global and per-reaction top K results.
+`phesa_total` can be selected directly; shape/pharmacophore composites are
+explicitly separate objectives.
+
+`BatchAssemblyScorer` establishes the later online search boundary. Its
+initial implementation deduplicates tuples, assembles with the existing
+`SynthonAssembler`, applies deterministic feature filters, batches the
+encoder/comparator, routes results by stable candidate ID, and caches
+embeddings per run. A production beam coordinator can add bounded CPU
+workers, a shared bounded GPU queue, backpressure, and neighbor proposals
+without replacing these interfaces. Exact PheSA, conformer generation,
+force-field work, and ligand preparation remain downstream cluster jobs.
+
+Candidate archives are streaming JSON Lines records with tuple identity,
+total/shape/pharmacophore predictions, source, basin, round, bundle hash,
+and query provenance.
+
+## Build and verification
+
+```bash
+mvn -pl openchemlib-hyperspace-3d -am package -Dmaven.test.skip=true
+mvn -pl openchemlib-hyperspace-3d test
+mvn -pl openchemlib-hyperspace-3d test \
+  -Dhyperspace3d.modelBundle=/path/to/deepspace7-v1
+```
+
+The final command enables Java ONNX/Python golden parity. Python export lives
+in the sibling Deepspace7 repository:
+
+```bash
+python -m deepspace7.scripts.export_compact_v1_onnx \
+  --foundation-checkpoint /path/to/selected.pt \
+  --predictor-checkpoint /path/to/best.pt \
+  --output-dir /path/to/deepspace7-v1 \
+  --golden-fixture /path/to/golden.json.gz
+```
+
+The benchmark harness can be run from the packaged module:
+
+```bash
+java -cp 'target/classes:target/lib/*' \
+  com.idorsia.research.chem.hyperspace3d.benchmark.Hyperspace3DMicrobenchmark \
+  /path/to/deepspace7-v1
+```
+
+These are first-order microbenchmarks, not JMH results. CPU preparation and
+ONNX inference are reported separately.

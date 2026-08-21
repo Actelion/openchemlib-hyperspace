@@ -1,0 +1,39 @@
+{
+  "architecture": "compact_graph_v1",
+  "artifactType": "deepspace7-v1-onnx-bundle",
+  "atomFeatureDim": 56,
+  "availableTargets": [
+    "ffp_similarity",
+    "skelspheres_similarity",
+    "flexophore_similarity",
+    "phesa_total",
+    "phesa_pharmacophore",
+    "phesa_shape"
+  ],
+  "comparatorSha256": "b0d38556eec8232d07a015a3817b86a7002cc2cc93271d1dc59d9138342ac00e",
+  "embeddingDim": 128,
+  "encoderSha256": "4666e6731960d02fb51ff6c3381a41d11dc93eda4512093bb62b333a49b5767e",
+  "exporterGitCommit": "ba0e4b9b878b0f7df591ffe280cfc232f1558ca0",
+  "featureSchemaSha256": "20e32c02fde179f0459fb52c358c142cec236a536e3ad867a09ad07a59f232f2",
+  "formatVersion": 1,
+  "foundationArchitecture": "integrated_chemistry_geometry_v3",
+  "foundationCheckpointSha256": "cca71266e4596cbf9b9607b536acbcd712bf8dc12c38985a4cf62c7adcf791d4",
+  "graphFeatureContract": "deepspace7-v3",
+  "maxAtoms": 32,
+  "modelVersion": "deepspace7-v1-v3graph",
+  "nodeLatentDim": 16,
+  "onnxOpset": 17,
+  "pairComparisonHiddenDim": 128,
+  "pairFeatureDim": 36,
+  "pairLatentDim": 14,
+  "pharmacophoreAtomFeatures": true,
+  "phesaPpWeight": 0.5,
+  "predictorCheckpointSha256": "64841020d569e0661ae35641e454d51e6ab224a33c354308b0511c1313e7d072",
+  "representation": "node_pair",
+  "source": {
+    "foundationEpoch": 29,
+    "predictorBestEpoch": 23
+  },
+  "tokenHiddenDim": 64,
+  "trainingGitCommit": "fd70bbbaf0f3f500e0e440bfe7625ee77fb0e4b8"
+}

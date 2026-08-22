@@ -118,3 +118,45 @@ java -cp 'target/classes:target/lib/*' \
 
 These are first-order microbenchmarks, not JMH results. CPU preparation and
 ONNX inference are reported separately.
+
+## Building a sampled product fingerprint index
+
+`ProductFingerprintIndexBuilder` creates the persistent data consumed by
+`FingerprintIndexScreener`. It is query-independent: sampled products are
+assembled from the downsampled representative synthon sets, featurized on CPU,
+and encoded once into 128D vectors. The full rawspace remains authoritative for
+structures and zero-based synthon ordinals.
+
+Sampling is deterministic and without replacement inside each reaction. The
+builder first attempts the configured minimum accepted coverage per reaction,
+then fills the global record target using either the existing `EXPONENT` or
+`BUCKETED_PRODUCT` reaction weighting. Rejected assemblies are counted by
+stable reason and are not written.
+
+Copy and edit `product-fingerprint-index-build.example.json`. All relative paths
+are resolved against that JSON file. Build the normal JAR/lib-directory
+distribution and run:
+
+```bash
+mvn -pl openchemlib-hyperspace-3d -am package -Dmaven.test.skip=true
+java -cp 'openchemlib-hyperspace-3d/target/classes:openchemlib-hyperspace-3d/target/lib/*' \
+  com.idorsia.research.chem.hyperspace3d.cli.ProductFingerprintIndexBuilderCLI \
+  --config openchemlib-hyperspace-3d/product-fingerprint-index-build.example.json
+```
+
+Use `-Pcuda` while packaging when the JSON selects `CUDA`. CUDA requests never
+fall back silently to CPU. Omitted encoder batch sizes default to 64 on CPU and
+512 on CUDA.
+
+An output directory contains `shard-NNNNN.h3di`, `build-state.json`, and, after
+successful completion, `manifest.json`. Each shard is written to a temporary
+file, SHA-256 checked, and committed with its checkpoint using atomic moves.
+Interrupted runs resume at the last committed shard when `output.resume` is
+true. Input, model, semantic configuration, and existing shard hashes must all
+match; unrelated output is never overwritten.
+
+The manifest records rawspace/downsampled hashes, model-bundle hash, sampling
+algorithm and seed, reaction weighting, filters, shard metadata, rejection
+counts, and separate CPU preparation, tensor packing, ONNX, writing, and
+hashing timings. A typical float32 shard with one million records is roughly
+0.5 GB plus tuple metadata.

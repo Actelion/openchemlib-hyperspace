@@ -29,8 +29,12 @@ public final class Hyperspace3DMicrobenchmark {
                 () -> SynthonAssembler.assembleSynthons_faster(List.of(molecule)));
         double features = measure(iterations, () -> featurizer.featurize(molecule));
         List<StereoMolecule> batchMolecules = new ArrayList<>();
-        for (int i = 0; i < 64; i++) batchMolecules.add(molecule);
-        double packing = measure(iterations, () -> builder.build(batchMolecules));
+        List<FeaturizationResult> batchFeatures = new ArrayList<>();
+        for (int i = 0; i < 64; i++) {
+            batchMolecules.add(molecule);
+            batchFeatures.add(featurizer.featurize(molecule));
+        }
+        double packing = measure(iterations, () -> builder.buildFromFeatures(batchFeatures));
 
         DeepSpaceModelBundle bundle = DeepSpaceModelBundle.load(Path.of(args[0]));
         DeepSpaceOnnxEnvironment runtime =

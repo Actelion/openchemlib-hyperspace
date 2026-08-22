@@ -33,6 +33,8 @@ public final class ProductFingerprintIndexWriter implements Closeable {
 
     public long recordCount() { return recordCount; }
 
+    public void flush() throws IOException { output.flush(); }
+
     public static void writeManifest(Path path, ProductFingerprintIndexManifest manifest) throws IOException {
         manifest.validate();
         new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(path.toFile(), manifest);

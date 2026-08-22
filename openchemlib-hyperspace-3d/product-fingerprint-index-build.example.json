@@ -1,0 +1,42 @@
+{
+  "formatVersion": 1,
+  "inputs": {
+    "rawFull": "../realspace_2024.rawspace.gz",
+    "rawDownsampled": "../realspace_2024_downsampled.rawspace.gz",
+    "modelBundle": "model-bundles/deepspace7-v1"
+  },
+  "output": {
+    "directory": "product-index-realspace-2024",
+    "targetRecordCount": 5000000,
+    "recordsPerShard": 1000000,
+    "resume": true
+  },
+  "sampling": {
+    "seed": 13,
+    "minimumAcceptedPerReaction": 1,
+    "coverageAttemptsPerReaction": 100,
+    "maxAttemptsMultiplier": 20,
+    "reactionWeighting": {
+      "mode": "BUCKETED_PRODUCT",
+      "buckets": [
+        { "maxProductExclusive": 2000, "weight": 0.01 },
+        { "maxProductExclusive": 50000, "weight": 0.1 },
+        { "maxProductExclusive": 750000, "weight": 0.5 },
+        { "weight": 5.0 }
+      ]
+    }
+  },
+  "filters": {
+    "minHeavyAtoms": 6,
+    "maxHeavyAtoms": 32,
+    "maxRotatableBonds": 15
+  },
+  "runtime": {
+    "device": "CUDA",
+    "cudaDeviceId": 0,
+    "cpuWorkers": 12,
+    "encoderBatchSize": 512,
+    "queueCapacity": 4,
+    "progressIntervalSeconds": 30
+  }
+}

@@ -19,6 +19,8 @@ public final class ProductFingerprintIndexManifest {
     public int embeddingDimension = 128;
     public long recordCount;
     public List<ProductFingerprintIndexShard> shards;
+    public String buildConfigurationHash;
+    public Map<String, Object> buildStatistics;
 
     public void validate() {
         if (!"hyperspace3d-product-fingerprint-index".equals(artifactType) || formatVersion != 1
@@ -29,6 +31,11 @@ public final class ProductFingerprintIndexManifest {
                 || reactionWeightConfiguration == null || molecularFilters == null
                 || shards == null || recordCount < 0) {
             throw new IllegalArgumentException("incomplete or incompatible product-index manifest");
+        }
+        if (shards.stream().anyMatch(shard -> shard == null || shard.path() == null
+                || shard.path().isBlank() || shard.recordCount() <= 0
+                || shard.sha256() == null || !shard.sha256().matches("[0-9a-f]{64}"))) {
+            throw new IllegalArgumentException("invalid product-index shard metadata");
         }
         long shardRecords = shards.stream().mapToLong(ProductFingerprintIndexShard::recordCount).sum();
         if (shardRecords != recordCount) throw new IllegalArgumentException("shard record count mismatch");

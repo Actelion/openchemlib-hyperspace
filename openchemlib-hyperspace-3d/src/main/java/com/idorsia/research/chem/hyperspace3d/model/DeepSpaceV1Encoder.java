@@ -9,7 +9,7 @@ import java.nio.FloatBuffer;
 import java.util.Map;
 import java.util.Set;
 
-public final class DeepSpaceV1Encoder implements AutoCloseable {
+public final class DeepSpaceV1Encoder implements ProductEmbeddingBatchEncoder, AutoCloseable {
     private final DeepSpaceOnnxEnvironment runtime;
     private final OrtSession session;
 
@@ -24,6 +24,7 @@ public final class DeepSpaceV1Encoder implements AutoCloseable {
         OnnxContract.requireOutput(session, "embedding", ai.onnxruntime.OnnxJavaType.FLOAT, 128);
     }
 
+    @Override
     public synchronized float[][] encode(DeepSpaceTensorBatch batch) {
         int b = batch.batchSize();
         int n = DeepSpaceFeatureSchema.MAX_ATOMS;

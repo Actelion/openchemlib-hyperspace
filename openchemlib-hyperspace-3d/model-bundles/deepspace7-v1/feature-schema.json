@@ -13,11 +13,6 @@
       "S",
       "OTHER"
     ],
-    "deploymentPharmacophorePolicy": {
-      "note": "Temporary V3 compatibility channels; the original 50 atom channels remain strict-parity.",
-      "provider": "openchemlib_native",
-      "strictParityRequired": false
-    },
     "elementClasses": [
       "PAD",
       "UNK",
@@ -56,33 +51,7 @@
       "totalHydrogenDivisor": 4.0,
       "totalValenceDivisor": 6.0
     },
-    "pharmacophoreFeatures": [
-      "donor",
-      "acceptor",
-      "positive_ionizable",
-      "negative_ionizable",
-      "aromatic",
-      "hydrophobic"
-    ],
-    "pharmacophoreProvider": {
-      "definition_file": "BaseFeatures.fdef",
-      "definition_sha256": "766f9790513f8f94c67ec6d1c8b6d5bede59b81f6da8c2081f57e49fb28d9784",
-      "features": [
-        "donor",
-        "acceptor",
-        "positive_ionizable",
-        "negative_ionizable",
-        "aromatic",
-        "hydrophobic"
-      ],
-      "hydrophobic_families": [
-        "Hydrophobe",
-        "LumpedHydrophobe"
-      ],
-      "multi_atom_policy": "mark_all_member_atoms",
-      "provider": "rdkit_base_features",
-      "rdkit_version": "2026.03.5"
-    },
+    "pharmacophoreFeatures": [],
     "ringCountClasses": [
       0,
       1,
@@ -100,7 +69,7 @@
       ">8"
     ]
   },
-  "atomFeatureDim": 56,
+  "atomFeatureDim": 50,
   "filters": {
     "allowAtomMaps": false,
     "allowIsotopes": false,
@@ -127,7 +96,7 @@
     "singleFragment": true
   },
   "formatVersion": 1,
-  "graphFeatureContract": "deepspace7-v3",
+  "graphFeatureContract": "deepspace7-v2",
   "maxAtoms": 32,
   "pair": {
     "bondBinaryTargets": [

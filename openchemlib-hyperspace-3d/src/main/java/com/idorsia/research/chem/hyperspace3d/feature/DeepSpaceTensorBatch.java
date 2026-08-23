@@ -15,7 +15,7 @@ public final class DeepSpaceTensorBatch {
                 || atomFeatures.length != batchSize * atoms * DeepSpaceFeatureSchema.ATOM_FEATURE_DIM
                 || pairFeatures.length != batchSize * atoms * atoms * DeepSpaceFeatureSchema.PAIR_FEATURE_DIM
                 || atomMask.length != batchSize * atoms) {
-            throw new IllegalArgumentException("tensor dimensions do not match the 56/36/32 contract");
+            throw new IllegalArgumentException("tensor dimensions do not match the 50/36/32 contract");
         }
         this.batchSize = batchSize;
         this.atomFeatures = atomFeatures;

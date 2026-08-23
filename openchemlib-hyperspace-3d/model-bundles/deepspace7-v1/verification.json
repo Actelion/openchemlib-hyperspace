@@ -2,23 +2,23 @@
   "batches": [
     {
       "batchSize": 1,
-      "embeddingMaxAbsError": 1.4901161193847656e-07,
+      "embeddingMaxAbsError": 1.6391277313232422e-07,
       "scoreMaxAbsError": 5.960464477539063e-08
     },
     {
       "batchSize": 7,
-      "embeddingMaxAbsError": 3.8743019104003906e-07,
+      "embeddingMaxAbsError": 3.5762786865234375e-07,
       "scoreMaxAbsError": 1.1920928955078125e-07
     },
     {
       "batchSize": 256,
-      "embeddingMaxAbsError": 3.8743019104003906e-07,
-      "scoreMaxAbsError": 1.1920928955078125e-07
+      "embeddingMaxAbsError": 4.917383193969727e-07,
+      "scoreMaxAbsError": 1.7881393432617188e-07
     },
     {
       "batchSize": 1024,
-      "embeddingMaxAbsError": 4.172325134277344e-07,
-      "scoreMaxAbsError": 1.1920928955078125e-07
+      "embeddingMaxAbsError": 4.917383193969727e-07,
+      "scoreMaxAbsError": 1.7881393432617188e-07
     }
   ],
   "provider": "CPUExecutionProvider"

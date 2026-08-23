@@ -20,17 +20,17 @@ class JavaOnnxParityTest {
                 "set -Dhyperspace3d.modelBundle to run ONNX integration parity");
         JsonNode fixture;
         try (InputStream resource = getClass().getResourceAsStream(
-                "/com/idorsia/research/chem/hyperspace3d/deepspace7-v1-v3graph-golden.json.gz")) {
+                "/com/idorsia/research/chem/hyperspace3d/deepspace7-v1-v2graph-golden.json.gz")) {
             fixture = new ObjectMapper().readTree(new GZIPInputStream(resource));
         }
         List<JsonNode> records = new ArrayList<>();
         fixture.get("records").forEach(record -> { if (!record.has("rejection")) records.add(record); });
         int batch = records.size();
-        float[] atom = new float[batch * 32 * 56];
+        float[] atom = new float[batch * 32 * 50];
         float[] pair = new float[batch * 32 * 32 * 36];
         boolean[] mask = new boolean[batch * 32];
         for (int b = 0; b < batch; b++) {
-            copyFloats(records.get(b).get("atomX"), atom, b * 32 * 56);
+            copyFloats(records.get(b).get("atomX"), atom, b * 32 * 50);
             copyFloats(records.get(b).get("pairX"), pair, b * 32 * 32 * 36);
             for (int i = 0; i < 32; i++) mask[b * 32 + i] = records.get(b).get("atomMask").get(i).asBoolean();
         }
@@ -48,7 +48,7 @@ class JavaOnnxParityTest {
                 assertVector(records.get(b).get("scoresAgainstFirst"), scores[b], 1e-5f);
             }
             DeepSpaceTensorBatch one = new DeepSpaceTensorBatch(1,
-                    java.util.Arrays.copyOfRange(atom, 0, 32 * 56),
+                    java.util.Arrays.copyOfRange(atom, 0, 32 * 50),
                     java.util.Arrays.copyOfRange(pair, 0, 32 * 32 * 36),
                     java.util.Arrays.copyOfRange(mask, 0, 32));
             assertArrayEquals(embeddings[0], encoder.encode(one)[0], 1e-5f);
@@ -62,13 +62,13 @@ class JavaOnnxParityTest {
     }
 
     private static DeepSpaceTensorBatch reverseAtomOrder(DeepSpaceTensorBatch source) {
-        float[] atom = new float[32 * 56];
+        float[] atom = new float[32 * 50];
         float[] pair = new float[32 * 32 * 36];
         boolean[] mask = new boolean[32];
         for (int a = 0; a < 32; a++) {
             int oldA = 31 - a;
             mask[a] = source.atomMask()[oldA];
-            System.arraycopy(source.atomFeatures(), oldA * 56, atom, a * 56, 56);
+            System.arraycopy(source.atomFeatures(), oldA * 50, atom, a * 50, 50);
             for (int b = 0; b < 32; b++) {
                 int oldB = 31 - b;
                 System.arraycopy(source.pairFeatures(),

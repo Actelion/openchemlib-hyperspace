@@ -23,18 +23,20 @@ molecular encoder and the trained symmetric comparator (token hidden 64,
 pair-comparison hidden 128). Inference uses no conformer, physical
 coordinates, query-pose distance matrix, reconstruction heads, or loss code.
 
-Following the corrected deployment decision, the current graph input is the
-V3 contract:
+The primary model now uses the final 50D Deepspace7 V2 graph contract:
 
-* atom tensor: float32 `[B,32,56]`
+* atom tensor: float32 `[B,32,50]`
 * ordered pair tensor: float32 `[B,32,32,36]`
 * atom mask: bool `[B,32]`
 
-The first 50 atom channels and all 36 pair channels have strict
-Python/RDKit golden-fixture parity. The final six atom channels are the
-temporary pharmacophore compatibility channels (donor, acceptor, positive,
-negative, aromatic, hydrophobic). They deliberately use native OCL PheSA
-perception and are not required to exactly match RDKit.
+All 50 atom channels and all 36 pair channels are checked against the
+Python/RDKit golden fixture. Pharmacophore labels remain output supervision
+for the protected trunk; they are not molecular graph inputs.
+
+The bundled deployment uses the final `publication_v2_50d_ppaux_w025_2026`
+foundation (epoch 29, pharmacophore auxiliary loss weight 0.25) and the canonical
+balanced `wpp050_seed17_d128` similarity predictor (epoch 26, PheSA PP weight
+0.5). These are separate training weights and both are recorded in the bundle.
 
 ## Model bundle
 

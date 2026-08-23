@@ -33,14 +33,14 @@ public final class DeepSpaceModelManifest {
         require("deepspace7-v1-onnx-bundle".equals(artifactType), "unsupported artifactType");
         require(formatVersion == 1, "unsupported formatVersion");
         require("compact_graph_v1".equals(architecture), "unsupported architecture");
-        require("deepspace7-v3".equals(graphFeatureContract), "unsupported graphFeatureContract");
-        require(maxAtoms == 32 && atomFeatureDim == 56 && pairFeatureDim == 36,
+        require("deepspace7-v2".equals(graphFeatureContract), "unsupported graphFeatureContract");
+        require(maxAtoms == 32 && atomFeatureDim == 50 && pairFeatureDim == 36,
                 "incompatible graph tensor dimensions");
         require(nodeLatentDim == 16 && pairLatentDim == 14 && embeddingDim == 128,
                 "incompatible latent dimensions");
         require(tokenHiddenDim == 64 && pairComparisonHiddenDim == 128,
                 "incompatible compact V1 hidden dimensions");
-        require(pharmacophoreAtomFeatures, "V3 pharmacophore inputs must be enabled");
+        require(!pharmacophoreAtomFeatures, "pharmacophore atom inputs must be disabled");
         require("node_pair".equals(representation), "unsupported representation");
         List<String> expected = List.of("ffp_similarity", "skelspheres_similarity",
                 "flexophore_similarity", "phesa_total", "phesa_pharmacophore", "phesa_shape");

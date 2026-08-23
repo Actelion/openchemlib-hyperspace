@@ -3,18 +3,10 @@ package com.idorsia.research.chem.hyperspace3d.feature;
 import com.actelion.research.chem.Molecule;
 import com.actelion.research.chem.RingCollection;
 import com.actelion.research.chem.StereoMolecule;
-import com.actelion.research.chem.phesa.pharmacophore.PharmacophoreCalculator;
-import com.actelion.research.chem.phesa.pharmacophore.pp.IPharmacophorePoint;
 import java.util.ArrayDeque;
 import java.util.Arrays;
-import java.util.List;
 
-/**
- * OCL-native implementation of the Deepspace7 V3 graph contract. Channels
- * 0..49 and all pair channels follow the V2 contract. Channels 50..55 use
- * OCL's native pharmacophore perception as an intentionally non-strict,
- * temporary V3 compatibility shim.
- */
+/** OCL-native implementation of the Deepspace7 V2 50D graph contract. */
 public final class OCLDeepSpaceFeaturizer {
     private static final int N = DeepSpaceFeatureSchema.MAX_ATOMS;
     private static final int AD = DeepSpaceFeatureSchema.ATOM_FEATURE_DIM;
@@ -34,9 +26,8 @@ public final class OCLDeepSpaceFeaturizer {
         Arrays.fill(mask, 0, atomCount, true);
 
         RingInfo rings = RingInfo.of(mol);
-        boolean[][] pharmacophore = pharmacophoreFlags(mol, atomCount);
         for (int a = 0; a < atomCount; a++) {
-            encodeAtom(mol, rings, pharmacophore, a, atom);
+            encodeAtom(mol, rings, a, atom);
         }
         int[][] distances = graphDistances(mol, atomCount);
         for (int a = 0; a < atomCount; a++) {
@@ -100,7 +91,7 @@ public final class OCLDeepSpaceFeaturizer {
     }
 
     private static void encodeAtom(StereoMolecule mol, RingInfo rings,
-                                   boolean[][] pharmacophore, int a, float[] out) {
+                                   int a, float[] out) {
         int base = a * AD;
         int element = DeepSpaceFeatureSchema.ELEMENTS.indexOf(mol.getAtomicNo(a));
         out[base + 2 + element] = 1f;
@@ -118,7 +109,6 @@ public final class OCLDeepSpaceFeaturizer {
         out[base + 47] = rings.count[a] > 0 ? 1f : 0f;
         out[base + 48] = rings.small[a] ? 1f : 0f;
         out[base + 49] = rings.large[a] ? 1f : 0f;
-        for (int i = 0; i < 6; i++) out[base + 50 + i] = pharmacophore[a][i] ? 1f : 0f;
     }
 
     private static int hybridization(StereoMolecule mol, int atom) {
@@ -262,28 +252,6 @@ public final class OCLDeepSpaceFeaturizer {
             }
         }
         return result;
-    }
-
-    private static boolean[][] pharmacophoreFlags(StereoMolecule mol, int atoms) {
-        boolean[][] flags = new boolean[atoms][6];
-        List<IPharmacophorePoint> points = PharmacophoreCalculator.getPharmacophorePoints(mol);
-        for (IPharmacophorePoint point : points) {
-            int channel = switch (point.getFunctionalityIndex()) {
-                case PharmacophoreCalculator.DONOR_ID -> 0;
-                case PharmacophoreCalculator.ACCEPTOR_ID -> 1;
-                case PharmacophoreCalculator.CHARGE_POS_ID -> 2;
-                case PharmacophoreCalculator.CHARGE_NEG_ID -> 3;
-                case PharmacophoreCalculator.AROM_ID, PharmacophoreCalculator.AROM_RING_ID -> 4;
-                case PharmacophoreCalculator.LIPO_ID -> 5;
-                default -> -1;
-            };
-            if (channel >= 0) {
-                for (int atom : point.getAtomIndices()) {
-                    if (atom >= 0 && atom < atoms) flags[atom][channel] = true;
-                }
-            }
-        }
-        return flags;
     }
 
     private static final class RingInfo {

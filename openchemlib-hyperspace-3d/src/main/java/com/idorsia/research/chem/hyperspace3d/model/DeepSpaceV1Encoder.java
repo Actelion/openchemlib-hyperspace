@@ -18,7 +18,7 @@ public final class DeepSpaceV1Encoder implements ProductEmbeddingBatchEncoder, A
         this.session = runtime.open(bundle.encoderPath());
         validateNames(session.getInputNames(), Set.of("atom_x", "pair_x", "atom_mask"), "encoder inputs");
         validateNames(session.getOutputNames(), Set.of("embedding"), "encoder outputs");
-        OnnxContract.requireInput(session, "atom_x", ai.onnxruntime.OnnxJavaType.FLOAT, 32, 56);
+        OnnxContract.requireInput(session, "atom_x", ai.onnxruntime.OnnxJavaType.FLOAT, 32, DeepSpaceFeatureSchema.ATOM_FEATURE_DIM);
         OnnxContract.requireInput(session, "pair_x", ai.onnxruntime.OnnxJavaType.FLOAT, 32, 32, 36);
         OnnxContract.requireInput(session, "atom_mask", ai.onnxruntime.OnnxJavaType.BOOL, 32);
         OnnxContract.requireOutput(session, "embedding", ai.onnxruntime.OnnxJavaType.FLOAT, 128);
@@ -33,7 +33,7 @@ public final class DeepSpaceV1Encoder implements ProductEmbeddingBatchEncoder, A
             System.arraycopy(batch.atomMask(), i * n, mask[i], 0, n);
         }
         try (OnnxTensor atoms = OnnxTensor.createTensor(runtime.environment(),
-                     FloatBuffer.wrap(batch.atomFeatures()), new long[]{b, n, 56});
+                     FloatBuffer.wrap(batch.atomFeatures()), new long[]{b, n, DeepSpaceFeatureSchema.ATOM_FEATURE_DIM});
              OnnxTensor pairs = OnnxTensor.createTensor(runtime.environment(),
                      FloatBuffer.wrap(batch.pairFeatures()), new long[]{b, n, n, 36});
              OnnxTensor atomMask = OnnxTensor.createTensor(runtime.environment(), mask);

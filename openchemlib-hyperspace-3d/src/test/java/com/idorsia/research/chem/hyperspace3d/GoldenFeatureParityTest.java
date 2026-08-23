@@ -10,9 +10,9 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class GoldenFeatureParityTest {
-    @Test void strictV2ChannelsMatchPythonFixture() throws Exception {
+    @Test void v2ChannelsMatchPythonFixture() throws Exception {
         InputStream resource = getClass().getResourceAsStream(
-                "/com/idorsia/research/chem/hyperspace3d/deepspace7-v1-v3graph-golden.json.gz");
+                "/com/idorsia/research/chem/hyperspace3d/deepspace7-v1-v2graph-golden.json.gz");
         assertNotNull(resource);
         JsonNode fixture = new ObjectMapper().readTree(new GZIPInputStream(resource));
         OCLDeepSpaceFeaturizer featurizer = new OCLDeepSpaceFeaturizer();
@@ -24,7 +24,7 @@ class GoldenFeatureParityTest {
             JsonNode expectedAtom = record.get("atomX");
             for (int atom = 0; atom < 32; atom++) {
                 for (int feature = 0; feature < 50; feature++) {
-                    int index = atom * 56 + feature;
+                    int index = atom * 50 + feature;
                     assertEquals(expectedAtom.get(index).floatValue(), actual.atomFeatures()[index],
                             0f, record.get("id").asText() + " atom feature " + index);
                 }

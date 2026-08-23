@@ -1,0 +1,20 @@
+{
+  "formatVersion": 1,
+  "inputs": {
+    "rawFull": "../realspace_2024.rawspace.gz",
+    "rawDownsampled": "../realspace_2024_downsampled.rawspace.gz",
+    "modelBundle": "model-bundles/deepspace7-v1",
+    "compactBundle": "model-bundles/deepspace7-skelspheres16"
+  },
+  "output": { "directory": "../skelspheres16-index", "targetRecordCount": 1000000, "recordsPerShard": 1000000 },
+  "sampling": {
+    "seed": 17, "minimumAcceptedPerReaction": 1,
+    "coverageAttemptsPerReaction": 100, "maxAttemptsMultiplier": 20,
+    "reactionWeighting": { "mode": "EXPONENT", "minWeight": 0.01, "exponent": 1.0 }
+  },
+  "filters": { "minHeavyAtoms": 6, "maxHeavyAtoms": 32, "maxRotatableBonds": 15 },
+  "runtime": {
+    "device": "CPU", "cudaDeviceId": 0, "encoderBatchSize": 64,
+    "cpuWorkers": 8, "queueCapacity": 4, "progressIntervalSeconds": 30
+  }
+}

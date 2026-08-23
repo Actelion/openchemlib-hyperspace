@@ -162,3 +162,45 @@ algorithm and seed, reaction weighting, filters, shard metadata, rejection
 counts, and separate CPU preparation, tensor packing, ONNX, writing, and
 hashing timings. A typical float32 shard with one million records is roughly
 0.5 GB plus tuple metadata.
+
+## Learned 16D SkelSpheres search
+
+The compact 2D path projects the canonical normalized 128D embedding through
+the upstream seed-17 MLP (128 to 128 to 16) and L2 normalizes the result.
+Similarity uses the trained sigmoid calibration from the bundle manifest.
+The projection bundle is included at `model-bundles/deepspace7-skelspheres16`.
+
+Compact indices use backward-compatible format version 2; version-1 128D
+readers and files are unchanged. Each v2 shard separates sequential float16
+vectors (`.vec`), fixed reaction/tuple references (`.rows`), and variable
+synthon tuples (`.tuples`). Screening therefore reads only 32 vector bytes per
+product plus fixed row metadata and resolves tuple payloads only for retained
+global and per-reaction elites. All columns are independently checksummed and
+the manifest binds both rawspaces, both model bundles, sampling, and filters.
+
+Build directly from assembled graphs (there is no 128D-index conversion path):
+
+```bash
+java -cp 'openchemlib-hyperspace-3d/target/classes:openchemlib-hyperspace-3d/target/lib/*' \
+  com.idorsia.research.chem.hyperspace3d.cli.CompactSkelSpheresIndexBuilderCLI \
+  --config openchemlib-hyperspace-3d/compact-skelspheres-index-build.example.json
+```
+
+Run the standalone flat 2D screen:
+
+```bash
+java -cp 'openchemlib-hyperspace-3d/target/classes:openchemlib-hyperspace-3d/target/lib/*' \
+  com.idorsia.research.chem.hyperspace3d.cli.CompactSkelSpheresSearchCLI \
+  --config openchemlib-hyperspace-3d/compact-skelspheres-search.example.json
+```
+
+The query is encoded and projected once. Optional exact OCL SkelSpheres
+reranking is disabled by default; when enabled, global and per-reaction learned
+shortlists are unioned, assembled, and reranked on CPU. Hybrid 2D-to-3D search
+and ANN remain explicit future extensions.
+
+The Deepspace7 exporter is
+`python -m deepspace7.scripts.export_skelspheres16_onnx`. It rejects
+noncanonical dimensions, seed, provenance, or a failed quality gate; verifies
+ONNX Runtime against PyTorch at batch sizes 1, 7, 256, and 4096; and records
+float16 score error in `verification.json`.

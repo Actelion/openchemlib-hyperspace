@@ -1,0 +1,40 @@
+{
+  "architecture": "mlp_128_128_16_l2",
+  "artifactType": "deepspace7-skelspheres16-onnx-bundle",
+  "bestEpoch": 45,
+  "calibration": {
+    "bias": -0.5927839279174805,
+    "scale": 1.0657787322998047,
+    "type": "sigmoid_affine_cosine"
+  },
+  "canonicalSeed": 17,
+  "exporterGitCommit": "ea33266eaeed6ec318a5ddca29ce8795be0521e3-dirty",
+  "formatVersion": 1,
+  "hiddenDim": 128,
+  "inputEmbeddingDim": 128,
+  "l2Normalized": true,
+  "modelVersion": "deepspace7-v2-skelspheres16-seed17",
+  "onnxOpset": 17,
+  "outputEmbeddingDim": 16,
+  "projectionCheckpointSha256": "f58db63b723d00d77cfd4ebfd77bcfd30cdfcc6833cb1c0b56895a509b8392f3",
+  "projectionSha256": "590873a591235366e02a71dcd7b781486004001da6b089bddac3fdd80ab2d755",
+  "qualityGate": {
+    "baseline": {
+      "spearman": 0.9371740778218669,
+      "top_decile_recall": 0.7390696745857457
+    },
+    "checks": {
+      "spearman": true,
+      "top_decile_recall": true
+    },
+    "passed": true,
+    "thresholds": {
+      "spearman_minimum": 0.9071740778218669,
+      "top_decile_recall_minimum": 0.6651627071271712
+    }
+  },
+  "recommendedStorageDtype": "float16",
+  "sourceFoundationCheckpointSha256": "713ec867036277d1197484e6124b876329d23a48cc7792d4fad57e6cb2c9d3e0",
+  "sourcePredictorCheckpointSha256": "29b2d7770ae3740f7b58492e66d88c7b2743ffa9735f7a74543ad06c7182f2d2",
+  "target": "skelspheres_similarity"
+}

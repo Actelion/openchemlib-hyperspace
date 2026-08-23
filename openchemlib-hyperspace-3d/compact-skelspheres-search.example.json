@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "inputs": {
+    "index": "../skelspheres16-index",
+    "modelBundle": "model-bundles/deepspace7-v1",
+    "compactBundle": "model-bundles/deepspace7-skelspheres16"
+  },
+  "query": { "structure": "CCOc1ccc2nc(N)sc2c1", "format": "smiles", "identifier": "example-query" },
+  "output": {
+    "hitsTsv": "../skelspheres16-hits.tsv",
+    "runManifest": "../skelspheres16-search-run.json",
+    "globalTopK": 1000, "perReactionTopK": 50
+  },
+  "runtime": { "device": "CPU", "cudaDeviceId": 0, "scanBatchSize": 65536, "verifyIndexChecksums": true },
+  "exactRerank": { "enabled": false, "globalShortlist": 10000, "perReactionShortlist": 100 }
+}

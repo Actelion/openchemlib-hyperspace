@@ -1,0 +1,26 @@
+{
+  "formatVersion": 1,
+  "inputs": {
+    "index": "../../deepspace7_runs/enamine_13m_java_fingerprints",
+    "modelBundle": "model-bundles/deepspace7-v1",
+    "compactBundle": "model-bundles/deepspace7-skelspheres16"
+  },
+  "query": {
+    "structure": "O=C(Nc1cc2ccc(OCCO)cc2cn1)C1CC1",
+    "format": "smiles",
+    "identifier": "CHEMBL3685165"
+  },
+  "output": {
+    "hitsTsv": "../../deepspace7_runs/enamine_13m_skelspheres_chembl3685165/hits.tsv",
+    "hitsSdf": "../../deepspace7_runs/enamine_13m_skelspheres_chembl3685165/hits.sdf",
+    "summaryMarkdown": "../../deepspace7_runs/enamine_13m_skelspheres_chembl3685165/summary.md",
+    "runManifest": "../../deepspace7_runs/enamine_13m_skelspheres_chembl3685165/run-manifest.json",
+    "learnedTopK": 1000,
+    "reportTopK": 25
+  },
+  "runtime": {
+    "device": "CPU",
+    "cudaDeviceId": 0,
+    "scanBatchSize": 65536
+  }
+}

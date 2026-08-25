@@ -204,3 +204,72 @@ The Deepspace7 exporter is
 noncanonical dimensions, seed, provenance, or a failed quality gate; verifies
 ONNX Runtime against PyTorch at batch sizes 1, 7, 256, and 4096; and records
 float16 score error in `verification.json`.
+
+## Building a flat supplier molecule fingerprint index
+
+`MoleculeFingerprintIndexBuilder` is the high-throughput Java/ONNX equivalent
+of the Python supplier-cache workflow. It accepts UTF-8 TSV, TSV.GZ, or TSV.BZ2
+input with configurable SMILES and molecule-ID columns. OCL parsing and graph
+featurization run in a bounded CPU pool while prepared batches queue ahead of
+the ONNX lane. Each accepted graph is encoded once to the universal 128D
+fingerprint and then projected to the 16D SkelSpheres metric fingerprint.
+
+Copy and edit `molecule-fingerprint-index-build.example.json`, package with the
+CUDA profile, and run:
+
+```bash
+mvn -pl openchemlib-hyperspace-3d -am -Pcuda package -Dmaven.test.skip=true
+java -cp 'openchemlib-hyperspace-3d/target/classes:openchemlib-hyperspace-3d/target/lib/*' \
+  com.idorsia.research.chem.hyperspace3d.cli.MoleculeFingerprintIndexBuilderCLI \
+  --config openchemlib-hyperspace-3d/molecule-fingerprint-index-build.example.json
+```
+
+ONNX Runtime 1.21 GPU requires the CUDA 12 and cuDNN 9 runtime libraries.
+CUDA provider initialization fails explicitly when either runtime is unavailable.
+
+The output uses source-row-defined shard directories:
+
+```text
+shard-00000/
+  vectors-128.fp16
+  vectors-16.fp16
+  rows.bin
+  strings.bin
+  shard.json
+  .complete
+```
+
+Vector columns are little-endian, row-major float16 and can be memory mapped
+independently. Fixed rows contain source-row and heavy-atom metadata; the
+variable string table stores the original molecule ID and SMILES. The included
+`MoleculeFingerprintIndexReader` exposes sequential batches, random rows, and
+independent 128D/16D vector access.
+
+A shard is first written to `.partial` and atomically renamed only after all
+files and headers are closed. Restart removes abandoned partial directories and
+continues from the last contiguous completed source interval. No index hashes or
+active shard checksum scans are performed. A resumed BZip2 input must be
+decompressed from the beginning to skip committed rows, but committed molecules
+are not reparsed or re-encoded. The manifest reports rejection reasons and
+separate preparation, tensor packing, ONNX, waiting, and writing timings.
+
+## Screening a flat supplier molecule index
+
+`MoleculeSkelSpheresSearchCLI` encodes one query into the learned 16D metric,
+scans only the compact float16 vector columns, and resolves IDs and SMILES only
+for the retained global shortlist. The shortlist is then scored with exact OCL
+`DescriptorHandlerBinarySkelSpheres`. Exact ranks therefore apply within the
+learned shortlist and are not global exact-search recall measurements.
+
+Copy and edit `molecule-skelspheres-search.example.json`, then run:
+
+```bash
+java -cp 'openchemlib-hyperspace-3d/target/classes:openchemlib-hyperspace-3d/target/lib/*' \
+  com.idorsia.research.chem.hyperspace3d.cli.MoleculeSkelSpheresSearchCLI \
+  --config openchemlib-hyperspace-3d/molecule-skelspheres-search.example.json
+```
+
+The CLI writes a ranked TSV, an SDF with score fields, a concise Markdown
+summary, and a JSON run manifest with scan and reranking timings. CPU is the
+recommended query device because only one structure is encoded; the exhaustive
+16D scan itself is CPU and does not require CUDA.

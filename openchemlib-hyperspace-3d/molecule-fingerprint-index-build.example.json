@@ -1,0 +1,23 @@
+{
+  "formatVersion": 1,
+  "inputs": {
+    "library": "../../data/2026.01_Enamine_REAL_DB_13.6M.cxsmiles.bz2",
+    "smilesColumn": "smiles",
+    "idColumn": "id",
+    "modelBundle": "model-bundles/deepspace7-v1",
+    "compactBundle": "model-bundles/deepspace7-skelspheres16"
+  },
+  "output": {
+    "directory": "../../deepspace7_runs/enamine_13m_java_fingerprints",
+    "sourceRowsPerShard": 1000000,
+    "resume": true
+  },
+  "runtime": {
+    "device": "CUDA",
+    "cudaDeviceId": 0,
+    "cpuWorkers": 8,
+    "encoderBatchSize": 512,
+    "queueCapacity": 4,
+    "progressIntervalSeconds": 30
+  }
+}

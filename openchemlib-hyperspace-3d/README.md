@@ -196,8 +196,8 @@ java -cp 'openchemlib-hyperspace-3d/target/classes:openchemlib-hyperspace-3d/tar
 
 The query is encoded and projected once. Optional exact OCL SkelSpheres
 reranking is disabled by default; when enabled, global and per-reaction learned
-shortlists are unioned, assembled, and reranked on CPU. Hybrid 2D-to-3D search
-and ANN remain explicit future extensions.
+shortlists are unioned, assembled, and reranked on CPU. Flat-library 2D-to-3D cascade search is provided by `MoleculeSimilaritySearchCLI`;
+ANN remains an explicit future extension.
 
 The Deepspace7 exporter is
 `python -m deepspace7.scripts.export_skelspheres16_onnx`. It rejects
@@ -273,3 +273,58 @@ The CLI writes a ranked TSV, an SDF with score fields, a concise Markdown
 summary, and a JSON run manifest with scan and reranking timings. CPU is the
 recommended query device because only one structure is encoded; the exhaustive
 16D scan itself is CPU and does not require CUDA.
+
+## Direct Python-cache and learned 3D screening
+
+`MoleculeSimilaritySearchCLI` auto-detects both the native Java molecule index
+and `deepspace7_streamed_supplier_fingerprints_v1`, the sharded cache emitted by
+Deepspace7's `cache_supplier_fingerprints.py`. The Python cache is read in place:
+raw little-endian float16 vectors are memory mapped and `records.tsv.gz` is
+opened only for shards containing final retained hits. No conversion, vector
+copy, re-encoding, or full payload checksum pass is performed.
+
+Startup validates artifact identifiers, completion markers, shard/source-row
+continuity, counts, dtypes, dimensions, paths, and vector file sizes. Recorded
+foundation/predictor/projection checkpoint hashes must match the selected ONNX
+bundles. The cache's payload hashes remain provenance metadata and are not
+recomputed during a search.
+
+The unified command has three modes:
+
+- `skelspheres_2d`: exhaustive 16D learned screening followed by exact OCL
+  SkelSpheres reranking within the retained learned shortlist.
+- `phesa_3d`: exhaustive 128D comparator screening, normally using the directly
+  trained `phesa_total` head. Direct shape/pharmacophore heads and an explicitly
+  weighted composite are also supported.
+- `skelspheres_then_phesa`: exhaustive 16D screening, 128D PheSA reranking of a
+  configurable compact shortlist, and informational exact SkelSpheres scores
+  for the final results. The 3D objective determines the final rank.
+
+Copy `molecule-similarity-search.example.json`, select a mode and run:
+
+```bash
+java -cp 'openchemlib-hyperspace-3d/target/classes:openchemlib-hyperspace-3d/target/lib/*' \
+  com.idorsia.research.chem.hyperspace3d.cli.MoleculeSimilaritySearchCLI \
+  --config openchemlib-hyperspace-3d/molecule-similarity-search.example.json
+```
+
+For a direct 3D search, `compactBundle` may be omitted. CPU is suitable for 2D;
+CUDA is recommended for exhaustive 3D. CUDA must be selected explicitly and
+never falls back to CPU. FP16 decoding runs in a bounded producer with
+configurable backpressure (`prefetchDepth`, default 2), while the consumer
+scores large comparator batches.
+
+TSV, SDF, Markdown, and JSON run-manifest outputs include stable shard/local-row
+references, source metadata, selected objective, learned PheSA components,
+available SkelSpheres scores, model/cache provenance, and separate vector
+preparation, ONNX comparison, metadata, and total timings. These PheSA values
+are graph-only learned predictions; exact PheSA and conformer generation remain
+downstream workflows.
+
+Reader throughput can be measured independently of model scoring:
+
+```bash
+java -cp 'openchemlib-hyperspace-3d/target/classes:openchemlib-hyperspace-3d/target/lib/*' \
+  com.idorsia.research.chem.hyperspace3d.benchmark.MoleculeCacheReadBenchmark \
+  /path/to/cache BASE_128 1 32768
+```

@@ -46,6 +46,14 @@ public final class Hyperspace3DMicrobenchmark {
             float[] query = encoded[0];
             double encoding = measure(20, () -> encoder.encode(tensors));
             double comparison = measure(iterations, () -> comparator.compare(query, encoded));
+            int comparisonBatch = 32768;
+            float[] flatCandidates = new float[comparisonBatch * 128];
+            for (int row = 0; row < comparisonBatch; row++) {
+                System.arraycopy(query, 0, flatCandidates, row * 128, 128);
+            }
+            comparator.compareFlat(query, flatCandidates, comparisonBatch);
+            double largeComparison = measure(5, () -> comparator.compareFlat(
+                    query, flatCandidates, comparisonBatch));
             ProductTuple tuple = new ProductTuple("benchmark", List.of("s0"), List.of(0));
             DeepSpaceBatchAssemblyScorer scorer = new DeepSpaceBatchAssemblyScorer(
                     ignored -> List.of(molecule), featurizer, encoder, comparator,
@@ -62,6 +70,8 @@ public final class Hyperspace3DMicrobenchmark {
             System.out.printf("tensor_packing_cpu_us_per_64=%.3f%n", packing / iterations / 1e3);
             System.out.printf("onnx_encoding_cpu_ms_per_64=%.3f%n", encoding / 20 / 1e6);
             System.out.printf("comparator_cpu_us_per_64=%.3f%n", comparison / iterations / 1e3);
+            System.out.printf("comparator_cpu_molecules_per_second_batch_32768=%.0f%n",
+                    comparisonBatch * 5.0 / (largeComparison / 1e9));
             System.out.printf("score_batch_warm_cache_cpu_ms_per_64=%.3f%n", complete / 10 / 1e6);
         }
     }

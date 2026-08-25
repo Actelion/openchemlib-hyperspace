@@ -28,27 +28,40 @@ public final class DeepSpaceV1Comparator implements EmbeddingComparator, AutoClo
     @Override
     public synchronized float[][] compare(float[] queryEmbedding, float[][] candidateEmbeddings) {
         if (queryEmbedding.length != 128) throw new IllegalArgumentException("query embedding must be 128D");
-        if (candidateEmbeddings.length == 0) return new float[0][targets];
-        int b = candidateEmbeddings.length;
-        float[] queries = new float[b * 128];
-        float[] candidates = new float[b * 128];
-        for (int i = 0; i < b; i++) {
-            if (candidateEmbeddings[i].length != 128) {
-                throw new IllegalArgumentException("candidate embedding " + i + " is not 128D");
+        int batch = candidateEmbeddings.length;
+        float[] candidates = new float[Math.multiplyExact(batch, 128)];
+        for (int row = 0; row < batch; row++) {
+            if (candidateEmbeddings[row].length != 128) {
+                throw new IllegalArgumentException("candidate embedding " + row + " is not 128D");
             }
-            System.arraycopy(queryEmbedding, 0, queries, i * 128, 128);
-            System.arraycopy(candidateEmbeddings[i], 0, candidates, i * 128, 128);
+            System.arraycopy(candidateEmbeddings[row], 0, candidates, row * 128, 128);
+        }
+        return compareFlat(queryEmbedding, candidates, batch);
+    }
+
+    @Override
+    public synchronized float[][] compareFlat(float[] queryEmbedding,
+            float[] candidateEmbeddings, int candidateCount) {
+        if (queryEmbedding.length != 128) throw new IllegalArgumentException("query embedding must be 128D");
+        if (candidateCount < 0
+                || candidateEmbeddings.length != Math.multiplyExact(candidateCount, 128)) {
+            throw new IllegalArgumentException("flat candidate embeddings have invalid length");
+        }
+        if (candidateCount == 0) return new float[0][targets];
+        float[] queries = new float[candidateEmbeddings.length];
+        for (int row = 0; row < candidateCount; row++) {
+            System.arraycopy(queryEmbedding, 0, queries, row * 128, 128);
         }
         try (OnnxTensor query = OnnxTensor.createTensor(runtime.environment(),
-                     FloatBuffer.wrap(queries), new long[]{b, 128});
+                     FloatBuffer.wrap(queries), new long[]{candidateCount, 128});
              OnnxTensor candidate = OnnxTensor.createTensor(runtime.environment(),
-                     FloatBuffer.wrap(candidates), new long[]{b, 128});
+                     FloatBuffer.wrap(candidateEmbeddings), new long[]{candidateCount, 128});
              OrtSession.Result result = session.run(
                      Map.of("query_embedding", query, "candidate_embedding", candidate))) {
             float[][] scores = (float[][]) result.get("scores")
                     .orElseThrow(() -> new DeepSpaceInferenceException("comparator output missing"))
                     .getValue();
-            if (scores.length != b || scores[0].length != targets) {
+            if (scores.length != candidateCount || scores[0].length != targets) {
                 throw new DeepSpaceInferenceException("comparator returned an incompatible shape");
             }
             return scores;

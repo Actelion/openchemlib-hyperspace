@@ -114,6 +114,22 @@ public final class MoleculeFingerprintIndexReader implements Closeable {
         return new MoleculeCompactVectorBatch(vectors, references);
     }
 
+    /** Reads one selected vector column into a flat row-major batch. */
+    public MoleculeVectorBatch readVectorBatch(int maximum, int dimension) {
+        if (maximum < 1) throw new IllegalArgumentException("maximum must be positive");
+        ByteBuffer data = dimension == 128 ? base : dimension == 16 ? compact : null;
+        if (data == null) throw new IllegalStateException("requested vector column was not opened");
+        int count = (int) Math.min(maximum, shard.recordCount - rowIndex);
+        float[] values = new float[Math.multiplyExact(count, dimension)];
+        List<MoleculeVectorReference> references = new ArrayList<>(count);
+        for (int row = 0; row < count; row++) {
+            long localRow = rowIndex++;
+            copyVector(data, localRow, dimension, values, row * dimension);
+            references.add(new MoleculeVectorReference(shardIndex, localRow));
+        }
+        return new MoleculeVectorBatch(values, dimension, references);
+    }
+
     public MoleculeFingerprintRecord read(long localRow) throws IOException {
         if (base == null || compact == null) {
             throw new IllegalStateException("resolved records require both vector columns");
@@ -156,13 +172,18 @@ public final class MoleculeFingerprintIndexReader implements Closeable {
     }
 
     private static float[] vector(ByteBuffer data, long localRow, int width) {
+        float[] result = new float[width];
+        copyVector(data, localRow, width, result, 0);
+        return result;
+    }
+
+    private static void copyVector(ByteBuffer data, long localRow, int width,
+            float[] output, int outputOffset) {
         int offset = Math.toIntExact(MoleculeFingerprintIndexWriter.HEADER_BYTES
                 + localRow * width * 2L);
-        float[] result = new float[width];
         for (int i = 0; i < width; i++) {
-            result[i] = Float.float16ToFloat(data.getShort(offset + i * 2));
+            output[outputOffset + i] = Float.float16ToFloat(data.getShort(offset + i * 2));
         }
-        return result;
     }
 
     private String[] readStrings(long offset) throws IOException {

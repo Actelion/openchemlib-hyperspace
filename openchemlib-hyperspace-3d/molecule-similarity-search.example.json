@@ -1,0 +1,36 @@
+{
+  "formatVersion": 1,
+  "inputs": {
+    "index": "/path/to/enamine_real_136m_fingerprints_v2_wpp050_seed17",
+    "modelBundle": "model-bundles/deepspace7-v1",
+    "compactBundle": "model-bundles/deepspace7-skelspheres16"
+  },
+  "query": {
+    "structure": "O=C(Nc1cc2ccc(OCCO)cc2cn1)C1CC1",
+    "format": "smiles",
+    "identifier": "CHEMBL3685165"
+  },
+  "screening": {
+    "mode": "skelspheres_then_phesa",
+    "objective": {
+      "type": "direct",
+      "target": "phesa_total"
+    },
+    "resultTopK": 1000,
+    "cascadeShortlistTopK": 100000
+  },
+  "output": {
+    "hitsTsv": "/path/to/results/hits.tsv",
+    "hitsSdf": "/path/to/results/hits.sdf",
+    "summaryMarkdown": "/path/to/results/summary.md",
+    "runManifest": "/path/to/results/run-manifest.json",
+    "reportTopK": 25
+  },
+  "runtime": {
+    "device": "CUDA",
+    "cudaDeviceId": 0,
+    "scanBatchSize": 65536,
+    "comparatorBatchSize": 32768,
+    "prefetchDepth": 2
+  }
+}

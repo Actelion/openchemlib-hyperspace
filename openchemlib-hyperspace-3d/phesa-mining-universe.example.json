@@ -1,0 +1,13 @@
+{
+  "formatVersion": 1,
+  "index": "/path/to/enamine_real_136m_fingerprints_v2_wpp050_seed17",
+  "modelBundle": "model-bundles/deepspace7-v1",
+  "output": "/path/to/phesa-mining-universe-1m",
+  "candidateCount": 1000000,
+  "exclusionOversample": 20000,
+  "seed": 17,
+  "exclusionFiles": [
+    "/path/to/locked-benchmark-canonical-smiles.txt",
+    "/path/to/downstream-6k-canonical-smiles.txt"
+  ]
+}

@@ -18,6 +18,19 @@ heads.
    six percentile ranges plus random and bounded flexibility, high-sp3,
    stereochemical, and size-tail reservoirs; deduplicates the union; and
    calculates exact OCL PheSA using eight conformers and `wPP=0.5`.
+
+For a single frozen-baseline enrichment campaign, set `selectionPolicy` to
+`fixed_baseline_1600_v1`. Each full one-million-candidate screen then selects
+exactly 1,600 unique candidates:
+
+- 400 from absolute ranks 1-400;
+- 400 from the remainder of the top 1%;
+- 400 from the 1-5% rank interval;
+- 400 from the complete-library random background.
+
+Each ranked group reserves 200 candidates from total rank, 100 from shape rank,
+and 100 from pharmacophore rank. Earlier selections are excluded before later
+channel quotas are filled, so the strata are disjoint.
 3. Deepspace7 memory maps the resulting descriptors and fixed-width query
    shards. Mismatch labels are derived dynamically and are never baked into
    the cache.
@@ -56,7 +69,10 @@ mining round.
 
 Use split A for mining-head training and split B for model selection. Split C
 and the fixed external Enamine benchmark remain locked until a comparator has
-been selected. The first operational check should use 16 diverse A queries and
-4 diverse B queries; the production-scale 192/48 run should only begin after
-parity, label-success, PP recovery, retrieval-recall, and shape-regression gates
-have passed.
+been selected. After the 16/4 and 192/48 gates pass, the fixed-baseline
+production campaign uses 800 diverse A queries and 200 diverse B queries. It
+therefore produces exactly 1.6 million selected pair observations before
+explicit exact-label failures are filtered during training. The same model
+bundle, seed, selection policy, eight-conformer OCL settings, and `wPP=0.5`
+remain fixed for all 1,000 queries; active-learning rescoring is intentionally
+outside this dataset round.

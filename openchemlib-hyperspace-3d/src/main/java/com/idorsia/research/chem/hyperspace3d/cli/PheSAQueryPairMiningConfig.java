@@ -16,6 +16,9 @@ public final class PheSAQueryPairMiningConfig {
         require(runtime.comparatorBatchSize > 0 && runtime.exactLabelThreads > 0
                 && mining.maxConformers == 8 && mining.phesaPpWeight == 0.5
                 && mining.round >= 0, "unsupported initial mining contract");
+        require("independent_rank_channels_v1".equals(mining.selectionPolicy)
+                || "fixed_baseline_1600_v1".equals(mining.selectionPolicy),
+                "unsupported mining selection policy");
         device();
     }
 
@@ -51,5 +54,6 @@ public final class PheSAQueryPairMiningConfig {
     public static final class Mining {
         public long seed = 17; public int round; public int maxConformers = 8;
         public double phesaPpWeight = 0.5;
+        public String selectionPolicy = "independent_rank_channels_v1";
     }
 }

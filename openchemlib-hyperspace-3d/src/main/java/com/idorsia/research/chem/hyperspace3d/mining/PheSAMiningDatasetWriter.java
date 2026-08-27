@@ -44,6 +44,7 @@ public final class PheSAMiningDatasetWriter {
 
             long pairs = queries.stream().mapToLong(value -> value.records().size()).sum();
             var manifest = new PheSAMiningManifest();
+            manifest.selectionPolicy = provenance.selectionPolicy();
             manifest.phesaPpWeight = provenance.phesaPpWeight();
             manifest.maxConformers = provenance.maxConformers();
             manifest.miningRound = provenance.miningRound();
@@ -56,14 +57,7 @@ public final class PheSAMiningDatasetWriter {
             manifest.moleculeCount = molecules.size();
             manifest.queryCount = queries.size();
             manifest.pairCount = pairs;
-            manifest.rankBoundaries = doubles(PredictedRankMiner.DEFAULT_BOUNDARIES);
-            manifest.rankQuotas = integers(PredictedRankMiner.DEFAULT_QUOTAS);
-            manifest.randomQuota = PredictedRankMiner.DEFAULT_RANDOM_QUOTA;
-            manifest.chemistryStratumQuotas = Map.of(
-                    "FLEXIBLE", MiningStratumSelector.DEFAULT_FLEXIBLE_QUOTA,
-                    "HIGH_SP3", MiningStratumSelector.DEFAULT_HIGH_SP3_QUOTA,
-                    "STEREOCHEMICAL", MiningStratumSelector.DEFAULT_STEREOCHEMICAL_QUOTA,
-                    "SIZE_EXTREME_PER_TAIL", MiningStratumSelector.DEFAULT_SIZE_EXTREME_QUOTA_PER_TAIL);
+            configureSelection(manifest, provenance.selectionPolicy());
             manifest.selectionMask = MiningSelection.manifestNames();
             manifest.files = new LinkedHashMap<>();
             addFile(manifest.files, "molecules", partial, moleculePath);
@@ -82,6 +76,40 @@ public final class PheSAMiningDatasetWriter {
             if (error instanceof RuntimeException value) throw value;
             throw new IOException(error);
         }
+    }
+
+    private static void configureSelection(PheSAMiningManifest manifest, String policy) {
+        if (FixedBaselineEnrichmentMiner.POLICY_ID.equals(policy)) {
+            manifest.absoluteTopCount = FixedBaselineEnrichmentMiner.ABSOLUTE_TOP_STOP;
+            manifest.targetPairsPerQuery = FixedBaselineEnrichmentMiner.TARGET_PAIRS;
+            manifest.rankBoundaries = List.of(0.0, 0.0004, 0.01, 0.05, 0.20, 0.50, 1.0);
+            manifest.rankQuotas = List.of(400, 400, 400, 0, 0, 0);
+            manifest.randomQuota = FixedBaselineEnrichmentMiner.RANDOM_QUOTA;
+            manifest.chemistryStratumQuotas = Map.of();
+            Map<String, List<Integer>> channels = new LinkedHashMap<>();
+            channels.put("TOTAL", List.of(200, 200, 200, 0, 0, 0));
+            channels.put("SHAPE", List.of(100, 100, 100, 0, 0, 0));
+            channels.put("PHARMACOPHORE", List.of(100, 100, 100, 0, 0, 0));
+            manifest.rankChannelQuotas = channels;
+            return;
+        }
+        if (!"independent_rank_channels_v1".equals(policy)) {
+            throw new IllegalArgumentException("unsupported selection policy: " + policy);
+        }
+        manifest.rankBoundaries = doubles(PredictedRankMiner.DEFAULT_BOUNDARIES);
+        manifest.rankQuotas = integers(PredictedRankMiner.DEFAULT_QUOTAS);
+        manifest.randomQuota = PredictedRankMiner.DEFAULT_RANDOM_QUOTA;
+        manifest.chemistryStratumQuotas = Map.of(
+                "FLEXIBLE", MiningStratumSelector.DEFAULT_FLEXIBLE_QUOTA,
+                "HIGH_SP3", MiningStratumSelector.DEFAULT_HIGH_SP3_QUOTA,
+                "STEREOCHEMICAL", MiningStratumSelector.DEFAULT_STEREOCHEMICAL_QUOTA,
+                "SIZE_EXTREME_PER_TAIL", MiningStratumSelector.DEFAULT_SIZE_EXTREME_QUOTA_PER_TAIL);
+        Map<String, List<Integer>> channels = new LinkedHashMap<>();
+        List<Integer> quotas = integers(PredictedRankMiner.DEFAULT_QUOTAS);
+        channels.put("TOTAL", quotas);
+        channels.put("SHAPE", quotas);
+        channels.put("PHARMACOPHORE", quotas);
+        manifest.rankChannelQuotas = channels;
     }
 
     private static void validate(List<MoleculeEntry> molecules, List<QueryEntry> queries) {
@@ -207,8 +235,22 @@ public final class PheSAMiningDatasetWriter {
     }
 
     public record Provenance(String fingerprintModelHash, String sourceIndexHash,
-            String candidateUniverseHash, String queryRegistryHash, String oclVersion, double phesaPpWeight,
-            int maxConformers, int miningRound, long samplingSeed) {}
+            String candidateUniverseHash, String queryRegistryHash, String oclVersion,
+            double phesaPpWeight, int maxConformers, int miningRound, long samplingSeed,
+            String selectionPolicy) {
+        public Provenance(String fingerprintModelHash, String sourceIndexHash,
+                String candidateUniverseHash, String queryRegistryHash, String oclVersion,
+                double phesaPpWeight, int maxConformers, int miningRound, long samplingSeed) {
+            this(fingerprintModelHash, sourceIndexHash, candidateUniverseHash, queryRegistryHash,
+                    oclVersion, phesaPpWeight, maxConformers, miningRound, samplingSeed,
+                    "independent_rank_channels_v1");
+        }
+        public Provenance withSelectionPolicy(String value) {
+            return new Provenance(fingerprintModelHash, sourceIndexHash, candidateUniverseHash,
+                    queryRegistryHash, oclVersion, phesaPpWeight, maxConformers, miningRound,
+                    samplingSeed, value);
+        }
+    }
     public record MoleculeEntry(long moleculeId, String moleculeUid, String split, String role,
             int descriptorOffset, String canonicalSmiles, String sourceId, int sourceShard,
             long sourceRow, int heavyAtoms, int rotatableBonds, double sp3Fraction,

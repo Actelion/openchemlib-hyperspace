@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.idorsia.research.chem.hyperspace3d.index.MoleculeVectorReference;
 import com.idorsia.research.chem.hyperspace3d.mining.CandidateReferenceSampler;
+import com.idorsia.research.chem.hyperspace3d.mining.FixedBaselineEnrichmentMiner;
 import com.idorsia.research.chem.hyperspace3d.mining.MiningCandidateUniverse;
 import com.idorsia.research.chem.hyperspace3d.mining.MiningSelection;
 import com.idorsia.research.chem.hyperspace3d.mining.MiningStratumSelector;
@@ -61,5 +62,36 @@ class MiningSelectionTest {
         assertTrue(first.values().stream().anyMatch(mask ->
                 Long.bitCount(mask & (MiningSelection.FLEXIBLE | MiningSelection.HIGH_SP3
                         | MiningSelection.STEREOCHEMICAL | MiningSelection.SIZE_EXTREME)) > 1));
+    }
+
+    @Test
+    void fixedBaselinePolicyProducesExactDeterministicBalancedStrata() {
+        float[][] scores = new float[100_000][3];
+        for (int candidate = 0; candidate < scores.length; candidate++) {
+            scores[candidate][0] = candidate;
+            scores[candidate][1] = (candidate * 7_919L % scores.length);
+            scores[candidate][2] = (candidate * 4_729L % scores.length);
+        }
+        var miner = new FixedBaselineEnrichmentMiner(17);
+        var selected = miner.select(scores);
+        var repeated = miner.select(scores);
+        assertEquals(selected.stream().map(value -> List.of(value.candidateOrdinal(),
+                        value.rankTotal(), value.rankShape(), value.rankPharmacophore(),
+                        value.selectionMask())).toList(),
+                repeated.stream().map(value -> List.of(value.candidateOrdinal(),
+                        value.rankTotal(), value.rankShape(), value.rankPharmacophore(),
+                        value.selectionMask())).toList());
+        assertEquals(FixedBaselineEnrichmentMiner.TARGET_PAIRS, selected.size());
+        assertEquals(selected.size(), new HashSet<>(selected.stream()
+                .map(PredictedRankMiner.Selection::candidateOrdinal).toList()).size());
+        assertEquals(FixedBaselineEnrichmentMiner.RANDOM_QUOTA, selected.stream()
+                .filter(value -> value.selectionMask() == MiningSelection.RANDOM).count());
+        for (int bucket = 0; bucket < 3; bucket++) {
+            long bucketMask = MiningSelection.rankBucket(MiningSelection.TOTAL_OFFSET, bucket)
+                    | MiningSelection.rankBucket(MiningSelection.SHAPE_OFFSET, bucket)
+                    | MiningSelection.rankBucket(MiningSelection.PHARMACOPHORE_OFFSET, bucket);
+            assertEquals(400, selected.stream()
+                    .filter(value -> (value.selectionMask() & bucketMask) != 0).count());
+        }
     }
 }

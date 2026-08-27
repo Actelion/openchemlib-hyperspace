@@ -21,6 +21,10 @@ public final class PheSAMiningManifest {
     public long moleculeCount;
     public long queryCount;
     public long pairCount;
+    public String selectionPolicy = "independent_rank_channels_v1";
+    public int absoluteTopCount;
+    public int targetPairsPerQuery;
+    public Map<String, List<Integer>> rankChannelQuotas;
     public List<Double> rankBoundaries;
     public List<Integer> rankQuotas;
     public int randomQuota;
@@ -40,10 +44,22 @@ public final class PheSAMiningManifest {
                 && hash(queryRegistryHash),
                 "cache provenance hashes are incomplete");
         require(oclVersion != null && !oclVersion.isBlank(), "OCL version is required");
+        require("independent_rank_channels_v1".equals(selectionPolicy)
+                        || FixedBaselineEnrichmentMiner.POLICY_ID.equals(selectionPolicy),
+                "unsupported selection policy");
         require(rankBoundaries != null && rankBoundaries.size() == 7
-                && rankQuotas != null && rankQuotas.size() == 6 && randomQuota >= 0
-                && chemistryStratumQuotas != null,
+                        && rankQuotas != null && rankQuotas.size() == 6 && randomQuota >= 0
+                        && chemistryStratumQuotas != null,
                 "rank selection contract is incomplete");
+        if (FixedBaselineEnrichmentMiner.POLICY_ID.equals(selectionPolicy)) {
+            require(absoluteTopCount == FixedBaselineEnrichmentMiner.ABSOLUTE_TOP_STOP
+                            && targetPairsPerQuery == FixedBaselineEnrichmentMiner.TARGET_PAIRS
+                            && rankChannelQuotas != null && rankChannelQuotas.size() == 3,
+                    "fixed-baseline selection contract is incomplete");
+            for (List<Integer> quotas : rankChannelQuotas.values()) {
+                require(quotas != null && quotas.size() == 6, "invalid channel quota vector");
+            }
+        }
         require(selectionMask != null && selectionMask.equals(MiningSelection.manifestNames()),
                 "selection-mask contract differs from format version 1");
         require(files != null && files.keySet().containsAll(

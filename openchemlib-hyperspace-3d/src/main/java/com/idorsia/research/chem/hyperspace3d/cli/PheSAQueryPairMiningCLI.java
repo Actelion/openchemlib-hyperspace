@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.idorsia.research.chem.hyperspace3d.feature.DeepSpaceTensorBatchBuilder;
 import com.idorsia.research.chem.hyperspace3d.feature.OCLDeepSpaceFeaturizer;
 import com.idorsia.research.chem.hyperspace3d.mining.ExactPheSALabeler;
+import com.idorsia.research.chem.hyperspace3d.mining.FixedBaselineEnrichmentMiner;
 import com.idorsia.research.chem.hyperspace3d.mining.MiningCandidateUniverse;
 import com.idorsia.research.chem.hyperspace3d.mining.MiningStratumSelector;
 import com.idorsia.research.chem.hyperspace3d.mining.PheSAMiningDatasetWriter;
@@ -62,6 +63,9 @@ public final class PheSAQueryPairMiningCLI {
             String workIdentity = sha256(fingerprintHash + ":" + universeHash + ":" + queriesHash
                     + ":" + config.mining.seed + ":" + config.mining.round + ":"
                     + config.mining.maxConformers + ":" + config.mining.phesaPpWeight);
+            if (!"independent_rank_channels_v1".equals(config.mining.selectionPolicy)) {
+                workIdentity = sha256(workIdentity + ":" + config.mining.selectionPolicy);
+            }
             var work = new PheSAMiningWorkStore(paths.work(), workIdentity, queries.size());
 
             List<float[]> queryFingerprints = new ArrayList<>();
@@ -78,8 +82,11 @@ public final class PheSAQueryPairMiningCLI {
             int shapeIndex = model.manifest().targetIndex("phesa_shape");
             int ppIndex = model.manifest().targetIndex("phesa_pharmacophore");
             var miner = PredictedRankMiner.defaults(config.mining.seed);
-            var stratumSelections = MiningStratumSelector.defaults(
-                    universe.candidates(), config.mining.seed);
+            var fixedMiner = new FixedBaselineEnrichmentMiner(config.mining.seed);
+            boolean fixedPolicy = FixedBaselineEnrichmentMiner.POLICY_ID.equals(
+                    config.mining.selectionPolicy);
+            var stratumSelections = fixedPolicy ? Map.<Integer, Long>of()
+                    : MiningStratumSelector.defaults(universe.candidates(), config.mining.seed);
             ExecutorService workers = Executors.newFixedThreadPool(config.runtime.exactLabelThreads);
             ThreadLocal<ExactPheSALabeler> labelers = ThreadLocal.withInitial(() ->
                     new ExactPheSALabeler(config.mining.maxConformers,
@@ -103,8 +110,9 @@ public final class PheSAQueryPairMiningCLI {
                     float[][] scores = screen(universe, comparator,
                             queryFingerprints.get(queryIndex), config.runtime.comparatorBatchSize,
                             totalIndex, shapeIndex, ppIndex);
-                    List<PredictedRankMiner.Selection> selected =
-                            miner.select(scores, stratumSelections);
+                    List<PredictedRankMiner.Selection> selected = fixedPolicy
+                            ? fixedMiner.select(scores)
+                            : miner.select(scores, stratumSelections);
                     ExactPheSALabeler queryLabeler = new ExactPheSALabeler(
                             config.mining.maxConformers, config.mining.phesaPpWeight);
                     String queryDescriptor = queryLabeler.encode(
@@ -168,6 +176,7 @@ public final class PheSAQueryPairMiningCLI {
                             ? "OpenChemLib-PheSA" : ExactPheSALabeler.class.getPackage().getImplementationVersion(),
                     config.mining.phesaPpWeight, config.mining.maxConformers,
                     config.mining.round, config.mining.seed);
+            provenance = provenance.withSelectionPolicy(config.mining.selectionPolicy);
             new PheSAMiningDatasetWriter().write(paths.dataset(), provenance, molecules, queryEntries);
         } catch (CandidateMaterializationException error) {
             throw (Exception) error.getCause();

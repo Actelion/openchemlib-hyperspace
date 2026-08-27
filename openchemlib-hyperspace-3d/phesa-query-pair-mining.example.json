@@ -19,6 +19,7 @@
     "seed": 17,
     "round": 0,
     "maxConformers": 8,
-    "phesaPpWeight": 0.5
+    "phesaPpWeight": 0.5,
+    "selectionPolicy": "fixed_baseline_1600_v1"
   }
 }

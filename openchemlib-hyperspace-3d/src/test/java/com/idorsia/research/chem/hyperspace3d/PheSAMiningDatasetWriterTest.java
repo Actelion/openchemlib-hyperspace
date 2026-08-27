@@ -35,6 +35,16 @@ class PheSAMiningDatasetWriterTest {
         var manifest = new ObjectMapper().readValue(output.resolve("manifest.json").toFile(),
                 PheSAMiningManifest.class);
         manifest.validate(); assertEquals(1, manifest.pairCount);
+        assertEquals("independent_rank_channels_v1", manifest.selectionPolicy);
+        Path fixedOutput = temporary.resolve("fixed-cache");
+        new PheSAMiningDatasetWriter().write(fixedOutput,
+                provenance.withSelectionPolicy("fixed_baseline_1600_v1"), molecules,
+                List.of(new PheSAMiningDatasetWriter.QueryEntry(0, "query", "A", 100_000, 0,
+                        List.of(pair))));
+        var fixedManifest = new ObjectMapper().readValue(
+                fixedOutput.resolve("manifest.json").toFile(), PheSAMiningManifest.class);
+        fixedManifest.validate();
+        assertEquals(1_600, fixedManifest.targetPairsPerQuery);
         assertThrows(java.io.IOException.class, () -> new PheSAMiningDatasetWriter().write(
                 output, provenance, molecules, List.of()));
     }

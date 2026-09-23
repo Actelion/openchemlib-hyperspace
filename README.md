@@ -86,6 +86,8 @@ The CSV mode (powered by `SynthonSpaceParser3`) assumes one file per reaction; e
 
 For the full list of rawspace import formats, expected columns, filename conventions, and batch import options, see [`RAWSPACE_IMPORTERS.md`](RAWSPACE_IMPORTERS.md). The checked Enamine, ChemSpace, Xtalpi, Molecule.One, Synple, and toy supplier files are listed with runnable import and merge commands in [`SUPPLIER_SPACE_IMPORTS.md`](SUPPLIER_SPACE_IMPORTS.md).
 
+Rawspace statistics reports for merged or supplier spaces are documented in [`RAWSPACE_STATS.md`](RAWSPACE_STATS.md).
+
 ## Synthon space merge CLI
 
 You can merge multiple `RawSynthonSpace` files into either one combined output or two split outputs (`2s` and `3s` reactions):

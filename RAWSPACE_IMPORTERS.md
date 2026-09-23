@@ -243,6 +243,8 @@ spaceName<TAB>inputPath<TAB>optionalDescriptorTag
 
 The checked supplier files under `supplier_data`, their supported import modes, output names, and exact commands are documented in [`SUPPLIER_SPACE_IMPORTS.md`](SUPPLIER_SPACE_IMPORTS.md).
 
+For report bundles over imported or merged spaces, see [`RAWSPACE_STATS.md`](RAWSPACE_STATS.md).
+
 ## Validation and Skipped Reactions
 
 After parsing, reactions are validated with `SynthonReactionValidator`. Reactions that fail validation are skipped with a message. Typical reasons include unsupported connector patterns or reactions with more synthon sets than `--maxSets` for Enamine imports.

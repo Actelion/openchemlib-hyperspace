@@ -7,6 +7,7 @@ import com.idorsia.research.chem.hyperspace.HyperspaceUtils;
 import com.idorsia.research.chem.hyperspace.gui.action.AddSubstructureSearchProviderAction;
 import com.idorsia.research.chem.hyperspace.gui.action.LoadHyperspaceConfigFileAction;
 import com.idorsia.research.chem.hyperspace.gui.action.SaveHyperspaceConfigFileAction;
+import com.idorsia.research.chem.hyperspace.gui.action.stats.ExportRawSynthonSpaceStatsAction;
 import com.idorsia.research.chem.hyperspace.gui.process.AbstractHyperspaceProcess;
 import com.idorsia.research.chem.hyperspace.gui.process.JProcessList;
 import com.idorsia.research.chem.hyperspace.gui.search.AbstractSearchProvider;
@@ -353,6 +354,9 @@ public class HyperspaceSearchGUI {
         mfile.addSeparator();
         mfile.add(new AddSubstructureSearchProviderAction(gui));
         menubar.add(mfile);
+        JMenu mtools = new JMenu("Tools");
+        mtools.add(new ExportRawSynthonSpaceStatsAction(gui));
+        menubar.add(mtools);
         this.f_main.setJMenuBar(menubar);
         this.f_main.validate();
     }

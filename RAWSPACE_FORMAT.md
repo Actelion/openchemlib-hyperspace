@@ -1,41 +1,87 @@
 # RawSynthonSpace Format
 
-`RawSynthonSpace` is the lightweight JSON representation used before or instead of materializing heavier `SynthonSpace` data files. It stores reactions, synthon sets, synthons, and optional metadata in a format that can be inspected as plain JSON (`.rawspace`) or compressed with gzip (`.rawspace.gz`).
+`RawSynthonSpace` is the lightweight JSON format used by Hyperspace before or instead of materializing heavier serialized `SynthonSpace` data files. It stores synthon reactions, synthon sets, synthons, and optional metadata in plain JSON.
 
-The format is intentionally close to the Java model in `com.idorsia.research.chem.hyperspace.rawspace`.
+A `.rawspace` file is UTF-8 JSON. A `.rawspace.gz` file is the same JSON stream gzip-compressed; compression is selected only by the `.gz` filename suffix in `RawSynthonSpaceIO`.
+
+The canonical Java model and reader/writer live in `com.idorsia.research.chem.hyperspace.rawspace`:
+
+- `RawSynthonSpace`
+- `RawSynthon`
+- `RawSynthonSpaceIO`
 
 ## Concepts
 
-- A **space** is a collection of synthon reactions.
-- A **reaction** is identified by `reactionId` and contains one or more synthon sets.
-- A **synthon set** is one position in a combinatorial reaction, keyed by an integer index such as `0`, `1`, or `2`.
-- A **fragment** or **synthon** is one building block candidate in a synthon set.
-- A **full rawspace** contains all imported synthons.
-- A **downsampled rawspace** is a separate rawspace file whose normal `fragmentSets` contain only retained representatives. It is marked with `metadata["space.role"]="downsampled"`.
+- **Space**: a named collection of synthon reactions.
+- **Reaction**: one combinatorial reaction, identified by `reactionId`.
+- **Synthon set**: one reactant position in a reaction, keyed by an integer index such as `0`, `1`, or `2`.
+- **Synthon** or **fragment**: one building-block candidate inside a synthon set.
+- **Full rawspace**: a rawspace containing all imported synthons.
+- **Downsampled rawspace**: a separate rawspace whose normal `fragmentSets` contain only retained representative synthons and whose metadata contains `space.role=downsampled`.
 
-Old rawspace files with embedded `downsampledFragmentSets` are no longer a supported target format. Regenerate them as separate downsampled rawspace files.
+Old files with embedded `downsampledFragmentSets` are obsolete and should be regenerated as separate downsampled rawspace files.
 
-## File Structure
+## Minimal JSON
 
-Top-level JSON object:
+This is the smallest useful shape. Optional maps/lists may be absent when reading; the current writer emits them as empty structures.
 
 ```json
 {
-  "name": "toy",
+  "name": "toy_space",
   "version": "1.0",
   "metadata": {
-    "source.format": "enamine-tsv",
+    "space.role": "full"
+  },
+  "reactions": [
+    {
+      "reactionId": "amide_coupling",
+      "fragmentSets": {
+        "0": [
+          {
+            "reactionId": "amide_coupling",
+            "fragIndex": 0,
+            "fragmentId": "amine-001",
+            "idcode": "gC...",
+            "connectors": "AQ=="
+          }
+        ],
+        "1": [
+          {
+            "reactionId": "amide_coupling",
+            "fragIndex": 1,
+            "fragmentId": "acid-001",
+            "idcode": "fH...",
+            "connectors": "AQ=="
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+## Complete JSON Shape
+
+The writer emits this full reaction shape:
+
+```json
+{
+  "name": "supplier_merged_2s",
+  "version": "1.0",
+  "metadata": {
+    "space.role": "full",
+    "source.format": "merged-rawspace",
     "descriptor.tags": "FragFp"
   },
   "reactions": [
     {
-      "reactionId": "benzoimidazole_b-8",
+      "reactionId": "amide_coupling",
       "fragmentSets": {
         "0": [
           {
-            "reactionId": "benzoimidazole_b-8",
+            "reactionId": "amide_coupling",
             "fragIndex": 0,
-            "fragmentId": "BB-001",
+            "fragmentId": "amine-001",
             "idcode": "gC...",
             "connectors": "AQ=="
           }
@@ -45,9 +91,12 @@ Top-level JSON object:
       "partialAssemblies": {},
       "representativeCompounds": [],
       "descriptors": {},
-      "reactionMetadata": {},
+      "reactionMetadata": {
+        "source.spaceName": "enamine_real_2024_02",
+        "source.originalReactionId": "amide_coupling"
+      },
       "fragmentAttributes": {
-        "BB-001": {
+        "amine-001": {
           "price": "12.50",
           "descriptor.FragFp": "..."
         }
@@ -57,21 +106,53 @@ Top-level JSON object:
 }
 ```
 
-Fields:
+## Top-Level Fields
 
-- `name`: Human-readable space name.
-- `version`: Rawspace format or producer version. Current builders default to `1.0`.
-- `metadata`: Space-level `Map<String,String>`.
-- `reactions`: List of reaction records.
-- `fragmentSets`: Map from synthon set index, serialized as a string key, to fragment records.
-- `idcode`: OpenChemLib IDCode for the synthon.
-- `connectors`: Base64 encoding of the connector bitset. It can be `null` or absent-equivalent when the bitset is empty.
-- `exampleScaffolds`, `partialAssemblies`, `representativeCompounds`: Optional reaction helper data used by import/build workflows.
-- `descriptors`: Reaction-level descriptor/provenance map.
-- `reactionMetadata`: Reaction-level `Map<String,String>`.
-- `fragmentAttributes`: Map from `fragmentId` to arbitrary string attributes.
+| Field | Type | Required for writing | Reader behavior | Meaning |
+| --- | --- | --- | --- | --- |
+| `name` | string | Yes | Required by `RawSynthonSpace.builder` | Human-readable space name. |
+| `version` | string | Yes | Required by current builder path | Producer/format version; builders default to `1.0`. |
+| `metadata` | object string -> string | No | Missing becomes empty | Space-level metadata. |
+| `reactions` | array | No | Missing becomes empty | Reaction records. |
 
-All metadata and attributes are stored as strings. Use parseable scalar strings for numbers and booleans.
+All metadata values are strings. Use parseable scalar strings for numbers and booleans, for example `"24"`, `"0.75"`, or `"true"`.
+
+## Reaction Fields
+
+| Field | Type | Required for useful reaction | Reader behavior | Meaning |
+| --- | --- | --- | --- | --- |
+| `reactionId` | string | Yes | Used as the reaction key | Reaction identifier. Must match the containing fragments' reaction in normal writer output. |
+| `fragmentSets` | object string -> array | Yes | Missing means no synthons | Map from stringified integer set index to fragment records. |
+| `exampleScaffolds` | array of strings | No | Missing becomes empty | Optional assembled scaffold IDCodes for examples/inspection. |
+| `partialAssemblies` | object string -> array of strings | No | Missing becomes empty | Optional partial assembly IDCodes keyed by missing set index. Keys are stringified integers. |
+| `representativeCompounds` | array of strings | No | Missing becomes empty | Optional assembled representative compound IDCodes. |
+| `descriptors` | object string -> string | No | Missing becomes empty | Reaction-level descriptors or provenance values. |
+| `reactionMetadata` | object string -> string | No | Missing becomes empty | Reaction-level metadata such as merge provenance. |
+| `fragmentAttributes` | object string -> object string -> string | No | Missing becomes empty | Fragment-level attributes keyed by `fragmentId`. |
+
+`fragmentSets` and `partialAssemblies` are maps with integer keys in Java, but JSON object keys are strings. A valid producer should write keys like `"0"`, `"1"`, and `"2"`.
+
+## Fragment Fields
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `reactionId` | string | Yes | Reaction this synthon belongs to. |
+| `fragIndex` | integer | Yes | Synthon-set index, matching the enclosing `fragmentSets` key. |
+| `fragmentId` | string | Yes | Stable fragment/building-block identifier inside the reaction. |
+| `idcode` | string | Yes | OpenChemLib IDCode for the synthon structure. |
+| `connectors` | string or null | No | Base64-encoded connector bitset. `null` or missing means no connector bits. |
+
+`connectors` is encoded as `Base64.getEncoder().encodeToString(bitSet.toByteArray())` and decoded as `BitSet.valueOf(Base64.getDecoder().decode(connectors))`. External writers that do not know connector bits may write `null`, but files intended for building/searching should preserve connector information generated from the synthon structures.
+
+## Producer Guidance
+
+- Use OpenChemLib IDCodes, not SMILES, in `idcode` fields.
+- Keep `fragmentId` stable and unique within a reaction; downstream attributes are keyed by this value.
+- Store all metadata, descriptor values, and fragment attributes as strings.
+- Keep `reactionId` and `fragIndex` in each fragment consistent with the enclosing reaction and synthon-set key.
+- Use stringified integer keys for `fragmentSets` and `partialAssemblies`.
+- Prefer explicit `metadata["space.role"]="full"` for full spaces, although unmarked full spaces remain accepted.
+- For merged spaces, preserve reaction provenance in `reactionMetadata` using `source.spaceName`, `source.spacePath`, and `source.originalReactionId`.
 
 ## Full vs Downsampled Spaces
 
@@ -91,12 +172,13 @@ A downsampled space is a normal rawspace with fewer fragments in `fragmentSets`:
 "metadata": {
   "space.role": "downsampled",
   "downsampling.algorithm": "SkelSpheresKCentersRaw",
-  "downsampling.maxCenters": "8",
+  "downsampling.maxCenters": "1000",
   "downsampling.minSimilarity": "0.75",
   "downsampling.seed": "13",
   "downsampling.enforceConnectorEquivalence": "true",
   "downsampling.sizeCapScale": "0.0",
-  "downsampling.sizeCapOffset": "0.0"
+  "downsampling.sizeCapOffset": "0.0",
+  "downsampling.includeClusterMembers": "false"
 }
 ```
 
@@ -109,9 +191,11 @@ Common keys:
 | Key | Meaning |
 | --- | --- |
 | `space.role` | `full` or `downsampled`. Full spaces may be unmarked. |
-| `source.format` | Import source format, e.g. `enamine-tsv` or `csv-per-reaction`. |
+| `source.format` | Import source format, e.g. `enamine-tsv`, `xtalpi-csv`, `csv-per-reaction`, or `molecule-one-zip`. |
 | `source.file` | Original source file for single-file imports. |
 | `source.directory` | Original source directory for per-reaction CSV imports. |
+| `source.zipEntry` | Internal zip entry used for synthon tables. |
+| `source.reactionZipEntry` | Internal zip entry used for reaction metadata tables. |
 | `descriptor.shortName` | Primary descriptor used while importing/building, e.g. `FragFp`. |
 | `descriptor.bits` | Descriptor bit count, when applicable. |
 | `descriptor.tags` | Comma-separated descriptors available as fragment attributes or compatible with this rawspace. |
@@ -163,9 +247,11 @@ Merge keys:
 
 The prefix can be changed in `SynthonSpaceMergeCLI` with `--sourceMetadataPrefix`.
 
+Supplier reaction metadata from zip/table imports may also be stored here, for example `supplier.reaction.components`, `supplier.reaction.smarts`, `supplier.reaction.product`, or `supplier.reaction.R1`.
+
 ## Fragment Attributes
 
-`fragmentAttributes` is for metadata scoped to a single fragment ID.
+`fragmentAttributes` is for metadata scoped to a single `fragmentId`.
 
 Common keys:
 
@@ -183,3 +269,5 @@ Only retained representatives keep their fragment attributes when creating a dow
 - Full rawspaces may be unmarked for compatibility.
 - Downsampled rawspaces should be marked with `space.role=downsampled`; seed finding and continuous screening expect this marker.
 - `downsampledFragmentSets`, top-level `downsamplingAlgorithm`, and top-level `downsamplingRequest` are obsolete and should not be emitted.
+- JSON is pretty-printed by the current writer, but readers do not require formatting.
+- `.rawspace.gz` is gzip-compressed JSON, not a different binary format.

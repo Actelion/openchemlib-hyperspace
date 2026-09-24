@@ -1,0 +1,24 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent><groupId>com.idorsia.research</groupId><artifactId>openchemlib-hyperspace</artifactId><version>0.2.5</version></parent>
+  <artifactId>openchemlib-hyperspace-mcp</artifactId>
+  <dependencies>
+    <dependency><groupId>commons-io</groupId><artifactId>commons-io</artifactId><version>2.20.0</version></dependency>
+    <dependency><groupId>io.modelcontextprotocol.sdk</groupId><artifactId>mcp</artifactId><version>2.0.0</version></dependency>
+    <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>2.21.1</version></dependency>
+    <dependency><groupId>org.apache.commons</groupId><artifactId>commons-csv</artifactId><version>1.14.1</version></dependency>
+    <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-simple</artifactId><version>2.0.16</version></dependency>
+    <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter-api</artifactId><scope>test</scope></dependency>
+    <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter-engine</artifactId><scope>test</scope></dependency>
+  </dependencies>
+  <build>
+    <resources><resource><directory>../</directory><includes><include>MCP_SERVER.md</include><include>RAWSPACE_FORMAT.md</include><include>RAWSPACE_IMPORTERS.md</include></includes></resource></resources>
+    <plugins><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId><version>3.5.1</version>
+      <executions><execution><phase>package</phase><goals><goal>shade</goal></goals><configuration>
+        <finalName>openchemlib-hyperspace-mcp</finalName><createDependencyReducedPom>false</createDependencyReducedPom>
+        <filters><filter><artifact>*:*</artifact><excludes><exclude>META-INF/*.SF</exclude><exclude>META-INF/*.DSA</exclude><exclude>META-INF/*.RSA</exclude></excludes></filter></filters>
+        <transformers><transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+          <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"><mainClass>com.idorsia.research.chem.hyperspace.mcp.HyperspaceMcp</mainClass></transformer></transformers>
+      </configuration></execution></executions></plugin></plugins>
+  </build>
+</project>

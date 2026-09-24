@@ -29,61 +29,48 @@ public class LeetHyperspaceMain {
         }
     }
 
-    public static void main(String args[]) {
-
-        initLAF();
-
-        model = new LeetHyperspaceModel();
-        view  = new LeetHyperspaceView(model);
-
-        fi = new JFrame("Hyperspace 3.0");
-        fi.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-
-        fi.getContentPane().setLayout(new BorderLayout());
-        fi.getContentPane().add(view,BorderLayout.CENTER);
-        initMenu(fi);
-
-        fi.setSize(600,400);
-        fi.setVisible(true);
-
-
-        parseConfig("spaces.conf", model);
-
-        //LoadSynthonSpaceTask load_a = new LoadSynthonSpaceTask(model,view,"C:\\dev_github\\openchemlib-hyperspace\\test_space.data");
-        //LoadSynthonSpaceTask load_a = new LoadSynthonSpaceTask(model,view,"C:\\dev_github\\openchemlib-hyperspace\\divchem_1s_FragFp.data");
-        //LoadSynthonSpaceTask load_a = new LoadSynthonSpaceTask(model,"C:\\dev_github\\openchemlib-hyperspace\\realspace_FragFp.data");
-
-        //model.addTask(load_a);
-        //load_a.execute();
+    public static void main(String[] args) {
+        java.nio.file.Path config = args.length > 0 ? java.nio.file.Path.of(args[0])
+                : java.nio.file.Path.of("spaces.conf");
+        final Gui2Configuration.Configuration configuration;
+        try {
+            configuration = args.length == 0 && !java.nio.file.Files.exists(config)
+                    ? null : Gui2Configuration.read(config);
+        } catch (Exception ex) {
+            System.err.println("GUI 2 configuration error: " + ex.getMessage());
+            if (!GraphicsEnvironment.isHeadless()) SwingUtilities.invokeLater(() ->
+                    JOptionPane.showMessageDialog(null, ex.getMessage(), "Cannot open GUI 2",
+                            JOptionPane.ERROR_MESSAGE));
+            throw new IllegalArgumentException("Cannot load GUI 2 configuration", ex);
+        }
+        SwingUtilities.invokeLater(() -> open(configuration));
     }
 
-    /**
-     * TODO: extend at some point to some reasonable config..
-     * @param file
-     * @param model
-     */
-    private static void parseConfig(String file, LeetHyperspaceModel model) {
-        try{
-            BufferedReader in = new BufferedReader(new FileReader(file));
-            String line = null;
-            while( (line=in.readLine()) != null ) {
-                try{
-                    File fi = new File(line);
-                    LoadSynthonSpaceTask load_a = new LoadSynthonSpaceTask(model,fi.getAbsolutePath());
-                    model.addTask(load_a);
-                    load_a.execute();
-                }
-                catch(Exception ex2) {
-                    ex2.printStackTrace();
-                }
+    public static JFrame open(Gui2Configuration.Configuration configuration) {
+        if (!SwingUtilities.isEventDispatchThread()) throw new IllegalStateException("Use the Swing EDT");
+        initLAF();
+        model = new LeetHyperspaceModel();
+        view = new LeetHyperspaceView(model);
+        fi = new JFrame("Hyperspace - GUI 2 - Substructure Search");
+        fi.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        fi.getContentPane().add(view, BorderLayout.CENTER);
+        initMenu(fi);
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+        fi.setSize(Math.min(1200, screen.width), Math.min(850, screen.height));
+        fi.setLocationByPlatform(true);
+        fi.setVisible(true);
+        if (configuration != null) {
+            for (Gui2Configuration.Space space : configuration.spaces()) {
+                LoadSynthonSpaceTask task = new LoadSynthonSpaceTask(
+                        model, space.file().toString(), space.name(), space.threads());
+                model.addTask(task);
+                task.execute();
             }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (Exception ex) {
-            ex.printStackTrace();
+            if (!configuration.warnings().isEmpty()) JOptionPane.showMessageDialog(fi,
+                    String.join("\n", configuration.warnings()), "GUI 2: substructure only",
+                    JOptionPane.INFORMATION_MESSAGE);
         }
+        return fi;
     }
 
     public static void initMenu(JFrame fi) {
@@ -104,7 +91,7 @@ public class LeetHyperspaceMain {
                 jmSearchItems.stream().forEach( xi -> jmSearch.remove(xi));
                 jmSearchItems.clear();
                 //model.getSynthonSpaces().stream().forEach( xi -> jmSearchItems.add(new JMenuItem( new RunSubstructureSearchAction(model,view,xi,() -> model.getQuery()))));
-                model.getSynthonSpaces().stream().forEach( xi -> jmSearchItems.add(new JMenuItem( new RunSubstructureSearchAction(model,view,xi.getSpace(),xi.getName(),() -> model.getQuery()))));
+                model.getSynthonSpaces().stream().forEach( xi -> jmSearchItems.add(new JMenuItem( new RunSubstructureSearchAction(model,view,xi.getSpace(),xi.getName(),() -> model.getQuery(),xi.getThreads()))));
                 jmSearchItems.stream().forEach( xi -> jmSearch.add(xi));
             }
         });

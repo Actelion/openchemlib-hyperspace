@@ -176,13 +176,20 @@ public class HyperspaceSearchGUI {
 
     public void addSearchProvider(AbstractSearchProvider searchProvider) {
         AbstractHyperspaceProcess init_p = searchProvider.startInitialization();
+        init_p.addSearchProviderListener(() -> {
+            if (init_p.getProcessStatus() == AbstractHyperspaceProcess.ProcessStatus.FAILED) {
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(f_main,
+                        "Could not load " + searchProvider.getSearchProviderConfiguration().getServiceName() + "\n" + init_p.getProcessStatusMessage(),
+                        "Space loading failed", JOptionPane.ERROR_MESSAGE));
+            }
+        });
         this.p_main.process_list_model.addProcess(init_p);
         this.p_main.getHyperspaceSearchPanel().getSearchProviderListPanel().addSearchProvider(searchProvider);
     }
 
 
     private void initIconAndTitle() {
-        f_main.setTitle("Hyperspace 2.0.6");
+        f_main.setTitle("Hyperspace");
         java.net.URL url = this.getClass().getClassLoader().getSystemResource("com/idorsia/research/hyperspace_logo_02.png");
         Image img = Toolkit.getDefaultToolkit().createImage(url);
         this.f_main.setIconImage(img);
@@ -210,27 +217,7 @@ public class HyperspaceSearchGUI {
         p_main = new JMainPanel();
         f_main.getContentPane().add(p_main,BorderLayout.CENTER);
 
-        // init:
-        String json_config = HyperspaceUtils.readFileIntoString(config_file);
-        if(json_config==null) {
-            File fi_a = new File(config_file);
-            if(!fi_a.exists()) {
-                System.out.println("[INFO] Try to create config file..");
-                File fi = new File(config_file);
-                json_config = config_file;
-            }
-        }
-
-        //JSONObject joc = new JSONObject(json_config);
-        try {
-            Map<String,AbstractSearchProvider> providers = HyperspaceInit.loadSearchProviderInitFile(this,json_config);
-            for(String service_name : providers.keySet().stream().sorted().collect(Collectors.toList()) ) {
-                AbstractSearchProvider spi = providers.get(service_name);
-                this.addSearchProvider(spi);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        loadConfiguration(new File(config_file));
 
 
         if(false) {
@@ -301,6 +288,17 @@ public class HyperspaceSearchGUI {
         // test..
         //main
 
+    }
+
+    public void loadConfiguration(File file) {
+        try {
+            Map<String, AbstractSearchProvider> providers = HyperspaceInit.loadSearchProviderInitFile(this, file);
+            for (String name : providers.keySet().stream().sorted().collect(Collectors.toList())) addSearchProvider(providers.get(name));
+            f_main.setTitle("Hyperspace - " + file.getAbsolutePath());
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(f_main, "Could not load " + file.getAbsolutePath() + "\n" + e.getMessage(),
+                    "Configuration error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     public JMainPanel getHyperspaceMainPanel() {

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "hyperspace": {
+      "command": "java",
+      "args": ["-jar", "/absolute/path/to/openchemlib-hyperspace-mcp.jar", "--config", "/absolute/path/to/server.json"]
+    }
+  }
+}

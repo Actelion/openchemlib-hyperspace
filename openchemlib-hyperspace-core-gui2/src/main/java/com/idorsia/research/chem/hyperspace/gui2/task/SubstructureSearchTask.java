@@ -14,10 +14,18 @@ public class SubstructureSearchTask extends SwingWorker<List<SynthonSpace.Combin
 
 
     private SynthonSpace space;
+    private int threads;
     private StereoMolecule query;
     private CombinatorialSearchResultModel resultsModel;
 
     public SubstructureSearchTask(SynthonSpace space, StereoMolecule query, CombinatorialSearchResultModel resultsModel) {
+        this(space, query, resultsModel, Runtime.getRuntime().availableProcessors());
+    }
+
+    public SubstructureSearchTask(SynthonSpace space, StereoMolecule query,
+            CombinatorialSearchResultModel resultsModel, int threads) {
+        if (threads < 1) throw new IllegalArgumentException("threads must be positive");
+        this.threads = threads;
         this.space = space;
         this.query = query;
         this.resultsModel = resultsModel;
@@ -38,21 +46,19 @@ public class SubstructureSearchTask extends SwingWorker<List<SynthonSpace.Combin
         };
 
         CachedDescriptorProvider cdp = new CachedDescriptorProvider("FragFp");
-        SubstructureSearchHelper.run_substructure_search_streaming_01_withBridgedBondsExpansion(this.space,cdp,query,Runtime.getRuntime().availableProcessors(),true,false,receiver);
+        SubstructureSearchHelper.run_substructure_search_streaming_01_withBridgedBondsExpansion(this.space,cdp,query,threads,true,false,receiver);
 
         return new ArrayList<>();
     }
 
-    private int nextChunk = 0;
     @Override
     protected void process(List<List<SynthonSpace.CombinatorialHit>> chunks) {
-        for(int zi=nextChunk;zi<chunks.size();zi++) {
+        for(int zi=0;zi<chunks.size();zi++) {
             List<SynthonSpace.CombinatorialHit> c_last = chunks.get(zi);
             if (!c_last.isEmpty()) {
                 resultsModel.addResults(c_last);
             }
         }
-        nextChunk = chunks.size();
     }
 
     public StereoMolecule getQuery() {

@@ -321,7 +321,6 @@ public class HyperspaceSimilaritySearch extends AbstractSearchProvider<SynthonSi
     public AbstractHyperspaceProcess startInitialization() {
         //init_process = new InitializeHyperspaceSynthonSpaceProcess(config_initialization.getFile());
         this.init_process = new HyperspaceSimilaritySearchInitializationProcess(this,config_initialization.getFile());
-        init_process.startInitializationAsync();
 
         init_process.addSearchProviderListener(new AbstractHyperspaceProcess.HyperspaceProcessListener() {
             @Override
@@ -335,6 +334,7 @@ public class HyperspaceSimilaritySearch extends AbstractSearchProvider<SynthonSi
                 }
             }
         });
+        init_process.startInitializationAsync();
         return init_process;
     }
 

@@ -157,6 +157,100 @@ class RawSynthonSpaceTest {
         }
     }
 
+    @Test
+    void parallelBuildMatchesSequentialAcrossRepeatedRuns() throws Exception {
+        SynthonSpace original = loadToySpace("testdata/idorsia_toy_space_a.txt",
+                Collections.singleton("benzoimidazole_b-8"));
+        RawSynthonSpace source = RawSynthonSpace.builder("source").withFullSynthonSpace(original).build();
+        RawSynthonSpace.Builder builder = RawSynthonSpace.builder("parallel");
+        for (int i = 0; i < 4; i++) {
+            String reaction = "reaction-" + i;
+            source.getReactions().values().iterator().next().getRawFragmentSets()
+                    .forEach((idx, fragments) -> builder.addRawFragments(reaction, idx, fragments));
+        }
+        RawSynthonSpace raw = builder.build();
+        SynthonSpace sequential = RawSynthonSpaceAssembler.buildSynthonSpace(raw,
+                RawSynthonSpaceAssembler.BuildOptions.builder().descriptorShortName("FragFp")
+                        .descriptorBits(512).threads(1).build());
+        for (int run = 0; run < 3; run++) {
+            SynthonSpace parallel = RawSynthonSpaceAssembler.buildSynthonSpace(raw,
+                    RawSynthonSpaceAssembler.BuildOptions.builder().descriptorShortName("FragFp")
+                            .descriptorBits(512).threads(3).build());
+            assertEquals(new java.util.HashSet<>(sequential.getRxnIds()),
+                    new java.util.HashSet<>(parallel.getRxnIds()));
+            assertEquals(sequential.frags_by_id.keySet(), parallel.frags_by_id.keySet());
+            for (String key : sequential.frags_by_id.keySet()) {
+                SynthonSpace.FragId expected = sequential.frags_by_id.get(key);
+                SynthonSpace.FragId actual = parallel.frags_by_id.get(key);
+                assertEquals(expected.idcode, actual.idcode);
+                assertEquals(expected.fragment_id, actual.fragment_id);
+                assertEquals(expected.fp, actual.fp);
+            }
+            StereoMolecule query = new StereoMolecule();
+            new SmilesParser().parse(query, "C");
+            query.setFragment(true);
+            com.idorsia.research.chem.hyperspace.CachedDescriptorProvider descriptors =
+                    new com.idorsia.research.chem.hyperspace.CachedDescriptorProvider("FragFp");
+            int hits = 0;
+            assertEquals(sequential.substructure_searchers_sorted_by_connector_fp.keySet(),
+                    parallel.substructure_searchers_sorted_by_connector_fp.keySet());
+            for (var type : sequential.substructure_searchers_sorted_by_connector_fp.keySet()) {
+                var expectedSearchers = sequential.substructure_searchers_sorted_by_connector_fp.get(type);
+                var actualSearchers = parallel.substructure_searchers_sorted_by_connector_fp.get(type);
+                assertEquals(expectedSearchers.keySet(), actualSearchers.keySet());
+                for (var fingerprint : expectedSearchers.keySet()) {
+                    var expectedHits = new java.util.HashSet<>(expectedSearchers.get(fingerprint)
+                            .findSubstructure(descriptors, query, 10000));
+                    var actualHits = new java.util.HashSet<>(actualSearchers.get(fingerprint)
+                            .findSubstructure(descriptors, query, 10000));
+                    assertEquals(expectedHits, actualHits);
+                    hits += expectedHits.size();
+                }
+            }
+            assertTrue(hits > 0);
+            assertNoBuildWorkers();
+
+        }
+    }
+
+    @Test
+    void invalidThreadsAndReactionFailuresAreReported() {
+        assertThrows(IllegalArgumentException.class,
+                () -> RawSynthonSpaceAssembler.BuildOptions.builder().threads(0));
+        assertThrows(IllegalArgumentException.class,
+                () -> RawSynthonSpaceAssembler.BuildOptions.builder().threads(-1));
+        RawSynthonSpace invalid = RawSynthonSpace.builder("invalid")
+                .addRawFragments("bad-reaction", 0, Collections.emptyList()).build();
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> RawSynthonSpaceAssembler.buildSynthonSpace(invalid,
+                        RawSynthonSpaceAssembler.BuildOptions.builder().descriptorShortName("FragFp")
+                                .threads(2).build()));
+        assertTrue(failure.getCause().getMessage().contains("bad-reaction"));
+        assertNoBuildWorkers();
+    }
+
+    @Test
+    void interruptedBuildPreservesInterruptStatus() throws Exception {
+        SynthonSpace original = loadToySpace("testdata/idorsia_toy_space_a.txt",
+                Collections.singleton("benzoimidazole_b-8"));
+        RawSynthonSpace raw = RawSynthonSpace.builder("toy").withFullSynthonSpace(original).build();
+        try {
+            Thread.currentThread().interrupt();
+            assertThrows(InterruptedException.class, () -> RawSynthonSpaceAssembler.buildSynthonSpace(raw,
+                    RawSynthonSpaceAssembler.BuildOptions.builder().descriptorShortName("FragFp")
+                            .threads(2).build()));
+            assertTrue(Thread.currentThread().isInterrupted());
+            assertNoBuildWorkers();
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    private void assertNoBuildWorkers() {
+        assertFalse(Thread.getAllStackTraces().keySet().stream()
+                .anyMatch(t -> t.isAlive() && t.getName().startsWith("rawspace-build-")));
+    }
+
     private SynthonSpace loadToySpace(String resource, Set<String> allowedReactions) throws Exception {
         InputStream in = getClass().getClassLoader().getResourceAsStream(resource);
         assertNotNull(in, "Test data file missing: " + resource);

@@ -28,6 +28,9 @@ public class HyperspaceLauncher {
         if(args[0].equalsIgnoreCase("CREATESPACE")) {
             SynthonSpaceParser2.main(args2);
         }
+        else if(args[0].equalsIgnoreCase("GUI2")) {
+            com.idorsia.research.chem.hyperspace.gui2.LeetHyperspaceMain.main(args2);
+        }
         else if(args[0].equalsIgnoreCase("GUI")) {
             HyperspaceSearchGUI.main(args2);
         }

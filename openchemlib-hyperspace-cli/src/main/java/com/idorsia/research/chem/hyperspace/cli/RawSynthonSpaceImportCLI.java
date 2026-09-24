@@ -145,6 +145,11 @@ public class RawSynthonSpaceImportCLI {
                 System.out.println("Similarity space written to: " + similarityOut);
             }
         }
+        Map<String,String> outputs = new LinkedHashMap<>();
+        outputs.put("rawspace", rawOut);
+        if (synthonOut != null) outputs.put("substructure", synthonOut);
+        if (similarityOut != null) outputs.put("similarity", similarityOut);
+        RawSpaceCompletionReport.write(cmd.getOptionValue("reportOut"), rawSpace, outputs);
     }
 
     private static void writeSimilaritySpace(SynthonSimilaritySpace3 similarity, String output) {
@@ -158,6 +163,7 @@ public class RawSynthonSpaceImportCLI {
 
     private static Options buildOptions() {
         Options options = new Options();
+        options.addOption(Option.builder().longOpt("reportOut").hasArg().desc("Optional successful completion JSON report").build());
         options.addOption(Option.builder().longOpt("format").hasArg()
                 .desc("Input format: enamine (default), xtalpi, or csv").build());
         options.addOption(Option.builder().longOpt("input").hasArg()

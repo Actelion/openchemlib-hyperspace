@@ -41,6 +41,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.idorsia.research</groupId>
+            <artifactId>openchemlib-hyperspace-core-gui2</artifactId>
+            <version>0.2.5</version>
+        </dependency>
+        <dependency>
             <groupId>com.actelion.research</groupId>
             <artifactId>openchemlib</artifactId>
             <!--<version>2022.3.3</version>-->
@@ -152,6 +157,7 @@
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                             <mainClass>com.idorsia.research.chem.hyperspace.HyperspaceLauncher</mainClass>
                         </manifest>
                     </archive>

@@ -6,11 +6,20 @@ public class LoadedSynthonSpace {
 
     private SynthonSpace space;
     private String name;
+    private int threads;
 
     public LoadedSynthonSpace(SynthonSpace space, String name) {
-        this.space = space;
-        this.name = name;
+        this(space, name, Runtime.getRuntime().availableProcessors());
     }
+
+    public LoadedSynthonSpace(SynthonSpace space, String name, int threads) {
+        if (threads < 1) throw new IllegalArgumentException("threads must be positive");
+        this.space = java.util.Objects.requireNonNull(space);
+        this.name = name;
+        this.threads = threads;
+    }
+
+    public int getThreads() { return threads; }
 
     public SynthonSpace getSpace() {
         return space;

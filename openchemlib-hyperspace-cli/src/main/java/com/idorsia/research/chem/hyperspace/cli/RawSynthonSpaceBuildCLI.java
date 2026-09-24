@@ -44,6 +44,7 @@ public class RawSynthonSpaceBuildCLI {
             throw new IllegalArgumentException("Please supply --descriptor (available tags: " + suggestion + ")");
         }
         builder.descriptorShortName(descriptor.trim());
+        builder.threads(Integer.parseInt(cmd.getOptionValue("threads", "1")));
         if (bitsArg != null) {
             builder.descriptorBits(Integer.parseInt(bitsArg));
         }
@@ -62,6 +63,10 @@ public class RawSynthonSpaceBuildCLI {
             writeSimilaritySpace(similaritySpace, similarityOut);
             System.out.println("Similarity space written to: " + similarityOut);
         }
+        java.util.Map<String,String> outputs = new java.util.LinkedHashMap<>();
+        outputs.put("substructure", synthonOut);
+        if (similarityOut != null) outputs.put("similarity", similarityOut);
+        RawSpaceCompletionReport.write(cmd.getOptionValue("reportOut"), raw, outputs);
     }
 
     private static void writeSimilaritySpace(SynthonSimilaritySpace3 similaritySpace, String output) {
@@ -75,6 +80,7 @@ public class RawSynthonSpaceBuildCLI {
 
     private static Options buildOptions() {
         Options options = new Options();
+        options.addOption(Option.builder().longOpt("reportOut").hasArg().desc("Optional successful completion JSON report").build());
         options.addOption(Option.builder().longOpt("rawIn").hasArg().required(true)
                 .desc("Path to RawSynthonSpace JSON file").build());
         options.addOption(Option.builder().longOpt("synthonOut").hasArg().required(true)
@@ -87,6 +93,8 @@ public class RawSynthonSpaceBuildCLI {
                 .desc("Skip connector validation; trust RawSynthonSpace content.").build());
         options.addOption(Option.builder().longOpt("similarityOut").hasArg()
                 .desc("Optional output for SynthonSimilaritySpace3 (.data)").build());
+        options.addOption(Option.builder().longOpt("threads").hasArg()
+                .desc("Reaction build workers (positive integer, default 1)").build());
         options.addOption(Option.builder().longOpt("similarityThreads").hasArg()
                 .desc("Worker threads for similarity initialization (default 4)").build());
         return options;

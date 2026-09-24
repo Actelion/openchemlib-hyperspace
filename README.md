@@ -4,6 +4,10 @@
 Cheminformatics tools, workflows and pipelines for substructure search, virtual screening and data analysis
 
 
+## Agent-assisted setup via MCP
+
+The [Hyperspace MCP server](MCP_SERVER.md) lets an MCP-capable agent inspect supplier files, prepare search indexes, monitor jobs across sessions, and open a configured GUI. See the guide for installation and a toy-space walkthrough.
+
 # First Steps -  Substructure search in a toy combinatorial library space
 The following six steps are required to try out the fast substructure search in combinatorial library spaces. In this example we create the necessary datastructures from a provided input file containing a toy combinatorial library space consisting of 30k structures.
 

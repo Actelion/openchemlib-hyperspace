@@ -3,6 +3,25 @@
 # openchemlib-hyperspace
 Cheminformatics tools, workflows and pipelines for substructure search, virtual screening and data analysis
 
+## Learned screening and training-data mining
+
+[Hyperspace3D](openchemlib-hyperspace-3d/README.md) provides graph-based ONNX
+screening, sampled-product and flat-molecule fingerprint indexes, and learned
+2D/3D similarity searches. [PheSA query-pair mining](openchemlib-hyperspace-3d/PHESA_QUERY_MINING.md)
+adds resumable generation of exact PheSA training labels.
+
+The full repository build targets **Java 22**. The 3D module uses newer JDK APIs
+and cannot be built with the Java 17 override used in the separate MCP guide.
+Its default runtime is CPU ONNX Runtime; CUDA requires the module's explicit
+`cuda` profile and compatible native libraries. These standalone workflows do
+not change the existing GUI/MCP search interface.
+
+The tools module also includes
+`com.idorsia.research.chem.hyperspace.tools.chembl.LatentAssemblyMinerCLI`
+(`--help` lists its options). It reads ChEMBL-style IDCode TSV input and writes
+scaffold/arm decomposition training records as JSONL, optionally gzip-compressed;
+it does not itself compute latent vectors.
+
 
 ## Agent-assisted setup via MCP
 

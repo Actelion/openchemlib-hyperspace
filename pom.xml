@@ -5,7 +5,7 @@
     <groupId>com.idorsia.research</groupId>
     <artifactId>openchemlib-hyperspace</artifactId>
     <packaging>pom</packaging>
-    <version>0.2.5</version>
+    <version>3.0.0</version>
 
     <developers>
         <developer>

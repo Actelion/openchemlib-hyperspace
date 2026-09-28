@@ -62,7 +62,7 @@ final class Jobs {
             state.put("artifacts", new LinkedHashMap<>());
             state.put("cliJar", config.cliJar().toString());
             state.put("cliJarSha256", sha256(config.cliJar()));
-            state.put("mcpVersion", "0.2.5");
+            state.put("mcpVersion", "3.0.0");
             state.put("javaVersion", System.getProperty("java.version"));
             try (var jar = new java.util.jar.JarFile(config.cliJar().toFile())) {
                 var manifest = jar.getManifest();

@@ -39,7 +39,7 @@ public final class HyperspaceMcp {
         HyperspaceMcp app = new HyperspaceMcp(ServerConfig.load(Path.of(args[1])));
         McpSyncServer server =
                 McpServer.sync(new StdioServerTransportProvider(McpJsonDefaults.getMapper()))
-                        .serverInfo("hyperspace", "0.2.5")
+                        .serverInfo("hyperspace", "3.0.0")
                         .instructions(
                                 "Prepare local non-3D Hyperspace spaces. Start with get_environment"
                                     + " and inspect_input; read workflow help. Use explicit formats"

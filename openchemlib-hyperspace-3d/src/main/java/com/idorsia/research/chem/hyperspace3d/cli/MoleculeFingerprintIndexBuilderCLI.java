@@ -31,7 +31,7 @@ public final class MoleculeFingerprintIndexBuilderCLI {
                      new CompactSkelSpheresProjector(runtime, compact)) {
             var encoder = new DeepSpaceDualFingerprintBatchEncoder(base, projection);
             var result = new MoleculeFingerprintIndexBuilder(
-                    encoder, config, paths).build();
+                    encoder, config, paths).withModelIdentity(source.bundleHash(), compact.bundleHash()).build();
             System.out.printf(
                     "Molecule index complete: %,d/%,d accepted rows in %,d shards%nManifest: %s%n",
                     result.recordCount(), result.sourceRowCount(), result.shardCount(),

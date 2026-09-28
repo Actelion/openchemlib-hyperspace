@@ -15,6 +15,43 @@ import java.time.Duration;
 import java.util.*;
 
 class PackagedMcpTest {
+    @Test
+    void fingerprintPreparationSurvivesClientReconnect() throws Exception {
+        String jar = System.getProperty("hyperspace3d.distributionJar");
+        assumeTrue(jar != null && System.getProperty("hyperspace.mcpJar") != null);
+        Path root = Files.createTempDirectory("mcp fingerprint ");
+        Path input = Files.writeString(root.resolve("input.tsv"), "smiles\tid\nCCCCCC\tone\nc1ccccc1\ttwo\n");
+        Path config = root.resolve("server.json");
+        JsonFiles.write(config, Map.of("workspace", root.resolve("workspace").toString(),
+                "cliJar", System.getProperty("hyperspace.cliJar", jar), "fingerprintJar", jar,
+                "fingerprintLibDirectory", Path.of(jar).getParent().resolve("lib").toString(),
+                "modelBundle", System.getProperty("hyperspace3d.modelBundle"),
+                "compactBundle", System.getProperty("hyperspace3d.compactBundle"), "threads", 2, "heap", "1G"));
+        String id;
+        try (var client = connect(config)) {
+            assertTrue(call(client, "get_workflow_help", Map.of("topic", "fingerprints")).get("text").toString().contains("scratch"));
+            assertTrue(call(client, "inspect_molecule_library", Map.of("input", input.toString())).containsKey("columns"));
+            var started = call(client, "prepare_molecule_fingerprints", Map.of("input", input.toString(), "sourceRowsPerShard", 1));
+            assertEquals(true, started.get("accepted")); id = started.get("jobId").toString();
+        }
+        try (var client = connect(config)) {
+            Map<String, Object> status;
+            long end = System.nanoTime() + Duration.ofMinutes(2).toNanos();
+            do {
+                status = call(client, "get_job_status", Map.of("jobId", id));
+                if (!Jobs.ACTIVE.contains(status.get("state"))) break;
+                Thread.sleep(100);
+            } while (System.nanoTime() < end);
+            assertEquals("succeeded", status.get("state"), status.toString());
+            assertEquals(1, ((List<?>) call(client, "list_molecule_libraries", Map.of()).get("libraries")).size());
+            assertTrue(((List<?>) call(client, "list_spaces", Map.of()).get("spaces")).isEmpty());
+            assertTrue(client.callTool(new McpSchema.CallToolRequest("configure_gui", Map.of("jobIds", List.of(id)))).isError());
+            var artifacts = (Map<?, ?>) status.get("artifacts");
+            assertTrue(Files.isRegularFile(Path.of(artifacts.get("manifest").toString())));
+            assertTrue(call(client, "get_job_log", Map.of("jobId", id, "log", "fingerprint")).get("text").toString().contains("Molecule index complete"));
+        }
+    }
+
     McpSyncClient connect(Path config) {
         ServerParameters parameters =
                 ServerParameters.builder(
@@ -64,8 +101,8 @@ class PackagedMcpTest {
                         "2G"));
         String id;
         try (McpSyncClient client = connect(config)) {
-            assertEquals(11, client.listTools().tools().size());
-            assertEquals(3, client.listResources().resources().size());
+            assertEquals(15, client.listTools().tools().size());
+            assertEquals(4, client.listResources().resources().size());
             assertEquals(1, client.listPrompts().prompts().size());
             assertTrue(
                     call(

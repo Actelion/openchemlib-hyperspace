@@ -56,6 +56,8 @@ public final class MoleculeFingerprintIndexBuilder {
     private final MoleculeFingerprintBatchEncoder encoder;
     private final MoleculeFingerprintIndexBuildConfig config;
     private final MoleculeFingerprintIndexBuildConfig.ResolvedPaths paths;
+    private String modelBundleHash;
+    private String compactBundleHash;
     private final OCLDeepSpaceFeaturizer featurizer = new OCLDeepSpaceFeaturizer();
     private final DeepSpaceTensorBatchBuilder tensorBuilder =
             new DeepSpaceTensorBatchBuilder(featurizer);
@@ -67,6 +69,12 @@ public final class MoleculeFingerprintIndexBuilder {
         this.config = Objects.requireNonNull(config);
         this.paths = Objects.requireNonNull(paths);
         config.validate();
+    }
+
+    public MoleculeFingerprintIndexBuilder withModelIdentity(String base, String compact) {
+        modelBundleHash = Objects.requireNonNull(base);
+        compactBundleHash = Objects.requireNonNull(compact);
+        return this;
     }
 
     public MoleculeFingerprintIndexBuildResult build() {
@@ -362,6 +370,8 @@ public final class MoleculeFingerprintIndexBuilder {
         state.idColumn = config.inputs.idColumn;
         state.modelBundle = paths.modelBundle().toString();
         state.compactBundle = paths.compactBundle().toString();
+        state.modelBundleHash = modelBundleHash;
+        state.compactBundleHash = compactBundleHash;
         state.sourceRowsPerShard = config.output.sourceRowsPerShard;
         writeState(output, state);
         return state;
@@ -372,8 +382,8 @@ public final class MoleculeFingerprintIndexBuilder {
                 || !paths.library().toString().equals(state.input)
                 || !config.inputs.smilesColumn.equals(state.smilesColumn)
                 || !config.inputs.idColumn.equals(state.idColumn)
-                || !paths.modelBundle().toString().equals(state.modelBundle)
-                || !paths.compactBundle().toString().equals(state.compactBundle)
+                || !sameModel(state.modelBundleHash, modelBundleHash, state.modelBundle, paths.modelBundle())
+                || !sameModel(state.compactBundleHash, compactBundleHash, state.compactBundle, paths.compactBundle())
                 || config.output.sourceRowsPerShard != state.sourceRowsPerShard) {
             throw new IOException("resume state does not match the structural build settings");
         }
@@ -417,6 +427,8 @@ public final class MoleculeFingerprintIndexBuilder {
         result.idColumn = config.inputs.idColumn;
         result.modelBundle = paths.modelBundle().toString();
         result.compactBundle = paths.compactBundle().toString();
+        result.modelBundleHash = modelBundleHash;
+        result.compactBundleHash = compactBundleHash;
         result.sourceRowsPerShard = config.output.sourceRowsPerShard;
         result.sourceRowCount = state.nextSourceRow;
         result.recordCount = state.metrics.accepted;
@@ -435,8 +447,8 @@ public final class MoleculeFingerprintIndexBuilder {
         if (!paths.library().toString().equals(manifest.input)
                 || !config.inputs.smilesColumn.equals(manifest.smilesColumn)
                 || !config.inputs.idColumn.equals(manifest.idColumn)
-                || !paths.modelBundle().toString().equals(manifest.modelBundle)
-                || !paths.compactBundle().toString().equals(manifest.compactBundle)
+                || !sameModel(manifest.modelBundleHash, modelBundleHash, manifest.modelBundle, paths.modelBundle())
+                || !sameModel(manifest.compactBundleHash, compactBundleHash, manifest.compactBundle, paths.compactBundle())
                 || config.output.sourceRowsPerShard != manifest.sourceRowsPerShard) {
             throw new IOException("completed index does not match this configuration");
         }
@@ -463,6 +475,10 @@ public final class MoleculeFingerprintIndexBuilder {
                 "model bundle is missing: " + paths.modelBundle());
         if (!Files.isDirectory(paths.compactBundle())) throw new IOException(
                 "compact model bundle is missing: " + paths.compactBundle());
+    }
+
+    private static boolean sameModel(String oldHash, String newHash, String oldPath, Path newPath) {
+        return oldHash == null ? newPath.toString().equals(oldPath) : oldHash.equals(newHash);
     }
 
     private static void cleanupPartialDirectories(Path output) throws IOException {
@@ -531,6 +547,8 @@ public final class MoleculeFingerprintIndexBuilder {
     }
 
     public static final class BuildState {
+        public String modelBundleHash;
+        public String compactBundleHash;
         public int formatVersion = 1;
         public String status = "IN_PROGRESS";
         public String input;

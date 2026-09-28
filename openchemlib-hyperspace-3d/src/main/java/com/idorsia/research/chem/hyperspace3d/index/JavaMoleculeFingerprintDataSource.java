@@ -69,10 +69,12 @@ public final class JavaMoleculeFingerprintDataSource implements MoleculeFingerpr
 
     @Override public void validateCompatibility(DeepSpaceModelBundle model,
             CompactSkelSpheresModelBundle compact, boolean compactRequired) {
-        requirePath(manifest.modelBundle, model.directory(), "primary model bundle");
+        requireModel(manifest.modelBundleHash, model.bundleHash(), manifest.modelBundle,
+                model.directory(), "primary model bundle");
         if (compactRequired) {
             if (compact == null) throw new IllegalArgumentException("compact model bundle is required");
-            requirePath(manifest.compactBundle, compact.directory(), "compact model bundle");
+            requireModel(manifest.compactBundleHash, compact.bundleHash(), manifest.compactBundle,
+                    compact.directory(), "compact model bundle");
         }
     }
 
@@ -88,5 +90,12 @@ public final class JavaMoleculeFingerprintDataSource implements MoleculeFingerpr
         if (!Path.of(indexed).toAbsolutePath().normalize().equals(selected.toAbsolutePath().normalize())) {
             throw new IllegalArgumentException(label + " does not match index manifest");
         }
+    }
+
+    private static void requireModel(String indexedHash, String selectedHash, String indexedPath,
+            Path selectedPath, String label) {
+        if (indexedHash == null) requirePath(indexedPath, selectedPath, label);
+        else if (!indexedHash.equals(selectedHash))
+            throw new IllegalArgumentException(label + " content does not match index manifest");
     }
 }

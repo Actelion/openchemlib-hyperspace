@@ -1,0 +1,37 @@
+{
+  "workflow": {
+    "library": "/shared/libraries/enamine.tsv.bz2",
+    "smilesColumn": "smiles",
+    "idColumn": "id",
+    "sharedDirectory": "/shared/hyperspace/enamine-fingerprints-run1",
+    "scratchRoot": "/scratch",
+    "applicationJar": "/shared/software/hyperspace3d/openchemlib-hyperspace-3d-3.0.0.jar",
+    "libraryDirectory": "/shared/software/hyperspace3d/lib",
+    "modelBundle": "/shared/software/hyperspace3d/model-bundles/deepspace7-v1",
+    "compactBundle": "/shared/software/hyperspace3d/model-bundles/deepspace7-skelspheres16",
+    "javaExecutable": "java",
+    "heap": "8G",
+    "rowsPerPartition": 1000000,
+    "maxArrayTasks": 1000,
+    "runtime": {
+      "device": "CUDA",
+      "cudaDeviceId": 0,
+      "cpuWorkers": 6,
+      "encoderBatchSize": 512,
+      "queueCapacity": 4,
+      "progressIntervalSeconds": 30
+    }
+  },
+  "slurm": {
+    "partition": "GPU-01",
+    "cpuPartition": "CPU-01",
+    "gpuRequest": "gpu:rtx5080:1",
+    "cpus": 8,
+    "memory": "24G",
+    "time": "24:00:00",
+    "cpuMemory": "8G",
+    "cpuTime": "24:00:00",
+    "maxConcurrentTasks": 4,
+    "environmentSetup": "/shared/software/hyperspace3d/environment.sh"
+  }
+}

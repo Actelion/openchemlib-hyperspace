@@ -9,7 +9,14 @@ record ServerConfig(
         String javaExecutable,
         int threads,
         String heap,
-        String guiHeap) {
+        String guiHeap,
+        Path fingerprintJar,
+        Path fingerprintLibDirectory,
+        Path modelBundle,
+        Path compactBundle) {
+    ServerConfig(Path workspace, Path cliJar, String javaExecutable, int threads, String heap, String guiHeap) {
+        this(workspace, cliJar, javaExecutable, threads, heap, guiHeap, null, null, null, null);
+    }
     static ServerConfig load(Path path) throws Exception {
         Map<String, Object> m = JsonFiles.read(path);
         Path base = path.toAbsolutePath().getParent();
@@ -27,7 +34,15 @@ record ServerConfig(
                         1,
                         4096),
                 validHeap((String) m.getOrDefault("heap", "8G")),
-                validHeap((String) m.getOrDefault("guiHeap", "8G")));
+                validHeap((String) m.getOrDefault("guiHeap", "8G")),
+                optionalPath(m, base, "fingerprintJar"),
+                optionalPath(m, base, "fingerprintLibDirectory"),
+                optionalPath(m, base, "modelBundle"),
+                optionalPath(m, base, "compactBundle"));
+    }
+
+    private static Path optionalPath(Map<String, Object> m, Path base, String key) {
+        return m.containsKey(key) ? base.resolve(JsonFiles.string(m, key)).toAbsolutePath().normalize() : null;
     }
 
     static String validHeap(String value) {
@@ -38,7 +53,7 @@ record ServerConfig(
     }
 
     Map<String, Object> asMap() {
-        return Map.of(
+        Map<String, Object> result = new LinkedHashMap<>(Map.of(
                 "workspace",
                 workspace.toString(),
                 "cliJar",
@@ -50,7 +65,12 @@ record ServerConfig(
                 "heap",
                 heap,
                 "guiHeap",
-                guiHeap);
+                guiHeap));
+        if (fingerprintJar != null) result.put("fingerprintJar", fingerprintJar.toString());
+        if (fingerprintLibDirectory != null) result.put("fingerprintLibDirectory", fingerprintLibDirectory.toString());
+        if (modelBundle != null) result.put("modelBundle", modelBundle.toString());
+        if (compactBundle != null) result.put("compactBundle", compactBundle.toString());
+        return result;
     }
 
     static String setsid() {

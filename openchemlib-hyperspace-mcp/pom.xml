@@ -3,6 +3,7 @@
   <parent><groupId>com.idorsia.research</groupId><artifactId>openchemlib-hyperspace</artifactId><version>3.0.0</version></parent>
   <artifactId>openchemlib-hyperspace-mcp</artifactId>
   <dependencies>
+    <dependency><groupId>org.apache.commons</groupId><artifactId>commons-compress</artifactId><version>1.27.1</version></dependency>
     <dependency><groupId>commons-io</groupId><artifactId>commons-io</artifactId><version>2.20.0</version></dependency>
     <dependency><groupId>io.modelcontextprotocol.sdk</groupId><artifactId>mcp</artifactId><version>2.0.0</version></dependency>
     <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>2.21.1</version></dependency>
@@ -12,7 +13,7 @@
     <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter-engine</artifactId><scope>test</scope></dependency>
   </dependencies>
   <build>
-    <resources><resource><directory>../</directory><includes><include>MCP_SERVER.md</include><include>RAWSPACE_FORMAT.md</include><include>RAWSPACE_IMPORTERS.md</include></includes></resource></resources>
+    <resources><resource><directory>../</directory><includes><include>MCP_SERVER.md</include><include>RAWSPACE_FORMAT.md</include><include>RAWSPACE_IMPORTERS.md</include><include>FINGERPRINT_SLURM_WORKFLOW.md</include></includes></resource></resources>
     <plugins><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId><version>3.5.1</version>
       <executions><execution><phase>package</phase><goals><goal>shade</goal></goals><configuration>
         <finalName>openchemlib-hyperspace-mcp</finalName><createDependencyReducedPom>false</createDependencyReducedPom>

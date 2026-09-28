@@ -3,7 +3,7 @@ package com.idorsia.research.chem.hyperspace3d.index;
 import java.util.List;
 import java.util.Map;
 
-/** Manifest for the flat, dual-vector molecule index. It intentionally has no hashes. */
+/** Manifest for the flat, dual-vector molecule index, with optional portable model identity. */
 public final class MoleculeFingerprintIndexManifest {
     public String artifactType = "hyperspace-molecule-fingerprint-index";
     public int formatVersion = 1;
@@ -12,6 +12,8 @@ public final class MoleculeFingerprintIndexManifest {
     public String idColumn;
     public String modelBundle;
     public String compactBundle;
+    public String modelBundleHash;
+    public String compactBundleHash;
     public String vectorDtype = "float16";
     public int baseDimension = 128;
     public int compactDimension = 16;

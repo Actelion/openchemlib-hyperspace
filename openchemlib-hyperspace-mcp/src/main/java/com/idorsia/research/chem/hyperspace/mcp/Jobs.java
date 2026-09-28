@@ -37,8 +37,16 @@ final class Jobs {
 
     synchronized Map<String, Object> submit(Map<String, Object> input) throws Exception {
         Map<String, Object> r = Preparation.normalize(input, config);
-        if (!Files.isRegularFile(config.cliJar()))
-            throw new IllegalArgumentException("CLI JAR missing: " + config.cliJar());
+        return submitNormalized(r, config.cliJar());
+    }
+
+    synchronized Map<String, Object> submitFingerprint(Map<String, Object> input) throws Exception {
+        return submitNormalized(FingerprintJobs.normalize(input, config), config.fingerprintJar());
+    }
+
+    private Map<String, Object> submitNormalized(Map<String, Object> r, Path application) throws Exception {
+        if (!Files.isRegularFile(application))
+            throw new IllegalArgumentException("Application JAR missing: " + application);
         String setsid = ServerConfig.setsid();
         try (FileChannel channel =
                         FileChannel.open(
@@ -56,15 +64,16 @@ final class Jobs {
             JsonFiles.write(d.resolve("server.json"), config.asMap());
             Map<String, Object> state = new LinkedHashMap<>();
             state.put("jobId", id);
+            state.put("jobKind", r.getOrDefault("jobKind", "space"));
             state.put("state", "pending");
             state.put("stage", "starting");
             state.put("createdAt", Instant.now().toString());
             state.put("artifacts", new LinkedHashMap<>());
-            state.put("cliJar", config.cliJar().toString());
-            state.put("cliJarSha256", sha256(config.cliJar()));
+            state.put("cliJar", application.toString());
+            state.put("cliJarSha256", sha256(application));
             state.put("mcpVersion", "3.0.0");
             state.put("javaVersion", System.getProperty("java.version"));
-            try (var jar = new java.util.jar.JarFile(config.cliJar().toFile())) {
+            try (var jar = new java.util.jar.JarFile(application.toFile())) {
                 var manifest = jar.getManifest();
                 state.put("cliJarVersion", manifest == null ? "unknown" : Objects.toString(
                         manifest.getMainAttributes().getValue("Implementation-Version"), "unknown"));
@@ -190,8 +199,8 @@ final class Jobs {
     }
 
     Map<String, Object> log(String id, String log, long offset, int limit) throws Exception {
-        if (!Set.of("worker", "import", "build", "gui").contains(log))
-            throw new IllegalArgumentException("log must be worker, import, build, or gui");
+        if (!Set.of("worker", "import", "build", "gui", "fingerprint").contains(log))
+            throw new IllegalArgumentException("log must be worker, import, build, fingerprint, or gui");
         if (offset < 0 || limit < 1 || limit > 65536)
             throw new IllegalArgumentException("Invalid offset or limit (maximum 65536 bytes)");
         Path f = dir(id).resolve(log + ".log");
@@ -282,6 +291,8 @@ final class Jobs {
         List<Object> providers = new ArrayList<>();
         for (String id : ids) {
             Map<String, Object> s = status(id);
+            if ("fingerprint".equals(s.get("jobKind")))
+                throw new IllegalArgumentException("Molecule fingerprint libraries are not GUI synthon spaces");
             if (!s.get("state").equals("succeeded"))
                 throw new IllegalArgumentException("Space is not complete: " + id);
             Map<String, Object> r = JsonFiles.read(dir(id).resolve("request.json"));

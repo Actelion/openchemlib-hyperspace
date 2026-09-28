@@ -8,6 +8,11 @@ by a later local/beam optimizer.
 
 ## Workflow overview
 
+For managed local jobs or multi-node fingerprint generation with task-local
+scratch, see the [MCP and Slurm fingerprint guide](../FINGERPRINT_SLURM_WORKFLOW.md).
+Slurm bundles are exported for manual submission; completed partitions are
+consolidated into the same flat molecule index used by the search CLIs below.
+
 Choose the workflow by input type: a flat molecule library already contains
 complete molecules, whereas a raw synthon space describes combinations that
 must first be sampled and assembled. Fingerprints of sampled products do not

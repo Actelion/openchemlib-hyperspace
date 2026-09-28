@@ -27,6 +27,10 @@ it does not itself compute latent vectors.
 
 The [Hyperspace MCP server](MCP_SERVER.md) lets an MCP-capable agent inspect supplier files, prepare search indexes, monitor jobs across sessions, and open a configured GUI. See the guide for installation and a toy-space walkthrough.
 
+[Molecule fingerprint and Slurm workflows](FINGERPRINT_SLURM_WORKFLOW.md) cover
+local MCP fingerprint jobs and exported GPU job arrays with scratch staging,
+partition-level restart, and consolidation into one searchable molecule cache.
+
 # First Steps -  Substructure search in a toy combinatorial library space
 The following six steps are required to try out the fast substructure search in combinatorial library spaces. In this example we create the necessary datastructures from a provided input file containing a toy combinatorial library space consisting of 30k structures.
 

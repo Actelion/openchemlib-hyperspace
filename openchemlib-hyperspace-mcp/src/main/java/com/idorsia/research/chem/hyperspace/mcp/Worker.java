@@ -46,66 +46,83 @@ final class Worker {
                 throw new IllegalStateException("Another worker holds the workspace lock");
             Path staging = dir.resolve("staging");
             Files.createDirectories(staging);
-            Path raw;
-            if (request.get("format").equals("rawspace"))
-                raw = Path.of((String) request.get("input"));
-            else {
-                raw = staging.resolve("space.rawspace.gz");
+            if ("fingerprint".equals(request.get("jobKind"))) {
+                Path output = Path.of((String) request.get("outputDirectory"));
+                Path buildConfig = dir.resolve("fingerprint-config.json");
+                JsonFiles.write(buildConfig, FingerprintJobs.buildConfig(config, request));
+                Path parent = output.getParent();
+                Files.createDirectories(parent);
+                // This lock is outside the index because the builder requires an empty output directory.
+                try (var indexChannel = FileChannel.open(parent.resolve("." + output.getFileName() + ".fingerprint.lock"),
+                        StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                     var indexLock = indexChannel.tryLock()) {
+                    if (indexLock == null) throw new IllegalStateException("Fingerprint output is already in use");
+                    stage("fingerprint", FingerprintJobs.command(config, request, buildConfig), output.resolve("manifest.json"));
+                }
+                artifacts.put("moleculeIndex", output.toString());
+                artifacts.put("manifest", output.resolve("manifest.json").toString());
+            } else {
+                Path raw;
+                if (request.get("format").equals("rawspace"))
+                    raw = Path.of((String) request.get("input"));
+                else {
+                    raw = staging.resolve("space.rawspace.gz");
+                    stage(
+                            "import",
+                            Preparation.importCommand(
+                                    config, request, raw, dir.resolve("import-report.json")),
+                            dir.resolve("import-report.json"));
+                    Path published = dir.resolve("space.rawspace.gz");
+                    Files.move(raw, published);
+                    raw = published;
+                    updateOutput("import", "rawspace", published);
+                }
+                artifacts.put("rawspace", raw.toString());
+                save();
+                Path index = staging.resolve("space_FragFp.data"),
+                        similarity = staging.resolve("space_FragFp_similarity3.data");
                 stage(
-                        "import",
-                        Preparation.importCommand(
-                                config, request, raw, dir.resolve("import-report.json")),
-                        dir.resolve("import-report.json"));
-                Path published = dir.resolve("space.rawspace.gz");
-                Files.move(raw, published);
-                raw = published;
-                updateOutput("import", "rawspace", published);
-            }
-            artifacts.put("rawspace", raw.toString());
-            save();
-            Path index = staging.resolve("space_FragFp.data"),
-                    similarity = staging.resolve("space_FragFp_similarity3.data");
-            stage(
-                    "build",
-                    Preparation.buildCommand(
-                            config,
-                            request,
-                            raw,
-                            index,
-                            similarity,
-                            dir.resolve("build-report.json")),
-                    dir.resolve("build-report.json"));
-            Path published = dir.resolve(index.getFileName());
-            Files.move(index, published);
-            artifacts.put("substructure", published.toString());
-            updateOutput("build", "substructure", published);
-            if (((List<?>) request.get("searchModes")).contains("similarity")) {
-                Path sim = dir.resolve(similarity.getFileName());
-                Files.move(similarity, sim);
-                artifacts.put("similarity", sim.toString());
-                updateOutput("build", "similarity", sim);
-            }
-            if (Files.exists(dir.resolve("cancel"))) throw new InterruptedException("Cancelled");
-            status.put("stage", "configure_gui");
-            save();
-            List<Object> providers = new ArrayList<>();
-            Jobs.addProviders(
-                    providers, request, artifacts, dir.getFileName().toString().substring(0, 8));
-            Path gui = dir.resolve("gui.json");
-            JsonFiles.write(gui, Map.of("ServiceProviders", providers));
-            artifacts.put("guiConfig", gui.toString());
-            if (Boolean.TRUE.equals(request.get("launchGui"))) {
-                try {
-                    status.put(
-                            "gui",
-                            Jobs.launch(
-                                    config,
-                                    gui,
-                                    (String) request.get("guiHeap"),
-                                    dir.resolve("gui.log"),
-                                    Preparation.guiVersion(request.getOrDefault("guiVersion", "gui2"))));
-                } catch (Exception e) {
-                    status.put("gui", Map.of("state", "launch_failed", "error", e.toString()));
+                        "build",
+                        Preparation.buildCommand(
+                                config,
+                                request,
+                                raw,
+                                index,
+                                similarity,
+                                dir.resolve("build-report.json")),
+                        dir.resolve("build-report.json"));
+                Path published = dir.resolve(index.getFileName());
+                Files.move(index, published);
+                artifacts.put("substructure", published.toString());
+                updateOutput("build", "substructure", published);
+                if (((List<?>) request.get("searchModes")).contains("similarity")) {
+                    Path sim = dir.resolve(similarity.getFileName());
+                    Files.move(similarity, sim);
+                    artifacts.put("similarity", sim.toString());
+                    updateOutput("build", "similarity", sim);
+                }
+                if (Files.exists(dir.resolve("cancel"))) throw new InterruptedException("Cancelled");
+                status.put("stage", "configure_gui");
+                save();
+                List<Object> providers = new ArrayList<>();
+                Jobs.addProviders(
+                        providers, request, artifacts, dir.getFileName().toString().substring(0, 8));
+                Path gui = dir.resolve("gui.json");
+                JsonFiles.write(gui, Map.of("ServiceProviders", providers));
+                artifacts.put("guiConfig", gui.toString());
+                if (Boolean.TRUE.equals(request.get("launchGui"))) {
+                    try {
+                        status.put(
+                                "gui",
+                                Jobs.launch(
+                                        config,
+                                        gui,
+                                        (String) request.get("guiHeap"),
+                                        dir.resolve("gui.log"),
+                                        Preparation.guiVersion(request.getOrDefault("guiVersion", "gui2"))));
+                    } catch (Exception e) {
+                        status.put("gui", Map.of("state", "launch_failed", "error", e.toString()));
+                    }
                 }
             }
             status.put("state", "succeeded");
@@ -166,6 +183,13 @@ final class Worker {
                                 + stage
                                 + ".log");
             Map<String, Object> summary = JsonFiles.read(report);
+            if (stage.equals("fingerprint")) {
+                FingerprintJobs.validateIndex(report.getParent(), summary);
+                status.put(stage + "Summary", Map.of("success", true,
+                        "recordCount", summary.get("recordCount"), "rejectedCount", summary.get("rejectedCount"),
+                        "sourceRowCount", summary.get("sourceRowCount")));
+                return;
+            }
             if (!Boolean.TRUE.equals(summary.get("success")))
                 throw new IllegalStateException(
                         "Missing successful completion report for " + stage);

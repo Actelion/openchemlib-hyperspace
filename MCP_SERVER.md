@@ -1,13 +1,13 @@
 # Hyperspace MCP Server
 
-A local, Linux-first MCP server for preparing supplier spaces and opening the Hyperspace desktop GUI. The agent can inspect inputs, import a rawspace, build substructure and similarity indexes, monitor independent jobs, and generate GUI configurations. No cloud service or API key is required by this server.
+A local, Linux-first MCP server for preparing supplier spaces and opening the Hyperspace desktop GUI. The agent can inspect inputs, import a rawspace, build substructure and similarity indexes, monitor independent jobs, and generate GUI configurations. It also supports local molecule fingerprint preparation and export-only Slurm bundles; see [the fingerprint guide](FINGERPRINT_SLURM_WORKFLOW.md). No cloud service or API key is required by this server.
 
 ## Build and connect
 
-Use a JDK 17 or newer and Linux `setsid` (util-linux). Build matching CLI and MCP artifacts:
+Use a JDK 22 or newer and Linux `setsid` (util-linux). Build matching CLI and MCP artifacts:
 
 ```bash
-mvn -pl openchemlib-hyperspace-cli,openchemlib-hyperspace-mcp -am -Dmaven.compiler.release=17 -DskipTests package
+mvn -pl openchemlib-hyperspace-cli,openchemlib-hyperspace-mcp -am -DskipTests package
 ```
 
 The executable JARs are in each module's `target` directory, named `openchemlib-hyperspace-cli.jar` and `openchemlib-hyperspace-mcp.jar`. Use matching builds: older CLI JARs do not support completion reports. Existing JVM serialization compatibility requirements still apply to `.data` files.
@@ -119,7 +119,7 @@ The GUI loads substructure and similarity providers, preserves both when saving 
 
 ## Scope
 
-V1 is local, single-user, Linux-first. It provides preparation and GUI handoff, not direct agent-driven search, cluster scheduling, cleaning, downsampling, or 3D screening. The worker uses fixed CLI entry points and typed arguments; it is not a general shell tool. Use only trusted local serialized `.data` files in the GUI.
+The server is single-user and Linux-first. It provides synthon-space preparation and GUI handoff, plus local enumerated-library fingerprint preparation and export-only Slurm bundles. See [Fingerprint and Slurm workflows](FINGERPRINT_SLURM_WORKFLOW.md) for the four additional tools, optional configuration, scratch staging and restart behavior. It does not directly submit or monitor cluster jobs, run agent-driven searches, clean/downsample spaces, or perform 3D queries. The worker uses fixed CLI entry points and typed arguments; it is not a general shell tool. Use only trusted local serialized `.data` files in the GUI.
 
 Documentation is also available as `hyperspace://docs/workflow`, `hyperspace://docs/rawspace`, and `hyperspace://docs/importers`. The `prepare_searchable_space` MCP prompt supplies the workflow recipe. Clients without resource/prompt UI can use `get_workflow_help`.
 

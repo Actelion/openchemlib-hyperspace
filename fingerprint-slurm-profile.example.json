@@ -5,7 +5,7 @@
     "idColumn": "id",
     "sharedDirectory": "/shared/hyperspace/enamine-fingerprints-run1",
     "scratchRoot": "/scratch",
-    "applicationJar": "/shared/software/hyperspace3d/openchemlib-hyperspace-3d-3.0.0.jar",
+    "applicationJar": "/shared/software/hyperspace3d/openchemlib-hyperspace-3d-3.1.0.jar",
     "libraryDirectory": "/shared/software/hyperspace3d/lib",
     "modelBundle": "/shared/software/hyperspace3d/model-bundles/deepspace7-v1",
     "compactBundle": "/shared/software/hyperspace3d/model-bundles/deepspace7-skelspheres16",

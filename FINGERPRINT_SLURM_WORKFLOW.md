@@ -34,7 +34,7 @@ are relative to that file):
 {
   "workspace": "hyperspace-workspace",
   "cliJar": "openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar",
-  "fingerprintJar": "openchemlib-hyperspace-3d/target/openchemlib-hyperspace-3d-3.0.0.jar",
+  "fingerprintJar": "openchemlib-hyperspace-3d/target/openchemlib-hyperspace-3d-3.1.0.jar",
   "fingerprintLibDirectory": "openchemlib-hyperspace-3d/target/lib",
   "modelBundle": "openchemlib-hyperspace-3d/model-bundles/deepspace7-v1",
   "compactBundle": "openchemlib-hyperspace-3d/model-bundles/deepspace7-skelspheres16",

@@ -20,6 +20,8 @@ import java.util.Set;
 public class RealTimeExpandingHitsView extends JPanel {
 
     private RealTimeExpandingSearchResultModel resultModel;
+    private RealTimeExpandingSearchResultModel.RealTimeExpandingSearchResultModelListener modelListener;
+    private boolean disposed;
 
 
     private Set<String> moleculesInTable = new HashSet<>();
@@ -40,12 +42,21 @@ public class RealTimeExpandingHitsView extends JPanel {
     }
 
     public void setModel(RealTimeExpandingSearchResultModel resultModel) {
+        if (disposed) throw new IllegalStateException("View is disposed");
         if(this.resultModel != resultModel) {
-            this.resultModel.shutdownThreadpool();
+            this.resultModel.removeListener(modelListener);
+            this.resultModel.dispose();
             this.resultModel = resultModel;
-            this.resultModel.restartThreadpool();
             this.reinit();
         }
+    }
+
+    public void dispose() {
+        if (disposed) return;
+        disposed = true;
+        resultModel.removeListener(modelListener);
+        resultModel.dispose();
+        table.setModel(new javax.swing.table.DefaultTableModel());
     }
 
     public RealTimeExpandingSearchResultModel getModel() {
@@ -117,22 +128,26 @@ public class RealTimeExpandingHitsView extends JPanel {
         //this.table.setRowHeight(400);
         this.table.getColumnModel().getColumn(1).setCellRenderer(new HitDataRenderer());
         if(this.resultModel!=null) {
-            ccr.setHighlightedFragment(resultModel.getCombinatorialSearchResultModel().getQuery());
+            ccr.setHighlightedFragment(resultModel.isHighlightSubstructure()
+                    ? resultModel.getCombinatorialSearchResultModel().getQuery() : null);
             this.table.getColumnModel().getColumn(0).setCellRenderer(ccr);
-            this.resultModel.addListener(new RealTimeExpandingSearchResultModel.RealTimeExpandingSearchResultModelListener() {
+            RealTimeExpandingSearchResultModel boundModel = resultModel;
+            modelListener = new RealTimeExpandingSearchResultModel.RealTimeExpandingSearchResultModelListener() {
                 @Override
                 public void resultsChanged() {
                     // we might arrive here from model-spawned thread, so to make sure..
                     SwingUtilities.invokeLater(new Runnable() {
                         @Override
                         public void run() {
+                            if (disposed || resultModel != boundModel) return;
                             //addAdditionalResults();
                             labelResultsInfo.setText(resultModel.getResultsInfoString());
                             repaint();
                         }
                     });
                 }
-            });
+            };
+            this.resultModel.addListener(modelListener);
         }
         this.initMouseContextMenu();
         SwingUtilities.updateComponentTreeUI(this);

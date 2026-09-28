@@ -18,6 +18,7 @@ public class CombinatorialHitsView extends JPanel {
 
     private CombinatorialSearchResultModel resultModel;
     private RealTimeExpandingSearchResultModel expandingModel;
+    private boolean disposed;
 
 
 
@@ -35,6 +36,8 @@ public class CombinatorialHitsView extends JPanel {
     }
 
     public void setExpandedHits(List<SynthonSpace.CombinatorialHit> hits) {
+        if (disposed) return;
+        if (hitsView != null) hitsView.dispose();
         CombinatorialSearchResultModel combiModel = new CombinatorialSearchResultModel(this.resultModel.getQuery());
         combiModel.addResults(hits);
         this.expandingModel = new RealTimeExpandingSearchResultModel(combiModel,4000);
@@ -43,6 +46,13 @@ public class CombinatorialHitsView extends JPanel {
         int dividerLocation = splitPane.getDividerLocation();
         this.splitPane.setBottomComponent(this.hitsView);
         this.splitPane.setDividerLocation(dividerLocation);
+    }
+
+    public void dispose() {
+        if (disposed) return;
+        disposed = true;
+        if (hitsView != null) hitsView.dispose();
+        table.setModel(new javax.swing.table.DefaultTableModel());
     }
 
     private void reinit() {
@@ -63,15 +73,10 @@ public class CombinatorialHitsView extends JPanel {
         //this.add(this.scrollPane,BorderLayout.CENTER);
         this.add(this.splitPane,BorderLayout.CENTER);
 
-        this.resultModel.addListener(new CombinatorialSearchResultModel.CombinatorialSearchResultModelListener() {
-            @Override
-            public void resultsChanged() {
-
-            }
-        });
         table.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
+                if (disposed || e.getValueIsAdjusting()) return;
                 List<SynthonSpace.CombinatorialHit> selectedHits = new ArrayList<>();
                 int[] selectedRows = table.getSelectedRows();
                 for( int zi=0;zi<selectedRows.length;zi++) {

@@ -136,6 +136,27 @@ public class Gui2Test {
         search.execute();
         search.get(30, TimeUnit.SECONDS);
         waitFor(() -> !results.getHits().isEmpty());
+        CountDownLatch expandedReady = new CountDownLatch(1);
+        RealTimeExpandingSearchResultModel[] expanded = new RealTimeExpandingSearchResultModel[1];
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                expanded[0] = new RealTimeExpandingSearchResultModel(results, 10);
+                expanded[0].addListener(() -> {
+                    if (expanded[0].getTableModel().getRowCount() > 0) expandedReady.countDown();
+                });
+            });
+            assertTrue(expandedReady.await(10, TimeUnit.SECONDS));
+            StereoMolecule expectedProduct = new StereoMolecule();
+            new SmilesParser().parse(expectedProduct, "CN");
+            SwingUtilities.invokeAndWait(() -> {
+                assertEquals(1, expanded[0].getTableModel().getRowCount());
+                StereoMolecule actual = new IDCodeParser().getCompactMolecule(
+                        expanded[0].getTableModel().getStructureData(0));
+                assertEquals(expectedProduct.getIDCode(), actual.getIDCode());
+            });
+        } finally {
+            SwingUtilities.invokeAndWait(() -> { if (expanded[0] != null) expanded[0].dispose(); });
+        }
         CombinatorialSearchResultModel batches = new CombinatorialSearchResultModel(query);
         class BatchTask extends SubstructureSearchTask {
             BatchTask() {

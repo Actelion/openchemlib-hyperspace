@@ -8,236 +8,290 @@ import com.actelion.research.chem.descriptor.DescriptorHandlerLongFFP512;
 import com.idorsia.research.chem.hyperspace.HyperspaceUtils;
 import com.idorsia.research.chem.hyperspace.SynthonAssembler;
 import com.idorsia.research.chem.hyperspace.SynthonSpace;
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.commons.lang3.tuple.Triple;
+
+import java.util.*;
+import java.util.concurrent.*;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
-import javax.swing.table.TableModel;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
-public class RealTimeExpandingSearchResultModel {
+/** Owns bounded expansion work for one search. Disposal is permanent. */
+public class RealTimeExpandingSearchResultModel implements AutoCloseable {
+    private final CombinatorialSearchResultModel resultModel;
+    private final StereoMolecule query;
+    private final int maxExpandedHits;
+    private final int workers =
+            Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors()));
+    private final ExecutorService coordinator =
+            Executors.newSingleThreadExecutor(threadFactory("coordinator"));
+    private final ThreadPoolExecutor expansionPool =
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(workers, threadFactory("worker"));
+    private final Object lifecycle = new Object();
+    private final Set<Future<?>> tasks = new HashSet<>();
+    private final Expansion expansion;
+    private final Publication publication;
+    private final CombinatorialSearchResultModel.CombinatorialSearchResultModelListener
+            sourceListener = this::requestExpansion;
+    private final List<RealTimeExpandingSearchResultModelListener> listeners =
+            new CopyOnWriteArrayList<>();
+    private final RealTimeExpandingTableModel tableModel = new RealTimeExpandingTableModel();
+    // Only the EDT accesses rows. Workers read the separately published count.
+    private final List<Row> rows = new ArrayList<>();
+    private volatile int shown;
+    private volatile long generation;
+    private volatile boolean disposed;
+    private volatile boolean highlightSubstructure = true;
+    private volatile boolean alignSubstructure;
+    private volatile String error;
+    private boolean requested;
+    private boolean draining;
 
-    private CombinatorialSearchResultModel resultModel;
-
-    private int maxExpandedHits = 32000;
-
-    private ConcurrentHashMap<String, SynthonSpace.CombinatorialHit> assembledMolecules;
-
-    private ConcurrentHashMap<String, SynthonAssembler.ExpandedCombinatorialHit> assembledMoleculesExpHits;
-
-    // this one is also used for synchronization of computation
-    //private ConcurrentHashMap<SynthonSpace.CombinatorialHit, List<String>> assembledMolecules2;
-    private ConcurrentHashMap<HashableCombinatorialHit,List<String>> assembledMolecules2;
-
-    // this defines the row order of the table model
-    // !! ONLY ACCESS / MANIPULATE FROM WITHIN swing event handling threaad !!
-    private List<String> moleculeOrder = new ArrayList<>();
-
-    public RealTimeExpandingSearchResultModel(CombinatorialSearchResultModel resultModel, int maxExpandedHits) {
-        this.resultModel = resultModel;
-        this.maxExpandedHits = maxExpandedHits;
-
-        this.assembledMolecules  = new ConcurrentHashMap<>();
-        this.assembledMolecules2 = new ConcurrentHashMap<>();
-        this.assembledMoleculesExpHits = new ConcurrentHashMap<>();
-
-        this.initExpansionThreadPool();
-        this.initCoordinateInventor();
-
-        this.resultModel.addListener(new CombinatorialSearchResultModel.CombinatorialSearchResultModelListener() {
-            @Override
-            public void resultsChanged() {
-                processResultsChanged();
-            }
-        });
-        this.processResultsChanged();
+    @FunctionalInterface
+    interface Expansion {
+        List<SynthonAssembler.ExpandedCombinatorialHit> expand(SynthonSpace.CombinatorialHit hit)
+                throws Exception;
     }
 
-    private RealTimeExpandingSearchResultModel getThis() {
-        return this;
+    @FunctionalInterface
+    interface Publication {
+        void publish(Runnable update) throws Exception;
     }
 
-    private final List<Future> expansionTasks = Collections.synchronizedList(new ArrayList<>());
+    private record Settings(long generation, boolean highlight, boolean align) {}
 
-    public static class HashableCombinatorialHit {
-        public final SynthonSpace.CombinatorialHit hit;
-        public final String hashString;
-        public final int hash;
-        public HashableCombinatorialHit(SynthonSpace.CombinatorialHit hit) {
-            this.hit = hit;
-            this.hashString = computeHashString();
-            this.hash = this.hashString.hashCode();
-        }
-        private String computeHashString() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("srf:");
-            sb.append(Arrays.stream(hit.sri.fragments).map(xi -> xi.getIDCode()).collect(Collectors.joining(";")));
-            sb.append("ff:"+this.hit.hit_fragments.entrySet().stream().sorted((x,y)->x.getKey().compareTo(y.getKey())).map( xi -> "["+xi.getKey().toString()+":"+  xi.getValue().parallelStream().map( fi -> fi.idcode ).collect(Collectors.joining(","))+"]").collect(Collectors.joining("::")));
-            return sb.toString();
-        }
+    private record Row(String structure, SynthonAssembler.ExpandedCombinatorialHit hit) {}
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            HashableCombinatorialHit that = (HashableCombinatorialHit) o;
-            return this.hashString.equals(that.hashString);
-        }
-
-        @Override
-        public int hashCode() {
-            return hash;
-        }
+    public RealTimeExpandingSearchResultModel(CombinatorialSearchResultModel model, int limit) {
+        this(
+                model,
+                limit,
+                hit -> SynthonAssembler.expandCombinatorialHit(hit, 1024),
+                SwingUtilities::invokeAndWait);
     }
 
-    private void processResultsChanged() {
-        // we may end up here from edt.. therefore do this
-        // async..
-        Thread tri = new Thread() {
-            @Override
-            public void run() {
-                synchronized(assembledMolecules2) {
-                    long tsa = System.currentTimeMillis();
-                    //System.out.println("monitor asm2 entered");
-                    List<SynthonSpace.CombinatorialHit> all_hits = new ArrayList<>(resultModel.getHits());
-                    all_hits.removeAll( assembledMolecules2.keySet().stream().map(xi->xi.hit).collect(Collectors.toList()) );
-                    for(SynthonSpace.CombinatorialHit chi_unsplit : all_hits) {
-                        //!!!!! FOR STORING INTO THE DATASTRUCTURES WE HAVE TO USE chi_unsplit!!!!!
-                        // immediately put placeholder for molecules, such that the line above works..
-                        HashableCombinatorialHit fchi_unsplit = new HashableCombinatorialHit(chi_unsplit);
-                        assembledMolecules2.put( fchi_unsplit , new ArrayList<>());
+    // Test hooks allow deterministic interleaving without timing-dependent chemistry.
+    RealTimeExpandingSearchResultModel(
+            CombinatorialSearchResultModel model,
+            int limit,
+            Expansion expansion,
+            Publication publication) {
+        if (limit < 1) throw new IllegalArgumentException("Expansion limit must be positive");
+        resultModel = Objects.requireNonNull(model);
+        query = model.getQuery() == null ? null : new StereoMolecule(model.getQuery());
+        maxExpandedHits = limit;
+        this.expansion = expansion;
+        this.publication = publication;
+        model.addListener(sourceListener);
+        requestExpansion();
+    }
 
-                        List<SynthonSpace.CombinatorialHit> chi_split = splitCombinatorialHit_01(chi_unsplit);
-                        for (SynthonSpace.CombinatorialHit chi : chi_split) {
-
-                            //SynthonSpace.CombinatorialHit fchi = chi;
-
-                            Runnable ri = new Runnable() {
-                                @Override
-                                public void run() {
-                                    if (moleculeOrder.size() > maxExpandedHits) {
-                                        return;
-                                    }
-                                    List<SynthonAssembler.ExpandedCombinatorialHit> exp_hits = SynthonAssembler.expandCombinatorialHit(chi, 1024);
-                                    List<String> new_molecules = new ArrayList<>();
-                                    synchronized (assembledMolecules2) {
-                                        if (moleculeOrder.size() > maxExpandedHits) {
-                                            return;
-                                        }
-                                        List<String> processed = new ArrayList<>();
-                                        for (SynthonAssembler.ExpandedCombinatorialHit xi : exp_hits) {
-                                            if (Thread.currentThread().isInterrupted()) {
-                                                break;
-                                            }
-                                            String processed_idcode = processResultStructure(xi.assembled_idcode);
-                                            assembledMolecules.put(processed_idcode, fchi_unsplit.hit);
-                                            assembledMoleculesExpHits.put(processed_idcode, xi);
-                                            processed.add(processed_idcode);
-                                        }
-                                        //new_molecules = new ArrayList<>(exp_hits.stream().map(ci -> ci.assembled_idcode).collect(Collectors.toList()));
-                                        new_molecules = processed;
-                                        //assembledMolecules2.put(fchi,
-                                        //        new_molecules);
-                                        assembledMolecules2.get(fchi_unsplit).addAll(new_molecules);
-                                    }
-                                    List<String> final_new_molecules = new_molecules;
-                                    SwingUtilities.invokeLater(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            //System.out.println("SwingEDT: enter");
-                                            long tsa = System.currentTimeMillis();
-                                            if (moleculeOrder.size() > maxExpandedHits) {
-                                                return;
-                                            }
-                                            // update internal table model..
-                                            int size_old = moleculeOrder.size();
-                                            moleculeOrder.addAll(new ArrayList<>(final_new_molecules));
-                                            int size_new = moleculeOrder.size();
-                                            tableModel.fireTableRowsInserted(size_old, size_new);
-                                            //System.out.println("SwingEDT: leave, time= "+(System.currentTimeMillis()-tsa));
-                                        }
-                                    });
-                                    fireResultsChanged();
-                                }
-                            };
-
-                            if (moleculeOrder.size() < maxExpandedHits) {
-                                if (getThis().expansionThreadPool == null || getThis().expansionThreadPool.isShutdown()) {
-                                    getThis().restartThreadpool();
-                                }
-                                Future fExp = expansionThreadPool.submit(ri);
-                                synchronized (expansionTasks) {
-                                    expansionTasks.add(fExp);
-                                }
-                            }
-                            //ri.setPriority(Thread.MIN_PRIORITY);
-                            //ri.start();
-                        }
-                    }
-                    //System.out.println("monitor asm2 left, time= "+(tsa-System.currentTimeMillis()));
-                }
-
-            }
+    private static ThreadFactory threadFactory(String role) {
+        return runnable -> {
+            Thread thread = new Thread(runnable, "gui2-expansion-" + role);
+            thread.setPriority(Thread.MIN_PRIORITY);
+            thread.setDaemon(true);
+            return thread;
         };
-        tri.start();
     }
 
-    // Create a ThreadPoolExecutor with 4 threads
-    private ThreadPoolExecutor expansionThreadPool;
-
-    private void initExpansionThreadPool() {
-        if(!expansionTasks.isEmpty()) {
-            List<Future> allTasks = new ArrayList<>();
-            synchronized(expansionTasks) {
-                allTasks = new ArrayList<>(expansionTasks);
-            }
-            for(Future fi : allTasks) {
-                fi.cancel(true);
-                expansionTasks.remove(fi);
-            }
-        }
-
-        expansionThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-
-        // Set the lowest priority for each thread
-        expansionThreadPool.setThreadFactory(new ThreadFactory() {
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread t = new Thread(r);
-                t.setPriority(Thread.MIN_PRIORITY);
-                return t;
-            }
-        });
+    private boolean current(long token) {
+        return !disposed && generation == token;
     }
 
-    private boolean highlightSubstructure = true;
-    private boolean alignSubstructure     = false;
+    private void requestExpansion() {
+        synchronized (lifecycle) {
+            if (disposed) return;
+            requested = true;
+            if (!draining) {
+                draining = true;
+                coordinator.execute(this::drain);
+            }
+        }
+    }
 
-    public void setStructurePostprocessOptions( boolean highlightSubstructure, boolean alignSubstructure ) {
-        boolean reprocessNeeded = false;
-        if(this.alignSubstructure != alignSubstructure) {
-            this.alignSubstructure = alignSubstructure;
-            initCoordinateInventor();
-            reprocessNeeded = true;
-        }
-        if(this.highlightSubstructure != highlightSubstructure) {
-            this.highlightSubstructure = highlightSubstructure;
-            reprocessNeeded = true;
-        }
-        if(reprocessNeeded) {
-            SwingUtilities.invokeLater(new Runnable() {
-                @Override
-                public void run() {
-                    moleculeOrder.clear();
-                    assembledMolecules.clear();
-                    assembledMolecules2.clear();
+    private void drain() {
+        Set<SynthonSpace.CombinatorialHit> processed =
+                Collections.newSetFromMap(new IdentityHashMap<>());
+        long processedGeneration = -1;
+        while (true) {
+            Settings settings;
+            synchronized (lifecycle) {
+                if (disposed || !requested) {
+                    draining = false;
+                    return;
                 }
-            });
-            processResultsChanged();
+                requested = false;
+                settings = new Settings(generation, highlightSubstructure, alignSubstructure);
+            }
+            if (processedGeneration != settings.generation()) {
+                processed.clear();
+                processedGeneration = settings.generation();
+            }
+            try {
+                expandAvailable(settings, processed);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (Exception ex) {
+                if (current(settings.generation())) {
+                    ex.printStackTrace(System.err);
+                    SwingUtilities.invokeLater(
+                            () -> {
+                                if (!current(settings.generation())) return;
+                                error = "Expansion failed: " + ex.getMessage();
+                                fireResultsChanged();
+                            });
+                }
+            }
         }
+    }
+
+    // At most 'workers' batches are submitted. Waiting for EDT publication also bounds UI
+    // callbacks.
+    private void expandAvailable(Settings settings, Set<SynthonSpace.CombinatorialHit> processed)
+            throws Exception {
+        Deque<Future<List<Row>>> pending = new ArrayDeque<>();
+        try {
+            for (SynthonSpace.CombinatorialHit hit : resultModel.getHits()) {
+                if (!current(settings.generation()) || shown >= maxExpandedHits) break;
+                if (!processed.add(hit)) continue;
+                for (SynthonSpace.CombinatorialHit chunk : splitHit(hit)) {
+                    if (!current(settings.generation()) || shown >= maxExpandedHits) break;
+                    synchronized (lifecycle) {
+                        if (!current(settings.generation())) break;
+                        Future<List<Row>> task =
+                                expansionPool.submit(() -> expandChunk(chunk, settings));
+                        tasks.add(task);
+                        pending.addLast(task);
+                    }
+                    if (pending.size() >= workers) publishNext(pending.removeFirst(), settings);
+                }
+            }
+            while (!pending.isEmpty() && current(settings.generation()))
+                publishNext(pending.removeFirst(), settings);
+        } finally {
+            synchronized (lifecycle) {
+                for (Future<?> task : pending) {
+                    task.cancel(true);
+                    tasks.remove(task);
+                }
+                expansionPool.purge();
+            }
+        }
+    }
+
+    private List<Row> expandChunk(SynthonSpace.CombinatorialHit hit, Settings settings)
+            throws Exception {
+        if (!current(settings.generation()) || Thread.currentThread().isInterrupted())
+            return List.of();
+        List<Row> batch = new ArrayList<>();
+        StereoMolecule localQuery = query == null ? null : new StereoMolecule(query);
+        CoordinateInventor inventor = new CoordinateInventor();
+        if (settings.align() && localQuery != null) {
+            inventor.setCustomTemplateList(
+                    Collections.singletonList(
+                            new InventorTemplate(
+                                    localQuery,
+                                    new DescriptorHandlerLongFFP512().createDescriptor(localQuery),
+                                    true)));
+        }
+        for (SynthonAssembler.ExpandedCombinatorialHit expanded : expansion.expand(hit)) {
+            if (!current(settings.generation()) || Thread.currentThread().isInterrupted()) break;
+            StereoMolecule molecule = HyperspaceUtils.parseIDCode(expanded.assembled_idcode);
+            inventor.invent(molecule);
+            if (settings.highlight() && localQuery != null)
+                HyperspaceUtils.setHighlightedSubstructure(molecule, localQuery);
+            Canonizer canonizer = new Canonizer(molecule);
+            batch.add(
+                    new Row(
+                            canonizer.getIDCode() + " " + canonizer.getEncodedCoordinates(),
+                            expanded));
+        }
+        return batch;
+    }
+
+    private void publishNext(Future<List<Row>> task, Settings settings) throws Exception {
+        try {
+            List<Row> batch = task.get();
+            if (!current(settings.generation())) return;
+            publication.publish(
+                    () -> {
+                        if (!current(settings.generation())) return;
+                        int oldSize = rows.size();
+                        int count = Math.min(batch.size(), maxExpandedHits - oldSize);
+                        if (count == 0) return;
+                        rows.addAll(batch.subList(0, count));
+                        shown = rows.size();
+                        tableModel.fireTableRowsInserted(oldSize, rows.size() - 1);
+                        fireResultsChanged();
+                    });
+        } catch (CancellationException ex) {
+            if (current(settings.generation())) throw ex;
+        } finally {
+            synchronized (lifecycle) {
+                tasks.remove(task);
+            }
+        }
+    }
+
+    public void setStructurePostprocessOptions(boolean highlight, boolean align) {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(() -> setStructurePostprocessOptions(highlight, align));
+            return;
+        }
+        synchronized (lifecycle) {
+            if (disposed || (highlight == highlightSubstructure && align == alignSubstructure))
+                return;
+            generation++;
+            highlightSubstructure = highlight;
+            alignSubstructure = align;
+            cancelTasks();
+        }
+        rows.clear();
+        shown = 0;
+        error = null;
+        tableModel.fireTableDataChanged();
+        fireResultsChanged();
+        requestExpansion();
+    }
+
+    private void cancelTasks() {
+        for (Future<?> task : tasks) task.cancel(true);
+        tasks.clear();
+        expansionPool.purge();
+    }
+
+    public void dispose() {
+        synchronized (lifecycle) {
+            if (disposed) return;
+            disposed = true;
+            generation++;
+            resultModel.removeListener(sourceListener);
+            cancelTasks();
+            coordinator.shutdownNow();
+            expansionPool.shutdownNow();
+            listeners.clear();
+        }
+    }
+
+    @Override
+    public void close() {
+        dispose();
+    }
+
+    public boolean isDisposed() {
+        return disposed;
+    }
+
+    boolean isTerminated() {
+        return coordinator.isTerminated() && expansionPool.isTerminated();
+    }
+
+    boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        return coordinator.awaitTermination(timeout, unit)
+                && expansionPool.awaitTermination(
+                        Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
     }
 
     public boolean isHighlightSubstructure() {
@@ -248,191 +302,103 @@ public class RealTimeExpandingSearchResultModel {
         return alignSubstructure;
     }
 
-    private CoordinateInventor coordinateInventor;
-    private void initCoordinateInventor() {
-        DescriptorHandlerLongFFP512 ffp = new DescriptorHandlerLongFFP512();
-        coordinateInventor = new CoordinateInventor();
-        if( this.resultModel.getQuery()!=null && alignSubstructure ) {
-            StereoMolecule qi = this.resultModel.getQuery();
-            InventorTemplate it = new InventorTemplate(qi, ffp.createDescriptor(qi), true);
-            coordinateInventor.setCustomTemplateList(Collections.singletonList(it));
-        }
-    }
-
     public CombinatorialSearchResultModel getCombinatorialSearchResultModel() {
-        return this.resultModel;
+        return resultModel;
     }
 
-    private List<RealTimeExpandingSearchResultModelListener> listeners = new ArrayList<>();
-
-    private RealTimeExpandingTableModel tableModel = new RealTimeExpandingTableModel();
     public RealTimeExpandingTableModel getTableModel() {
         return tableModel;
     }
 
-    public void addListener(RealTimeExpandingSearchResultModelListener li) {
-        this.listeners.add(li);
+    public void addListener(RealTimeExpandingSearchResultModelListener listener) {
+        synchronized (lifecycle) {
+            if (!disposed) listeners.add(listener);
+        }
     }
 
-    public boolean removeListener(RealTimeExpandingSearchResultModelListener li) {
-        return this.listeners.remove(li);
+    public boolean removeListener(RealTimeExpandingSearchResultModelListener listener) {
+        return listeners.remove(listener);
     }
 
     private void fireResultsChanged() {
-        for(RealTimeExpandingSearchResultModelListener li : listeners) {
-            li.resultsChanged();
-        }
-    }
-
-
-    public String processResultStructure(String mol) {
-
-        StereoMolecule mi = HyperspaceUtils.parseIDCode(mol);
-        coordinateInventor.invent(mi);
-        if(this.highlightSubstructure) {
-            HyperspaceUtils.setHighlightedSubstructure(mi, resultModel.getQuery());
-        }
-        Canonizer ci = new Canonizer(mi);
-        String result = ci.getIDCode() +" "+ci.getEncodedCoordinates();
-        return result;
+        for (var listener : listeners) listener.resultsChanged();
     }
 
     public String getResultsInfoString() {
-        long resultsTotal = resultModel.getHits().stream().mapToLong( xi ->
-                xi.hit_fragments.values().stream().mapToLong(x->(long)x.size()).reduce((x,y)->x*y).getAsLong()).sum();
-
-        long numShown = 0;
-        //synchronized(assembledMolecules2) {
-        numShown = this.moleculeOrder.size();
-        //}
-        String ri = String.format("Results: %6d  Showing: %6d", resultsTotal, numShown);
-        return ri;
+        long total =
+                resultModel.getHits().stream()
+                        .mapToLong(
+                                hit ->
+                                        hit.hit_fragments.values().stream()
+                                                .mapToLong(List::size)
+                                                .reduce(1, (a, b) -> a * b))
+                        .sum();
+        return error == null ? String.format("Results: %6d  Showing: %6d", total, shown) : error;
     }
 
-
-    public static interface RealTimeExpandingSearchResultModelListener {
-        public void resultsChanged();
+    public interface RealTimeExpandingSearchResultModelListener {
+        void resultsChanged();
     }
 
     public class RealTimeExpandingTableModel extends AbstractTableModel {
-
         public String getStructureData(int row) {
-            return moleculeOrder.get(row);
-        }
-
-        private boolean showSynthons = true;
-
-        @Override
-        public String getColumnName(int column) {
-            switch(column){
-                case 0: return "Structure";
-                case 1: return "Synthons";
-            }
-            return null;
+            return rows.get(row).structure();
         }
 
         @Override
         public int getRowCount() {
-            return moleculeOrder.size();
+            return rows.size();
         }
 
         @Override
         public int getColumnCount() {
-            if(showSynthons) {
-                return 2;
-            }
-            else {
-                return 1;
-            }
+            return 2;
         }
 
         @Override
-        public Object getValueAt(int rowIndex, int columnIndex) {
-            String idc = moleculeOrder.get(rowIndex);
-            switch (columnIndex) {
-                case 0:
-                    return moleculeOrder.get(rowIndex);
-                case 1:
-                    try{
-                        return assembledMoleculesExpHits.get(idc);
+        public String getColumnName(int column) {
+            return column == 0 ? "Structure" : "Synthons";
+        }
+
+        @Override
+        public Object getValueAt(int row, int column) {
+            return column == 0 ? rows.get(row).structure() : rows.get(row).hit();
+        }
+    }
+
+    private static Iterable<SynthonSpace.CombinatorialHit> splitHit(
+            SynthonSpace.CombinatorialHit hit) {
+        List<SynthonSpace.FragType> types = new ArrayList<>(hit.hit_fragments.keySet());
+        types.sort(Comparator.comparingInt(type -> type.frag));
+        long count = 1;
+        SynthonSpace.FragType longest = null;
+        for (var type : types) {
+            int size = hit.hit_fragments.get(type).size();
+            count = size == 0 ? 0 : count > Long.MAX_VALUE / size ? Long.MAX_VALUE : count * size;
+            if (longest == null || size > hit.hit_fragments.get(longest).size()) longest = type;
+        }
+        if (count <= 200) return List.of(hit);
+        var axis = longest;
+        var fragments = hit.hit_fragments.get(axis);
+        int chunkSize = Math.max(1, (int) (fragments.size() / (count / 100.0)));
+        return () ->
+                new Iterator<>() {
+                    private int start;
+
+                    public boolean hasNext() {
+                        return start < fragments.size();
                     }
-                    catch(Exception ex) {
-                        ex.printStackTrace();
+
+                    public SynthonSpace.CombinatorialHit next() {
+                        if (!hasNext()) throw new NoSuchElementException();
+                        int end = Math.min(fragments.size(), start + chunkSize);
+                        Map<SynthonSpace.FragType, List<SynthonSpace.FragId>> sets =
+                                new HashMap<>(hit.hit_fragments);
+                        sets.put(axis, new ArrayList<>(fragments.subList(start, end)));
+                        start = end;
+                        return new SynthonSpace.CombinatorialHit(
+                                hit.rxn, sets, hit.sri, hit.mapping);
                     }
-                    return null;
-            }
-            // we should not end up here
-            return null;
-        }
-    }
-
-    public void shutdownThreadpool() {
-        if(!expansionTasks.isEmpty()) {
-            List<Future> allTasks = new ArrayList<>(expansionTasks);
-            for(Future fi : allTasks) {
-                fi.cancel(true);
-                expansionTasks.remove(fi);
-            }
-        }
-        this.expansionThreadPool.shutdown();
-    }
-
-    public void restartThreadpool() {
-        this.expansionThreadPool.shutdown();
-        this.initExpansionThreadPool();
-    }
-
-    /**
-     * we use this to create smaller tasks for assembly to make the gui update in a smoother way
-     *
-     * @param ch
-     * @return
-     */
-    private static List<SynthonSpace.CombinatorialHit> splitCombinatorialHit_01(SynthonSpace.CombinatorialHit ch) {
-        List<Triple<SynthonSpace.FragType,List<SynthonSpace.FragId>,Integer>> fragSets = ch.hit_fragments.entrySet().stream().map(x-> Triple.of( x.getKey() ,x.getValue() , x.getValue().size() ) ).collect(Collectors.toList());
-        fragSets.sort( (x,y) -> Integer.compare(x.getLeft().frag,y.getLeft().frag));
-        long hits = fragSets.stream().mapToLong( xi -> xi.getRight() ).reduce((x,y)->x*y).getAsLong();
-        if(hits > 200) {
-            List<SynthonSpace.CombinatorialHit> splitHits = new ArrayList<>();
-            // split along longest dimensions:
-            int maxNum = -1; int maxIdx = -1;
-            for(int zi=0;zi<fragSets.size();zi++) {
-                if(fragSets.get(zi).getRight()>maxNum) {
-                    maxIdx = zi; maxNum = fragSets.get(zi).getRight();
-                }
-            }
-            // split dimension maxIdx into (hits / 100) parts
-            double numChunks = (1.0*hits) / 100;
-            double chunkSizeDouble = Math.max( 1.0 , (1.0*fragSets.get(maxIdx).getRight()) / numChunks );
-            int chunkSize = (int) chunkSizeDouble;
-            int start = 0;
-            while( start < fragSets.get(maxIdx).getRight() ) {
-                int end = Math.min( fragSets.get(maxIdx).getRight(), start + chunkSize);
-                // create chunk from start to end:
-                Map<SynthonSpace.FragType,List<SynthonSpace.FragId>> fragsSplit = new HashMap<>();
-                for(int zx=0;zx<fragSets.size();zx++) {
-                    if(zx==maxIdx) {continue;}
-                    fragsSplit.put(fragSets.get(zx).getLeft(),fragSets.get(zx).getMiddle());
-                }
-                List<SynthonSpace.FragId> frags_split = new ArrayList<>( fragSets.get(maxIdx).getMiddle().subList(start,end) );
-                fragsSplit.put(fragSets.get(maxIdx).getLeft(),frags_split);
-                SynthonSpace.CombinatorialHit chi = new SynthonSpace.CombinatorialHit(ch.rxn,fragsSplit,ch.sri,ch.mapping);
-                splitHits.add(chi);
-                start = end;
-            }
-            return splitHits;
-        }
-        else {
-            return Collections.singletonList(ch);
-        }
-    }
-
-
-
-
-    @Override
-    protected void finalize() throws Throwable {
-        super.finalize();
-        shutdownThreadpool();
+                };
     }
 }

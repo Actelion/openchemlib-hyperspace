@@ -53,6 +53,12 @@ public class LeetHyperspaceMain {
         view = new LeetHyperspaceView(model);
         fi = new JFrame("Hyperspace - GUI 2 - Substructure Search");
         fi.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        LeetHyperspaceView windowView = view;
+        fi.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosed(java.awt.event.WindowEvent event) {
+                windowView.disposeResults();
+            }
+        });
         fi.getContentPane().add(view, BorderLayout.CENTER);
         initMenu(fi);
         Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();

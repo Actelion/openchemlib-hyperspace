@@ -1,0 +1,33 @@
+{
+  "batches": [
+    {
+      "batchSize": 1,
+      "embeddingMaxAbsError": 1.1920928955078125e-07,
+      "fp16ScoreMaxAbsDelta": 1.823902130126953e-05,
+      "fp16ScoreMeanAbsDelta": 1.823902130126953e-05,
+      "normalizationMaxAbsError": 0.0
+    },
+    {
+      "batchSize": 7,
+      "embeddingMaxAbsError": 2.086162567138672e-07,
+      "fp16ScoreMaxAbsDelta": 2.4139881134033203e-05,
+      "fp16ScoreMeanAbsDelta": 9.383474207425024e-06,
+      "normalizationMaxAbsError": 5.960464477539063e-08
+    },
+    {
+      "batchSize": 256,
+      "embeddingMaxAbsError": 1.4901161193847656e-07,
+      "fp16ScoreMaxAbsDelta": 4.747509956359863e-05,
+      "fp16ScoreMeanAbsDelta": 1.2153061106801033e-05,
+      "normalizationMaxAbsError": 1.7881393432617188e-07
+    },
+    {
+      "batchSize": 4096,
+      "embeddingMaxAbsError": 1.4901161193847656e-07,
+      "fp16ScoreMaxAbsDelta": 4.9740076065063477e-05,
+      "fp16ScoreMeanAbsDelta": 1.0143849067389965e-05,
+      "normalizationMaxAbsError": 1.7881393432617188e-07
+    }
+  ],
+  "provider": "CPUExecutionProvider"
+}

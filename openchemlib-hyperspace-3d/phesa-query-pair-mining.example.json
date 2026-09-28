@@ -1,0 +1,24 @@
+{
+  "formatVersion": 1,
+  "inputs": {
+    "candidateUniverse": "/path/to/phesa-mining-universe-1m",
+    "modelBundle": "model-bundles/deepspace7-v1",
+    "queries": "/path/to/mining-queries.tsv"
+  },
+  "output": {
+    "dataset": "/path/to/phesa-query-pair-cache-round0",
+    "workDirectory": "/path/to/phesa-query-pair-cache-round0.work"
+  },
+  "runtime": {
+    "device": "CUDA",
+    "cudaDeviceId": 0,
+    "comparatorBatchSize": 32768,
+    "exactLabelThreads": 8
+  },
+  "mining": {
+    "seed": 17,
+    "round": 0,
+    "maxConformers": 8,
+    "phesaPpWeight": 0.5
+  }
+}

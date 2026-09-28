@@ -39,6 +39,7 @@
 
     <modules>
         <module>openchemlib-hyperspace-core</module>
+        <module>openchemlib-hyperspace-3d</module>
         <module>openchemlib-hyperspace-core-gui</module>
         <module>openchemlib-hyperspace-sar</module>
         <module>openchemlib-hyperspace-cli</module>

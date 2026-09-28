@@ -4,3 +4,5 @@ target/
 
 # Local MCP job workspace
 /hyperspace-workspace/
+dependency-reduced-pom.xml
+openchemlib-hyperspace-3d/screening-runs/

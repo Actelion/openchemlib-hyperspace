@@ -6,6 +6,75 @@ slice: OCL graph featurization, batched ONNX inference, a sampled-product
 fingerprint index, streaming elite screening, and the batch contract needed
 by a later local/beam optimizer.
 
+## Workflow overview
+
+Choose the workflow by input type: a flat molecule library already contains
+complete molecules, whereas a raw synthon space describes combinations that
+must first be sampled and assembled. Fingerprints of sampled products do not
+represent exhaustive coverage of the combinatorial space.
+
+| Workflow | Entry point | Output / capability | Interrupted-build resume |
+| --- | --- | --- | --- |
+| Flat molecule fingerprint preparation | `MoleculeFingerprintIndexBuilderCLI` | Both 128D universal and 16D learned SkelSpheres FP16 vectors, molecule IDs and SMILES | Yes, completed source-row shards |
+| Flat molecule screening | `MoleculeSimilaritySearchCLI` | Learned 2D, learned 3D, or 2D-to-3D cascade; TSV, SDF and reports | Not a resumable index build |
+| Sampled synthon-product fingerprint preparation | `ProductFingerprintIndexBuilderCLI` | 128D product vectors and synthon tuple references | Yes, committed shards and sampler checkpoints |
+| Compact sampled-product preparation | `CompactSkelSpheresIndexBuilderCLI` | 16D FP16 product vectors and tuple references | **No; requires an empty output directory** |
+| Compact sampled-product screening | `CompactSkelSpheresSearchCLI` | Learned 2D elites, optionally exact SkelSpheres reranked | Not a resumable index build |
+| PheSA training-pair mining | `PheSAQueryPairMiningCLI` | Retrieval examples with exact OCL PheSA labels | Yes, completed query work |
+
+### Flat libraries
+
+Start with [molecule fingerprint preparation](#building-a-flat-supplier-molecule-fingerprint-index)
+and its [example config](molecule-fingerprint-index-build.example.json). Input
+is a SMILES/ID table, optionally gzip or bzip2 compressed. With `output.resume`
+enabled, restarting reuses completed shards; compressed input may need to be
+reread to skip committed rows, but those molecules are not re-encoded.
+
+Use [unified molecule screening](#direct-python-cache-and-learned-3d-screening)
+with the [search config](molecule-similarity-search.example.json):
+`skelspheres_2d`, `phesa_3d`, or `skelspheres_then_phesa`. It also reads the
+supported Deepspace7 Python fingerprint cache directly. Exact SkelSpheres
+reranking is restricted to the retained shortlist, not the entire library.
+
+### Synthon spaces and local optimization
+
+The [128D product builder](#building-a-sampled-product-fingerprint-index)
+uses a full rawspace plus a separate downsampled rawspace. It samples reduced
+synthon combinations, assembles complete products, and encodes them once.
+The [example config](product-fingerprint-index-build.example.json) controls
+reaction weighting, coverage, filters, record counts and resume. Resuming
+validates input/model/configuration identity and committed shard hashes.
+
+`FingerprintIndexScreener` provides Java API screening with global and
+per-reaction elites. There is not yet a dedicated end-to-end 128D product
+screening CLI equivalent to `MoleculeSimilaritySearchCLI`.
+
+The [compact product workflow](#learned-16d-skelspheres-search) has both build
+and search CLIs, with [build](compact-skelspheres-index-build.example.json)
+and [search](compact-skelspheres-search.example.json) examples. Its builder
+is not resumable and builds directly from assembled graphs, not by converting
+an existing 128D product index.
+
+The existing [continuous screening workflow](../CONTINUOUS_SCREENING_CONFIG.md)
+still performs downsampled-space sampling, optional reduced-space micro
+optimization, and full-space local optimization. **It does not consume these
+learned fingerprint indices.** `BatchAssemblyScorer` supplies the learned
+batch-scoring boundary; integration with a production local/beam coordinator
+remains future work. Learned PheSA scores are graph-only predictions, not
+explicit conformer alignments; exact PheSA is a separate calculation.
+
+### Training-data workflows
+
+[PheSA query mining](PHESA_QUERY_MINING.md) first selects a deterministic
+universe from an existing molecule fingerprint cache using
+`PheSAMiningUniverseBuilderCLI`, then mines and exactly labels query/candidate
+pairs using `PheSAQueryPairMiningCLI`. Interrupted query mining reuses committed
+query work; completed outputs are immutable.
+
+The separate tools-module `LatentAssemblyMinerCLI` produces scaffold/arm
+decomposition training records from molecule IDCode tables. It does not
+compute latent fingerprints.
+
 ## Data boundaries
 
 The raw synthon space remains the authoritative source of reactions,

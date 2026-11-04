@@ -49,6 +49,29 @@ class PackagedMcpTest {
             var artifacts = (Map<?, ?>) status.get("artifacts");
             assertTrue(Files.isRegularFile(Path.of(artifacts.get("manifest").toString())));
             assertTrue(call(client, "get_job_log", Map.of("jobId", id, "log", "fingerprint")).get("text").toString().contains("Molecule index complete"));
+            if(System.getProperty("pose.deployment")!=null) {
+                assertTrue(client.listTools().tools().stream().anyMatch(t->t.name().equals("search_pose_molecules")));
+                Path deployment=Path.of(System.getProperty("pose.deployment"));
+                String query=deployment.resolve("golden/query-0.mol").toString();
+                assertEquals(true,call(client,"inspect_3d_query",Map.of("queryFile",query)).get("valid"));
+                Map<String,Object> request=new LinkedHashMap<>(Map.of("queryFile",query,
+                        "index",artifacts.get("moleculeIndex").toString(),"modelBundle",System.getProperty("hyperspace3d.modelBundle"),
+                        "poseBundle",deployment.resolve("shared-candidate-seed17-verified").toString(),"topK",2,"batchSize",1,"heap","1G"));
+                String poseId=call(client,"search_pose_molecules",request).get("jobId").toString();
+                var done=awaitJob(client,poseId);
+                assertEquals("succeeded",done.get("state"),done.toString());
+                var output=(Map<?,?>)done.get("artifacts");
+                assertEquals(3,Files.readAllLines(Path.of(output.get("hits.tsv").toString())).size());
+                assertTrue(((List<?>)call(client,"list_spaces",Map.of()).get("spaces")).isEmpty());
+                assertTrue(call(client,"get_job_log",Map.of("jobId",poseId,"log","pose-search")).get("text").toString().contains("POSE_PHESA_3D"));
+                request.put("poseBundle",System.getProperty("hyperspace3d.modelBundle"));
+                String failed=call(client,"search_pose_molecules",request).get("jobId").toString();
+                assertEquals("failed",awaitJob(client,failed).get("state"));
+                request.put("poseBundle",deployment.resolve("shared-candidate-seed17-verified").toString());
+                String cancelled=call(client,"search_pose_molecules",request).get("jobId").toString();
+                call(client,"cancel_job",Map.of("jobId",cancelled));
+                assertEquals("cancelled",awaitJob(client,cancelled).get("state"));
+            }
         }
     }
 
@@ -70,6 +93,17 @@ class PackagedMcpTest {
                 McpClient.sync(transport).requestTimeout(Duration.ofSeconds(30)).build();
         client.initialize();
         return client;
+    }
+
+    Map<String,Object> awaitJob(McpSyncClient client,String id)throws Exception {
+        long end=System.nanoTime()+Duration.ofMinutes(2).toNanos();
+        Map<String,Object> status;
+        do {
+            status=call(client,"get_job_status",Map.of("jobId",id));
+            if(!Jobs.ACTIVE.contains(status.get("state")))return status;
+            Thread.sleep(100);
+        }while(System.nanoTime()<end);
+        fail("job timed out: "+status);return status;
     }
 
     @SuppressWarnings("unchecked")
@@ -101,8 +135,8 @@ class PackagedMcpTest {
                         "2G"));
         String id;
         try (McpSyncClient client = connect(config)) {
-            assertEquals(15, client.listTools().tools().size());
-            assertEquals(4, client.listResources().resources().size());
+            assertEquals(17, client.listTools().tools().size());
+            assertEquals(5, client.listResources().resources().size());
             assertEquals(1, client.listPrompts().prompts().size());
             assertTrue(
                     call(

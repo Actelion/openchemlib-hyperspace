@@ -10,10 +10,17 @@ public final class DeepSpaceOnnxEnvironment {
     private final OrtEnvironment environment;
     private final Device device;
     private final int cudaDeviceId;
+    private final int intraOpThreads;
 
     public DeepSpaceOnnxEnvironment(Device device) { this(device, 0); }
 
     public DeepSpaceOnnxEnvironment(Device device, int cudaDeviceId) {
+        this(device,cudaDeviceId,0);
+    }
+
+    public DeepSpaceOnnxEnvironment(Device device, int cudaDeviceId, int intraOpThreads) {
+        if(intraOpThreads<0)throw new IllegalArgumentException("intraOpThreads must be nonnegative (0 selects runtime default)");
+        this.intraOpThreads=intraOpThreads;
         this.environment = OrtEnvironment.getEnvironment("hyperspace3d");
         this.device = device;
         this.cudaDeviceId = cudaDeviceId;
@@ -27,10 +34,17 @@ public final class DeepSpaceOnnxEnvironment {
 
     OrtSession open(java.nio.file.Path model) {
         try {
-            OrtSession.SessionOptions options = new OrtSession.SessionOptions();
-            if (device == Device.CUDA) options.addCUDA(cudaDeviceId);
-            else options.addCPU(true);
-            return environment.createSession(model.toString(), options);
+            try(OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
+                if(intraOpThreads>0)options.setIntraOpNumThreads(intraOpThreads);
+                if (device == Device.CUDA) {
+                    try(var cuda = new ai.onnxruntime.providers.OrtCUDAProviderOptions(cudaDeviceId)) {
+                        cuda.add("use_tf32","0");
+                        options.addCUDA(cuda);
+                    }
+                }
+                else options.addCPU(true);
+                return environment.createSession(model.toString(), options);
+            }
         } catch (OrtException e) {
             throw new DeepSpaceInferenceException("cannot create ONNX session for " + model, e);
         }

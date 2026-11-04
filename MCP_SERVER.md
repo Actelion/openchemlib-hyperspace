@@ -176,3 +176,9 @@ java -Xmx8G -jar openchemlib-hyperspace-cli.jar GUI /path/to/gui.json
 GUI 2 honors provider names and `MaxNumberOfThreads`, and resolves relative
 index paths against the config directory. Standalone startup without arguments
 still reads `spaces.conf` when present (one index path per line).
+
+For supplied MOL/SDF conformations, see [Pose search](POSE_SEARCH.md). The typed
+`inspect_3d_query` and `search_pose_molecules` tools use the configured 3D JAR/lib
+distribution. Search status, bounded `pose-search` logs, cancellation and artifacts
+use the same detached job lifecycle. `get_workflow_help` topic `pose-search`
+contains the full model-provenance and score-semantics contract.

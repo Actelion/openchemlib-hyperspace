@@ -44,6 +44,10 @@ final class Jobs {
         return submitNormalized(FingerprintJobs.normalize(input, config), config.fingerprintJar());
     }
 
+    synchronized Map<String,Object> submitPoseSearch(Map<String,Object> input)throws Exception {
+        return submitNormalized(PoseSearchJobs.normalize(config,input),config.fingerprintJar());
+    }
+
     private Map<String, Object> submitNormalized(Map<String, Object> r, Path application) throws Exception {
         if (!Files.isRegularFile(application))
             throw new IllegalArgumentException("Application JAR missing: " + application);
@@ -199,7 +203,7 @@ final class Jobs {
     }
 
     Map<String, Object> log(String id, String log, long offset, int limit) throws Exception {
-        if (!Set.of("worker", "import", "build", "gui", "fingerprint").contains(log))
+        if (!Set.of("worker", "import", "build", "gui", "fingerprint", "pose-search").contains(log))
             throw new IllegalArgumentException("log must be worker, import, build, fingerprint, or gui");
         if (offset < 0 || limit < 1 || limit > 65536)
             throw new IllegalArgumentException("Invalid offset or limit (maximum 65536 bytes)");
@@ -291,7 +295,7 @@ final class Jobs {
         List<Object> providers = new ArrayList<>();
         for (String id : ids) {
             Map<String, Object> s = status(id);
-            if ("fingerprint".equals(s.get("jobKind")))
+            if (Set.of("fingerprint","pose-search").contains(s.getOrDefault("jobKind","space")))
                 throw new IllegalArgumentException("Molecule fingerprint libraries are not GUI synthon spaces");
             if (!s.get("state").equals("succeeded"))
                 throw new IllegalArgumentException("Space is not complete: " + id);

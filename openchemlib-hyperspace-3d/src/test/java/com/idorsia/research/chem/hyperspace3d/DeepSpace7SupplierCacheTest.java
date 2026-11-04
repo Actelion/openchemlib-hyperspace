@@ -165,6 +165,35 @@ class DeepSpace7SupplierCacheTest {
         new ObjectMapper().writeValue(temporary.resolve("manifest.json").toFile(), root);
     }
 
+    @Test void poseCliScreensExistingCacheAcrossBatchBoundaries() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(System.getProperty("pose.deployment") != null);
+        fixture();
+        var config=config();
+        Path deployment=Path.of(System.getProperty("pose.deployment"));
+        config.inputs.index=temporary.toString();
+        config.inputs.modelBundle=Path.of("model-bundles/deepspace7-v1").toAbsolutePath().toString();
+        config.inputs.poseBundle=deployment.resolve("shared-candidate-seed17-verified").toString();
+        config.query.file=deployment.resolve("golden/query-0.mol").toString();
+        config.screening.mode="pose_phesa_3d";
+        config.screening.resultTopK=4;config.output.reportTopK=4;
+        config.output.hitsTsv=temporary.resolve("pose.tsv").toString();
+        config.output.hitsSdf=temporary.resolve("pose.sdf").toString();
+        config.output.summaryMarkdown=temporary.resolve("pose.md").toString();
+        config.output.runManifest=temporary.resolve("pose.json").toString();
+        Path settings=temporary.resolve("search-pose.json");
+        var mapper=new ObjectMapper();
+        config.runtime.comparatorBatchSize=1;mapper.writeValue(settings.toFile(),config);
+        MoleculeSimilaritySearchCLI.main(new String[]{settings.toString()});
+        var first=Files.readAllLines(Path.of(config.output.hitsTsv));
+        config.runtime.comparatorBatchSize=3;mapper.writeValue(settings.toFile(),config);
+        MoleculeSimilaritySearchCLI.main(new String[]{settings.toString()});
+        var second=Files.readAllLines(Path.of(config.output.hitsTsv));
+        assertEquals(first.stream().skip(1).map(s->s.split("\t")[2]).toList(),
+                second.stream().skip(1).map(s->s.split("\t")[2]).toList());
+        assertEquals("learned_pose_to_ensemble",mapper.readTree(Path.of(config.output.runManifest).toFile()).path("scoreSemantics").asText());
+        assertEquals(5,second.size());
+    }
+
     private void writeShard(int index, long sourceStart, float[] baseFirst,
             float[] compactFirst, List<String> ids) throws Exception {
         Path directory = temporary.resolve(String.format("shard_%06d", index));

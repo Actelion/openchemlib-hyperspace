@@ -46,7 +46,16 @@ final class Worker {
                 throw new IllegalStateException("Another worker holds the workspace lock");
             Path staging = dir.resolve("staging");
             Files.createDirectories(staging);
-            if ("fingerprint".equals(request.get("jobKind"))) {
+            if ("pose-search".equals(request.get("jobKind"))) {
+                Path output=dir.resolve("results");Files.createDirectories(output);
+                Path search=dir.resolve("pose-search-config.json");
+                JsonFiles.write(search,PoseSearchJobs.config(request,output));
+                stage("pose-search",PoseSearchJobs.command(config,
+                        "com.idorsia.research.chem.hyperspace3d.cli.MoleculeSimilaritySearchCLI",
+                        List.of("--config",search.toString()),(String)request.get("heap")),output.resolve("run.json"));
+                for(String name:List.of("hits.tsv","hits.sdf","summary.md","run.json"))
+                    artifacts.put(name,output.resolve(name).toString());
+            } else if ("fingerprint".equals(request.get("jobKind"))) {
                 Path output = Path.of((String) request.get("outputDirectory"));
                 Path buildConfig = dir.resolve("fingerprint-config.json");
                 JsonFiles.write(buildConfig, FingerprintJobs.buildConfig(config, request));
@@ -183,6 +192,13 @@ final class Worker {
                                 + stage
                                 + ".log");
             Map<String, Object> summary = JsonFiles.read(report);
+            if(stage.equals("pose-search")) {
+                if(!"learned_pose_to_ensemble".equals(summary.get("scoreSemantics")))
+                    throw new IllegalStateException("pose search completion metadata is invalid");
+                status.put("pose-searchSummary",Map.of("resultCount",summary.get("resultCount"),
+                        "recordsScanned",summary.get("recordsScanned"),"runManifest",report.toString()));
+                return;
+            }
             if (stage.equals("fingerprint")) {
                 FingerprintJobs.validateIndex(report.getParent(), summary);
                 status.put(stage + "Summary", Map.of("success", true,

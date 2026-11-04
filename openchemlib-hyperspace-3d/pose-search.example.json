@@ -1,0 +1,20 @@
+{
+  "formatVersion": 1,
+  "inputs": {
+    "index": "/data/existing-canonical-index",
+    "modelBundle": "model-bundles/deepspace7-v1",
+    "poseBundle": "/bundles/shared-candidate-pose"
+  },
+  "query": {"identifier": "supplied-pose", "file": "/queries/query.sdf", "record": 0},
+  "screening": {
+    "mode": "pose_phesa_3d", "posePpWeight": 0.5,
+    "objective": {"type": "direct", "target": "phesa_total"},
+    "resultTopK": 1000
+  },
+  "runtime": {"device": "CPU", "comparatorBatchSize": 32768, "prefetchDepth": 2},
+  "output": {
+    "hitsTsv": "/results/pose/hits.tsv", "hitsSdf": "/results/pose/hits.sdf",
+    "summaryMarkdown": "/results/pose/summary.md", "runManifest": "/results/pose/run.json",
+    "reportTopK": 25
+  }
+}

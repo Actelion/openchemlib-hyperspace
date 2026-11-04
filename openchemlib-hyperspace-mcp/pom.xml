@@ -13,7 +13,7 @@
     <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter-engine</artifactId><scope>test</scope></dependency>
   </dependencies>
   <build>
-    <resources><resource><directory>../</directory><includes><include>MCP_SERVER.md</include><include>RAWSPACE_FORMAT.md</include><include>RAWSPACE_IMPORTERS.md</include><include>FINGERPRINT_SLURM_WORKFLOW.md</include></includes></resource></resources>
+    <resources><resource><directory>../</directory><includes><include>MCP_SERVER.md</include><include>RAWSPACE_FORMAT.md</include><include>RAWSPACE_IMPORTERS.md</include><include>FINGERPRINT_SLURM_WORKFLOW.md</include><include>POSE_SEARCH.md</include></includes></resource></resources>
     <plugins><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId><version>3.5.1</version>
       <executions><execution><phase>package</phase><goals><goal>shade</goal></goals><configuration>
         <finalName>openchemlib-hyperspace-mcp</finalName><createDependencyReducedPom>false</createDependencyReducedPom>

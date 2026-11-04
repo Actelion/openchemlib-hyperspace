@@ -51,12 +51,22 @@ public final class MoleculeSimilaritySearchCLI {
         var model = DeepSpaceModelBundle.load(paths.modelBundle());
         CompactSkelSpheresModelBundle compact = config.usesCompact()
                 ? CompactSkelSpheresModelBundle.load(paths.compactBundle(), model.manifest()) : null;
-        StereoMolecule query = parse(config.query.structure, config.query.format);
-        var runtime = new DeepSpaceOnnxEnvironment(config.device(), config.runtime.cudaDeviceId);
+        long preparationStarted = System.nanoTime();
+        var poseBundle = config.usesPose()
+                ? com.idorsia.research.chem.hyperspace3d.model.SharedCandidatePoseBundle.load(config.poseBundlePath(configPath), model) : null;
+        var poseInput = config.usesPose()
+                ? com.idorsia.research.chem.hyperspace3d.feature.PoseQueryInput.read(config.queryFilePath(configPath),config.query.record) : null;
+        StereoMolecule query = poseInput == null ? parse(config.query.structure, config.query.format) : poseInput.molecule();
+        long preparationNanos = System.nanoTime() - preparationStarted;
+        var runtime = new DeepSpaceOnnxEnvironment(config.device(), config.runtime.cudaDeviceId, config.runtime.intraOpThreads);
 
         long queryStarted = System.nanoTime();
         float[] query128;
-        try (var encoder = new DeepSpaceV1Encoder(runtime, model)) {
+        if (poseInput != null) {
+            try (var encoder = new com.idorsia.research.chem.hyperspace3d.model.SharedCandidatePoseRuntime(runtime,poseBundle,config.screening.posePpWeight)) {
+                query128 = encoder.encode(poseInput.batch(),poseInput.distances())[0];
+            }
+        } else try (var encoder = new DeepSpaceV1Encoder(runtime, model)) {
             var batch = new DeepSpaceTensorBatchBuilder(new OCLDeepSpaceFeaturizer())
                     .build(List.of(query));
             query128 = encoder.encode(batch)[0];
@@ -75,6 +85,16 @@ public final class MoleculeSimilaritySearchCLI {
         try (var source = MoleculeFingerprintDataSources.open(paths.index())) {
             source.validateCompatibility(model, compact, config.usesCompact());
             switch (config.mode()) {
+                case POSE_PHESA_3D -> {
+                    try (var comparator = new com.idorsia.research.chem.hyperspace3d.model.SharedCandidatePoseRuntime(runtime,poseBundle,config.screening.posePpWeight)) {
+                        var result = new MoleculePheSAScreener(comparator,poseBundle.scoreManifest(),config.objective())
+                                .screen(source,query128,config.screening.resultTopK,
+                                        config.runtime.comparatorBatchSize,config.runtime.prefetchDepth);
+                        hits = render3d(result.hits(),poseBundle.scoreManifest(),Map.of());
+                        recordsScanned = result.recordsScanned();
+                        add3dTimings(timings,result);
+                    }
+                }
                 case SKELSPHERES_2D -> {
                     var result = new MoleculeSkelSpheresScreener(
                             new CompactSkelSpheresScorer(compact.manifest())).screen(
@@ -92,7 +112,7 @@ public final class MoleculeSimilaritySearchCLI {
                                 config.objective()).screen(source, query128,
                                         config.screening.resultTopK,
                                         config.runtime.comparatorBatchSize, config.runtime.prefetchDepth);
-                        hits = render3d(result.hits(), model, Map.of());
+                        hits = render3d(result.hits(), model.manifest(), Map.of());
                         recordsScanned = result.recordsScanned();
                         add3dTimings(timings, result);
                     }
@@ -109,7 +129,7 @@ public final class MoleculeSimilaritySearchCLI {
                                         config.runtime.comparatorBatchSize);
                         Map<com.idorsia.research.chem.hyperspace3d.index.MoleculeVectorReference,
                                 Double> exactScores = exactSkelSpheres(query, result.hits());
-                        hits = render3d(result.hits(), model, exactScores);
+                        hits = render3d(result.hits(), model.manifest(), exactScores);
                         recordsScanned = compactResult.recordsScanned();
                         timings.put("compactScanNanos", compactResult.scanNanos());
                         add3dTimings(timings, result);
@@ -118,14 +138,27 @@ public final class MoleculeSimilaritySearchCLI {
                 default -> throw new IllegalStateException("unhandled search mode");
             }
             timings.put("queryEncodingNanos", queryNanos);
+            timings.put("queryPreparationNanos", preparationNanos);
             timings.put("totalNanos", System.nanoTime() - started);
             createParents(paths);
-            writeTsv(paths.hitsTsv(), hits);
-            writeSdf(paths.hitsSdf(), hits);
+            writeTsv(paths.hitsTsv(), hits, config.usesPose());
+            writeSdf(paths.hitsSdf(), hits, config.usesPose());
             writeSummary(paths.summaryMarkdown(), config, source.artifactType(),
                     source.recordCount(), recordsScanned, hits, timings);
             writeRunManifest(mapper, paths, config, source.artifactType(), source.recordCount(),
                     recordsScanned, model, compact, query, hits.size(), timings);
+            if (poseInput != null) {
+                var run = mapper.readTree(paths.runManifest().toFile());
+                var obj = (com.fasterxml.jackson.databind.node.ObjectNode)run;
+                obj.put("scoreSemantics","learned_pose_to_ensemble");
+                obj.put("poseBundleHash",poseBundle.hash());
+                obj.put("posePpWeight",config.screening.posePpWeight);
+                obj.set("queryPose",mapper.valueToTree(poseInput.provenance()));
+                obj.put("queryPoseSha256",sha256(mapper.writeValueAsBytes(List.of(
+                        poseInput.provenance().get("queryIdcode"),poseInput.provenance().get("coordinates")))));
+                obj.set("poseModel",poseBundle.manifest());
+                mapper.writeValue(paths.runManifest().toFile(),obj);
+            }
         }
         System.out.printf(Locale.ROOT, "%s screened %,d molecules; wrote %d hits to %s%n",
                 config.mode(), recordsScanned, hits.size(), paths.hitsTsv());
@@ -162,11 +195,11 @@ public final class MoleculeSimilaritySearchCLI {
     }
 
     private static List<RenderedHit> render3d(List<MoleculePheSAHit> hits,
-            DeepSpaceModelBundle model,
+            com.idorsia.research.chem.hyperspace3d.model.DeepSpaceModelManifest model,
             Map<com.idorsia.research.chem.hyperspace3d.index.MoleculeVectorReference, Double> exact) {
-        int total = model.manifest().targetIndex("phesa_total");
-        int shape = model.manifest().targetIndex("phesa_shape");
-        int pharmacophore = model.manifest().targetIndex("phesa_pharmacophore");
+        int total = model.targetIndex("phesa_total");
+        int shape = model.targetIndex("phesa_shape");
+        int pharmacophore = model.targetIndex("phesa_pharmacophore");
         List<RenderedHit> result = new ArrayList<>(hits.size());
         for (int index = 0; index < hits.size(); index++) {
             var hit = hits.get(index);
@@ -178,12 +211,12 @@ public final class MoleculeSimilaritySearchCLI {
         return result;
     }
 
-    private static void writeTsv(Path path, List<RenderedHit> hits) throws Exception {
+    private static void writeTsv(Path path, List<RenderedHit> hits, boolean pose) throws Exception {
         try (BufferedWriter out = Files.newBufferedWriter(path)) {
             out.write("rank\tcompact_rank\tmolecule_id\tsmiles\tcanonical_smiles\tsource_row\t"
                     + "heavy_atoms\tshard\tlocal_row\tobjective_score\tpredicted_skelspheres\t"
                     + "exact_skelspheres\tpredicted_phesa_total\tpredicted_phesa_shape\t"
-                    + "predicted_phesa_pharmacophore\n");
+                    + "predicted_phesa_pharmacophore\tscore_semantics\n");
             for (var hit : hits) {
                 out.write(hit.rank + "\t" + value(hit.compactRank) + "\t"
                         + tsv(hit.molecule.moleculeId()) + "\t" + tsv(hit.molecule.smiles()) + "\t"
@@ -192,12 +225,12 @@ public final class MoleculeSimilaritySearchCLI {
                         + hit.reference.localRow() + "\t" + value(hit.objective) + "\t"
                         + value(hit.predictedSkelSpheres) + "\t" + value(hit.exactSkelSpheres) + "\t"
                         + value(hit.phesaTotal) + "\t" + value(hit.phesaShape) + "\t"
-                        + value(hit.phesaPharmacophore) + "\n");
+                        + value(hit.phesaPharmacophore) + "\t" + (pose ? "learned_pose_to_ensemble" : "graph_only") + "\n");
             }
         }
     }
 
-    private static void writeSdf(Path path, List<RenderedHit> hits) throws Exception {
+    private static void writeSdf(Path path, List<RenderedHit> hits, boolean pose) throws Exception {
         var parser = new SmilesParser();
         try (BufferedWriter out = Files.newBufferedWriter(path)) {
             for (var hit : hits) {
@@ -210,6 +243,7 @@ public final class MoleculeSimilaritySearchCLI {
                 new CoordinateInventor().invent(molecule);
                 new MolfileCreator(molecule).writeMolfile(out);
                 property(out, "RANK", Integer.toString(hit.rank));
+                property(out, "SCORE_SEMANTICS", pose ? "learned_pose_to_ensemble" : "graph_only");
                 property(out, "MOLECULE_ID", hit.molecule.moleculeId());
                 property(out, "SMILES", hit.molecule.smiles());
                 property(out, "OBJECTIVE_SCORE", value(hit.objective));
@@ -248,8 +282,9 @@ public final class MoleculeSimilaritySearchCLI {
                             + hit.molecule.smiles().replace("|", "\\|") + "` |\n");
                 }
             } else {
-                out.write("Learned PheSA scores are graph-only predictions; no conformers or "
-                        + "exact PheSA were generated.\n\n");
+                out.write(config.usesPose()
+                        ? "Learned pose→ensemble predictions from the supplied query conformation. Candidate structures are graph records; no aligned candidate conformation is available.\n\n"
+                        : "Learned PheSA scores are graph-only predictions; no conformers or exact PheSA were generated.\n\n");
                 out.write("| Rank | Molecule | Objective | PheSA total | Shape | Pharmacophore | SMILES |\n");
                 out.write("|---:|---|---:|---:|---:|---:|---|\n");
                 for (int index = 0; index < Math.min(config.output.reportTopK, hits.size()); index++) {
@@ -285,6 +320,7 @@ public final class MoleculeSimilaritySearchCLI {
         if (compact != null) run.put("compactBundleHash", compact.bundleHash());
         run.put("objective", objectiveProvenance(config));
         run.put("resultCount", resultCount);
+        run.put("runtime", config.runtime);
         run.put("timings", timings);
         run.put("outputs", Map.of("hitsTsv", paths.hitsTsv().toString(),
                 "hitsSdf", paths.hitsSdf().toString(),

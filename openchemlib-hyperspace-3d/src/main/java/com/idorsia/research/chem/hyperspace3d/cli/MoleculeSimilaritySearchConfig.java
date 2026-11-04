@@ -17,15 +17,23 @@ public final class MoleculeSimilaritySearchConfig {
     public Output output = new Output();
     public Runtime runtime = new Runtime();
 
-    public enum Mode { SKELSPHERES_2D, PHESA_3D, SKELSPHERES_THEN_PHESA }
+    public enum Mode { SKELSPHERES_2D, PHESA_3D, SKELSPHERES_THEN_PHESA, POSE_PHESA_3D }
 
     public void validate() {
         require(formatVersion == 1, "formatVersion must be 1");
         require(text(inputs.index) && text(inputs.modelBundle), "index and modelBundle are required");
         if (usesCompact()) require(text(inputs.compactBundle), "compactBundle is required for this mode");
-        require(text(query.structure) && text(query.identifier), "query structure and identifier are required");
-        require("smiles".equalsIgnoreCase(query.format) || "idcode".equalsIgnoreCase(query.format),
-                "query format must be smiles or idcode");
+        require(text(query.identifier), "query identifier is required");
+        if (usesPose()) {
+            require(text(query.file) && text(inputs.poseBundle), "pose query file and poseBundle are required");
+            require(query.record == null || query.record >= 0, "query record must be nonnegative (zero based)");
+            require(Double.isFinite(screening.posePpWeight) && screening.posePpWeight >= 0
+                    && screening.posePpWeight <= 1, "posePpWeight must be in [0,1]");
+        } else {
+            require(text(query.structure), "query structure is required");
+            require("smiles".equalsIgnoreCase(query.format) || "idcode".equalsIgnoreCase(query.format),
+                    "query format must be smiles or idcode");
+        }
         mode();
         objective();
         require(screening.resultTopK > 0, "resultTopK must be positive");
@@ -37,7 +45,7 @@ public final class MoleculeSimilaritySearchConfig {
                         && text(output.summaryMarkdown) && text(output.runManifest),
                 "all output paths are required");
         require(runtime.scanBatchSize > 0 && runtime.comparatorBatchSize > 0
-                        && runtime.prefetchDepth > 0,
+                        && runtime.prefetchDepth > 0 && runtime.intraOpThreads >= 0,
                 "batch sizes must be positive");
         device();
     }
@@ -45,11 +53,12 @@ public final class MoleculeSimilaritySearchConfig {
     public Mode mode() {
         try { return Mode.valueOf(screening.mode.toUpperCase(Locale.ROOT)); }
         catch (RuntimeException error) {
-            throw new IllegalArgumentException("mode must be skelspheres_2d, phesa_3d, or skelspheres_then_phesa", error);
+            throw new IllegalArgumentException("mode must be skelspheres_2d, phesa_3d, skelspheres_then_phesa, or pose_phesa_3d", error);
         }
     }
 
-    public boolean usesCompact() { return mode() != Mode.PHESA_3D; }
+    public boolean usesPose() { return mode() == Mode.POSE_PHESA_3D; }
+    public boolean usesCompact() { return mode() == Mode.SKELSPHERES_2D || mode() == Mode.SKELSPHERES_THEN_PHESA; }
     public boolean usesComparator() { return mode() != Mode.SKELSPHERES_2D; }
 
     public ScreeningObjective objective() {
@@ -82,6 +91,9 @@ public final class MoleculeSimilaritySearchConfig {
         catch (RuntimeException error) { throw new IllegalArgumentException("device must be CPU or CUDA", error); }
     }
 
+    public Path poseBundlePath(Path config) { return resolve(config.toAbsolutePath().getParent(), inputs.poseBundle); }
+    public Path queryFilePath(Path config) { return resolve(config.toAbsolutePath().getParent(), query.file); }
+
     private static Path resolve(Path base, String value) {
         Path path = Path.of(value);
         return (path.isAbsolute() ? path : base.resolve(path)).normalize().toAbsolutePath();
@@ -97,14 +109,18 @@ public final class MoleculeSimilaritySearchConfig {
         public String index;
         public String modelBundle;
         public String compactBundle;
+        public String poseBundle;
     }
     public static final class Query {
         public String structure;
         public String format = "smiles";
         public String identifier;
+        public String file;
+        public Integer record;
     }
     public static final class Screening {
         public String mode = "phesa_3d";
+        public double posePpWeight = 0.5;
         public Objective objective = new Objective();
         public int resultTopK = 1000;
         public int cascadeShortlistTopK = 100000;
@@ -123,6 +139,7 @@ public final class MoleculeSimilaritySearchConfig {
         public int reportTopK = 25;
     }
     public static final class Runtime {
+        public int intraOpThreads;
         public String device = "CPU";
         public int cudaDeviceId;
         public int scanBatchSize = 65536;

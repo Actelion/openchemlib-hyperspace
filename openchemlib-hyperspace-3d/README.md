@@ -1,7 +1,8 @@
 # Hyperspace3D
 
-Hyperspace3D is the learned, graph-only 3D screening extension for
-OpenChemLib Hyperspace. This initial module provides the deployable vertical
+Hyperspace3D is the learned molecular screening extension for
+OpenChemLib Hyperspace. It also supports supplied-conformation queries through
+the [pose-search CLI and MCP workflow](../POSE_SEARCH.md). The module provides the deployable vertical
 slice: OCL graph featurization, batched ONNX inference, a sampled-product
 fingerprint index, streaming elite screening, and the batch contract needed
 by a later local/beam optimizer.

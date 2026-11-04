@@ -1,0 +1,32 @@
+{
+  "formatVersion": 1,
+  "inputs": {
+    "rawFull": "../realspace_2024.rawspace.gz",
+    "rawDownsampled": "../realspace_2024_downsampled.rawspace.gz",
+    "modelBundle": "model-bundles/deepspace7-v1"
+  },
+  "query": {"identifier": "example", "smiles": "CCOc1ccccc1"},
+  "run": {
+    "seed": 17, "maxRuntimeSeconds": 3600, "maxAccepted": 1000000,
+    "maxProposals": 20000000, "target": "phesa_total", "ppWeight": 0.5
+  },
+  "reactionWeighting": {
+    "mode": "BUCKETED_PRODUCT",
+    "buckets": [
+      {"maxProductExclusive": 2000, "weight": 0.01},
+      {"maxProductExclusive": 50000, "weight": 0.1},
+      {"maxProductExclusive": 750000, "weight": 0.5},
+      {"weight": 5.0}
+    ]
+  },
+  "filters": {"minHeavyAtoms": 6, "maxHeavyAtoms": 32, "maxRotatableBonds": 15},
+  "output": {
+    "directory": "continuous-example", "resume": true, "globalTopK": 10000,
+    "perReactionTopK": 100, "checkpointSeconds": 30, "persistFingerprints": false
+  },
+  "runtime": {
+    "device": "CPU", "cudaDeviceId": 0, "cpuWorkers": 8,
+    "encoderBatchSize": 512, "queueCapacity": 2, "intraOpThreads": 1
+  },
+  "exact": {"enabled": false, "topK": 1000, "maxConformers": 8, "threads": 4, "minScore": 0.5}
+}

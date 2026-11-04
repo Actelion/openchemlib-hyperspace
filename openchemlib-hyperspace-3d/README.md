@@ -9,6 +9,11 @@ by a later local/beam optimizer.
 
 ## Workflow overview
 
+For direct random enumeration → learned scoring → continuously updated top-K,
+use [continuous DeepSpace screening](CONTINUOUS_DEEPSPACE_SCREENING.md).
+It accepts full/downsampled combinatorial spaces, SMILES or supplied-pose queries,
+resumes checkpoints, optionally retains fingerprints, and can finish with exact PheSA.
+
 For managed local jobs or multi-node fingerprint generation with task-local
 scratch, see the [MCP and Slurm fingerprint guide](../FINGERPRINT_SLURM_WORKFLOW.md).
 Slurm bundles are exported for manual submission; completed partitions are
@@ -27,6 +32,7 @@ represent exhaustive coverage of the combinatorial space.
 | Compact sampled-product preparation | `CompactSkelSpheresIndexBuilderCLI` | 16D FP16 product vectors and tuple references | **No; requires an empty output directory** |
 | Compact sampled-product screening | `CompactSkelSpheresSearchCLI` | Learned 2D elites, optionally exact SkelSpheres reranked | Not a resumable index build |
 | PheSA training-pair mining | `PheSAQueryPairMiningCLI` | Retrieval examples with exact OCL PheSA labels | Yes, completed query work |
+| Continuous learned synthon-product mining | `ContinuousDeepSpaceScreeningCLI` | Weighted enumeration, batched learned scoring, global/reaction elites, optional exact PheSA finishing | Yes, consumed-batch sampler/elite checkpoints |
 
 ### Flat libraries
 
@@ -54,6 +60,10 @@ validates input/model/configuration identity and committed shard hashes.
 `FingerprintIndexScreener` provides Java API screening with global and
 per-reaction elites. There is not yet a dedicated end-to-end 128D product
 screening CLI equivalent to `MoleculeSimilaritySearchCLI`.
+
+For direct enumeration and live scoring, [continuous DeepSpace screening](CONTINUOUS_DEEPSPACE_SCREENING.md)
+connects the existing sampler, CPU preparation and ONNX models. It can discard
+non-elite vectors or persist reusable product shards while updating query hits.
 
 The [compact product workflow](#learned-16d-skelspheres-search) has both build
 and search CLIs, with [build](compact-skelspheres-index-build.example.json)

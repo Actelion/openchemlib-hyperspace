@@ -1,0 +1,7 @@
+{
+  "workspace": "./hyperspace-workspace",
+  "cliJar": "./openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar",
+  "threads": 4,
+  "heap": "8G",
+  "guiHeap": "8G"
+}

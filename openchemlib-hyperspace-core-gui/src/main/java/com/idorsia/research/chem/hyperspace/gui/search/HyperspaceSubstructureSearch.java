@@ -363,7 +363,6 @@ public class HyperspaceSubstructureSearch extends AbstractSearchProvider<Synthon
     public AbstractHyperspaceProcess startInitialization() {
         //init_process = new InitializeHyperspaceSynthonSpaceProcess(config_initialization.getFile());
         init_process = new HyperspaceSynthonSpaceInitializationProcess(this,config_initialization.getFile());
-        init_process.startInitializationAsync();
 
         init_process.addSearchProviderListener(new AbstractHyperspaceProcess.HyperspaceProcessListener() {
             @Override
@@ -378,6 +377,7 @@ public class HyperspaceSubstructureSearch extends AbstractSearchProvider<Synthon
             }
         });
 
+        init_process.startInitializationAsync();
         return init_process;
     }
 

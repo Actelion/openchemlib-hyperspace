@@ -10,7 +10,7 @@ public class CombinatorialSearchResultModel {
 
     private StereoMolecule query;
     private List<SynthonSpace.CombinatorialHit> hits = new ArrayList<>();
-    private List<CombinatorialSearchResultModelListener> listeners = new ArrayList<>();
+    private List<CombinatorialSearchResultModelListener> listeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     public CombinatorialSearchResultModel(StereoMolecule query) {
         this.query = query;

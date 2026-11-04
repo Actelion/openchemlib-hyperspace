@@ -681,6 +681,8 @@ public class SynthonSpace implements Serializable {
 
         try {
             ensureReactionIsOk(molecules);
+        } catch (CancellationException e) {
+            throw e;
         } catch (Exception e) {
             e.printStackTrace();
             System.out.println("Reaction "+rxn_id+" -> detected problem, SKIP!");
@@ -707,6 +709,7 @@ public class SynthonSpace implements Serializable {
 
             //for( StereoMolecule mi_pre : molecules.get(ki) ) {
             for(int mzi=0; mzi<molecules.get(ki).size(); mzi++) {
+                if (Thread.currentThread().isInterrupted()) throw new CancellationException("Reaction build interrupted");
                 StereoMolecule mi_pre = null;
                 if( molecules.get(ki).get(mzi) == null ) {
                     System.out.println("Null molecule object supplied -> skip");
@@ -820,6 +823,7 @@ public class SynthonSpace implements Serializable {
             // then, to exploit the connector-proximity initial hits, we also need the fast substructure searcher for the different conn fps:
             Map<BitSet,FastSubstructureSearcher> sorted_substructure_searchers = new HashMap<>();
             for( BitSet bffi : connector_proximal_sorted_fragments.keySet()) {
+                if (Thread.currentThread().isInterrupted()) throw new CancellationException("Reaction build interrupted");
                 FastSubstructureSearcher fss = new FastSubstructureSearcher();
                 //fss.setFP(this.mFP,this.BITS,true); // !! SET ON THE FLY, else all the descriptors take a lot of memory..
                 fss.setFP(this.mFP,this.BITS,false); // !! SET ON THE FLY, else all the descriptors take a lot of memory..

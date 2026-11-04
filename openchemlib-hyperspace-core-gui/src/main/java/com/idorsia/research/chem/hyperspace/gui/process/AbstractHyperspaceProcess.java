@@ -24,8 +24,8 @@ public abstract class AbstractHyperspaceProcess {
 
     public abstract String getName();
 
-    private ProcessStatus status       = ProcessStatus.WAITING;
-    private String        status_msg   = "";
+    private volatile ProcessStatus status       = ProcessStatus.WAITING;
+    private volatile String        status_msg   = "";
 
     public ProcessStatus getProcessStatus() {
         return this.status;
@@ -38,7 +38,7 @@ public abstract class AbstractHyperspaceProcess {
     //public abstract List<StereoMolecule> getQueryStructures();
 
 
-    private List<HyperspaceProcessListener> listeners = new ArrayList<>();
+    private List<HyperspaceProcessListener> listeners = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     public static interface HyperspaceProcessListener {
         public void processStatusChanged();
@@ -78,45 +78,15 @@ public abstract class AbstractHyperspaceProcess {
     }
 
 
-    private boolean waitUntilDoneOrFailed_Flag_done        = false;
-    private boolean waitUntilDoneOrFailed_Flag_interrupted = false;
-
-    /**
-     * Returns true if the process reached DONE or FAILED, returns
-     * false if the timeout was hit.
-     *
-     * @param timeout_ms
-     * @return
-     */
+    /** Waits for completion, including a process that completed before this call. */
     public boolean waitUntilDoneOrFailed(int timeout_ms) throws InterruptedException {
-        long ts_a = System.currentTimeMillis();
-
-        //final AbstractHyperspaceProcess thisObject = this;
-        this.addSearchProviderListener(new HyperspaceProcessListener() {
-            @Override
-            public void processStatusChanged() {
-                if(getProcessStatus() == ProcessStatus.DONE || getProcessStatus() == ProcessStatus.FAILED) {
-                    waitUntilDoneOrFailed_Flag_done = true;
-                    return;
-                }
-                else {
-                    //System.out.println("[waitUntilDoneOrFailed] :: continue waiting");
-                }
-            }
-        });
-
-        while( System.currentTimeMillis() < (ts_a + timeout_ms) ) {
+        if (SwingUtilities.isEventDispatchThread()) throw new IllegalStateException("Do not wait for processes on the Swing event thread");
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(timeout_ms);
+        do {
+            if (status == ProcessStatus.DONE || status == ProcessStatus.FAILED) return true;
             Thread.sleep(20);
-            if( waitUntilDoneOrFailed_Flag_done || waitUntilDoneOrFailed_Flag_interrupted ) {
-                break;
-            }
-        }
-
-        if( System.currentTimeMillis() >= (ts_a + timeout_ms) ) {
-            waitUntilDoneOrFailed_Flag_interrupted = true;
-        }
-
-        return waitUntilDoneOrFailed_Flag_done;
+        } while (System.nanoTime() < deadline);
+        return status == ProcessStatus.DONE || status == ProcessStatus.FAILED;
     }
 
     public static interface HasProgress {

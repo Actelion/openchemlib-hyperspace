@@ -3,6 +3,33 @@
 # openchemlib-hyperspace
 Cheminformatics tools, workflows and pipelines for substructure search, virtual screening and data analysis
 
+## Learned screening and training-data mining
+
+[Hyperspace3D](openchemlib-hyperspace-3d/README.md) provides graph-based ONNX
+screening, sampled-product and flat-molecule fingerprint indexes, and learned
+2D/3D similarity searches. [PheSA query-pair mining](openchemlib-hyperspace-3d/PHESA_QUERY_MINING.md)
+adds resumable generation of exact PheSA training labels.
+
+The full repository build targets **Java 22**. The 3D module uses newer JDK APIs
+and cannot be built with the Java 17 override used in the separate MCP guide.
+Its default runtime is CPU ONNX Runtime; CUDA requires the module's explicit
+`cuda` profile and compatible native libraries. These standalone workflows do
+not change the existing GUI/MCP search interface.
+
+The tools module also includes
+`com.idorsia.research.chem.hyperspace.tools.chembl.LatentAssemblyMinerCLI`
+(`--help` lists its options). It reads ChEMBL-style IDCode TSV input and writes
+scaffold/arm decomposition training records as JSONL, optionally gzip-compressed;
+it does not itself compute latent vectors.
+
+
+## Agent-assisted setup via MCP
+
+The [Hyperspace MCP server](MCP_SERVER.md) lets an MCP-capable agent inspect supplier files, prepare search indexes, monitor jobs across sessions, and open a configured GUI. See the guide for installation and a toy-space walkthrough.
+
+[Molecule fingerprint and Slurm workflows](FINGERPRINT_SLURM_WORKFLOW.md) cover
+local MCP fingerprint jobs and exported GPU job arrays with scratch staging,
+partition-level restart, and consolidation into one searchable molecule cache.
 
 # First Steps -  Substructure search in a toy combinatorial library space
 The following six steps are required to try out the fast substructure search in combinatorial library spaces. In this example we create the necessary datastructures from a provided input file containing a toy combinatorial library space consisting of 30k structures.
@@ -85,6 +112,8 @@ java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
 The CSV mode (powered by `SynthonSpaceParser3`) assumes one file per reaction; each row provides a synthon SMILES plus metadata (IDs, optional price, optional synthon-set index). Column names are configurable via CLI flags, and numeric metadata such as prices are stored as fragment attributes inside the raw space, ready for downstream cost-aware workflows. `--mode` mirrors the descriptors understood by the parser (FragFp, PathFp, mode_pfp, mode_ffp, mode_ppcore). Besides the JSON dump you can optionally persist a `SynthonSpace` and/or similarity side-car in one go. `--rawOut` is required and can point to either `.rawspace` or `.rawspace.gz` (compression is inferred from the extension).
 
 For the full list of rawspace import formats, expected columns, filename conventions, and batch import options, see [`RAWSPACE_IMPORTERS.md`](RAWSPACE_IMPORTERS.md). The checked Enamine, ChemSpace, Xtalpi, Molecule.One, Synple, and toy supplier files are listed with runnable import and merge commands in [`SUPPLIER_SPACE_IMPORTS.md`](SUPPLIER_SPACE_IMPORTS.md).
+
+Rawspace statistics reports for merged or supplier spaces are documented in [`RAWSPACE_STATS.md`](RAWSPACE_STATS.md).
 
 ## Synthon space merge CLI
 
@@ -181,6 +210,8 @@ java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
 ```
 
 The CLI now accepts a single JSON config file (`<config.json>` or `--config <config.json>`). Use [`continuous-screening-config.example.json`](continuous-screening-config.example.json) as template.
+
+For a fuller getting-started guide to the JSON options, thresholds, logging, runtime limits, and output columns, see [`CONTINUOUS_SCREENING_CONFIG.md`](CONTINUOUS_SCREENING_CONFIG.md).
 
 The JSON is grouped by pipeline step:
 - `inputs` + query source: full/downsampled raw space paths and either inline `query` or external `queryFile`

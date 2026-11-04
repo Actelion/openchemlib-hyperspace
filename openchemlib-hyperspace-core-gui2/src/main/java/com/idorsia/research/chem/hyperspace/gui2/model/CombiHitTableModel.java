@@ -24,9 +24,10 @@ public class CombiHitTableModel extends AbstractTableModel {
     }
 
     public void addHits(List<SynthonSpace.CombinatorialHit> newHits) {
+        if (newHits.isEmpty()) return;
+        int first = this.hits.size();
         this.hits.addAll(newHits);
-        fireTableRowsInserted(0,this.hits.size());
-        fireTableDataChanged();
+        fireTableRowsInserted(first, this.hits.size() - 1);
     }
 
     @Override

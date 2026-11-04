@@ -5,6 +5,7 @@ import com.idorsia.research.chem.hyperspace.cli.ChEMBLSynthonSpaceMinerCLI;
 import com.idorsia.research.chem.hyperspace.cli.ChEMBLSynthonSpaceExpansionCLI;
 import com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceImportCLI;
 import com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceProcessorCLI;
+import com.idorsia.research.chem.hyperspace.cli.RawSynthonSpaceStatsCLI;
 import com.idorsia.research.chem.hyperspace.gui.HyperspaceSearchGUI;
 import com.idorsia.research.chem.hyperspace.gui.HyperspaceServer;
 import com.idorsia.research.chem.hyperspace.io.SynthonSpaceParser2;
@@ -27,6 +28,9 @@ public class HyperspaceLauncher {
         if(args[0].equalsIgnoreCase("CREATESPACE")) {
             SynthonSpaceParser2.main(args2);
         }
+        else if(args[0].equalsIgnoreCase("GUI2")) {
+            com.idorsia.research.chem.hyperspace.gui2.LeetHyperspaceMain.main(args2);
+        }
         else if(args[0].equalsIgnoreCase("GUI")) {
             HyperspaceSearchGUI.main(args2);
         }
@@ -41,6 +45,9 @@ public class HyperspaceLauncher {
         }
         else if(args[0].equalsIgnoreCase("PROCESSRAWSPACE")) {
             RawSynthonSpaceProcessorCLI.main(args2);
+        }
+        else if(args[0].equalsIgnoreCase("RAWSPACESTATS")) {
+            RawSynthonSpaceStatsCLI.main(args2);
         }
         else if(args[0].equalsIgnoreCase("MINECHEMBLSPACE")) {
             ChEMBLSynthonSpaceMinerCLI.main(args2);

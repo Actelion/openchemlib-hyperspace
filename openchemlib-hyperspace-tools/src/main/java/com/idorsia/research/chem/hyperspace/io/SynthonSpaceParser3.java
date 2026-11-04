@@ -77,6 +77,8 @@ public final class SynthonSpaceParser3 {
         addDescriptorTags(builder, descriptor, options.descriptorTags());
 
         validateAndApply(filtered, builder, reactionMetadata);
+        builder.putMetadata("parser.inputReactionCount", Integer.toString(records.size()));
+        builder.putMetadata("parser.sizeFilteredReactionCount", Integer.toString(records.size() - filtered.size()));
         RawSynthonSpace raw = builder.build();
         SynthonSpace synthonSpace = maybeBuildSynthonSpace(raw, descriptor, options.buildSynthonSpace());
         return new ParsedSpace(raw, synthonSpace);
@@ -116,6 +118,7 @@ public final class SynthonSpaceParser3 {
         addDescriptorTags(builder, descriptor, options.descriptorTags());
 
         validateAndApply(records, builder, Map.of());
+        builder.putMetadata("parser.inputReactionCount", Integer.toString(records.size()));
         RawSynthonSpace raw = builder.build();
         SynthonSpace synthonSpace = maybeBuildSynthonSpace(raw, descriptor, options.buildSynthonSpace());
         return new ParsedSpace(raw, synthonSpace);

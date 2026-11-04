@@ -44,6 +44,9 @@ public final class SynthonReactionValidator {
             }
 
             for (Object entry : molecules.get(fragmentIdx)) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new java.util.concurrent.CancellationException("Reaction validation interrupted");
+                }
                 StereoMolecule molecule = null;
                 if (entry == null) {
                     System.out.println("Null molecule object supplied -> skip");

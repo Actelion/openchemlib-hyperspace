@@ -29,12 +29,14 @@ jobs:
         distribution: 'temurin'
         cache: maven
     - name: Build with Maven
-      run: mvn -B clean install --file pom.xml
+      run: >-
+        mvn -B clean install --file pom.xml
+        -Dhyperspace3d.modelBundle=${{ github.workspace }}/openchemlib-hyperspace-3d/model-bundles/deepspace7-v1
+        -Dhyperspace3d.compactBundle=${{ github.workspace }}/openchemlib-hyperspace-3d/model-bundles/deepspace7-skelspheres16
       # run: mvn -B package --file pom.xml
 
     - name: Publish to GitHub Packages
       run: mvn -B deploy
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 

@@ -24,6 +24,8 @@ public class LeetHyperspaceView extends AbstractLeetHyperspaceView {
     private JTabbedPane tpCombiResultView;
     private JPanel pCombiResultViewA;
     private JPanel pCombiResultViewB;
+    private CombinatorialHitsView combinatorialView;
+    private RealTimeExpandingHitsView expandedView;
 
 
     public LeetHyperspaceView(LeetHyperspaceModel model) {
@@ -88,15 +90,28 @@ public class LeetHyperspaceView extends AbstractLeetHyperspaceView {
     }
 
     public void addResultsView(CombinatorialHitsView view) {
+        if (combinatorialView != null) combinatorialView.dispose();
+        combinatorialView = view;
         this.pCombiResultViewA.removeAll();
         this.pCombiResultViewA.add(view, BorderLayout.CENTER);
         SwingUtilities.updateComponentTreeUI(this);
     }
 
     public void addResultsView(RealTimeExpandingHitsView view) {
+        if (expandedView != null) expandedView.dispose();
+        expandedView = view;
         this.pCombiResultViewB.removeAll();
         this.pCombiResultViewB.add(view, BorderLayout.CENTER);
         SwingUtilities.updateComponentTreeUI(this);
+    }
+
+    public void disposeResults() {
+        if (combinatorialView != null) combinatorialView.dispose();
+        if (expandedView != null) expandedView.dispose();
+        combinatorialView = null;
+        expandedView = null;
+        pCombiResultViewA.removeAll();
+        pCombiResultViewB.removeAll();
     }
 
 

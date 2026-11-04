@@ -1,0 +1,61 @@
+
+
+java -jar openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+        CREATESPACE "/home/liphath1/hyperspace_base_2/data/REAL_Space_latest/2021-02_REAL_synthons_SMALL.txt" real_space_2023_SMALL FragFp 8
+
+
+
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+        com.idorsia.research.chem.hyperspace.cli.SynthonSpaceDownsamplingCLI \
+        --spaceIn real_space_2023_FragFp_SMALL.data \
+        --rawOut real_space_2023_FragFp_SMALL.rawspace.gz \
+        --maxCenters 100 \
+        --minSimilarity 0.75 \
+        --seed 13
+        
+        
+                
+
+
+
+
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+        com.idorsia.research.chem.hyperspace.cli.SynthonSpaceDownsamplingCLI \
+        --spaceIn real_space_2023_FragFp.data \
+        --rawOut real_space_2023_FragFp.rawspace.gz \
+        --maxCenters 200 \
+        --minSimilarity 0.75 \
+        --seed 13
+        
+        
+        
+        
+java -cp openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar \
+        com.idorsia.research.chem.hyperspace.cli.SynthonSeedFinderCLI \
+        --raw real_space_2023_FragFp.rawspace.gz \
+        --output seeds_01.tsv \
+        --querySmiles "Cc(cc1)cc2c1c([C@H](c(cc(cc1)Cl)c1Cl)OCCN(Cc1cc(C(O)=O)ccc1)C1=O)c1[nH]2" \
+        --attempts 5000 \
+        --minAtoms 24 \
+        --maxAtoms 38 \
+        --maxRotBonds 6 \
+        --minPhesa 0.55 \
+        --seed 42 \
+        --threads 1      
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+com.idorsia.research.chem.hyperspace.cli.SynthonSeedFinderCLI  --raw real_space_2023_FragFp.rawspace.gz  --output seeds_02_competitor.tsv  --querySmiles "CC(C)c1c(-c(cc2)ccc2F)c(ccc(O)c2F)c2c(O[C@H](C2)C[C@@H]2C(O)=O)n1"  --attempts 4000  --minAtoms 24 --maxAtoms 38 --maxRotBonds 6 --minPhesa 0.5 --seed 42 --threads 10        
+        
+        
+        
+        
+        
+          

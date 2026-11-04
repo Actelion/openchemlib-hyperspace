@@ -119,7 +119,7 @@ public final class OCLDeepSpaceFeaturizer {
         if (z == 15 || z == 16) return coordination >= 6 ? 4 : coordination == 5 ? 3 : 2;
         if (pi >= 2) return 0;
         if (pi == 1 || ((z == 7 || z == 8)
-                && hasPiNeighbor(mol, atom))) return 1;
+                && (hasPiNeighbor(mol, atom) || hasImineDonorBond(mol, atom)))) return 1;
         if (coordination >= 6) return 4;
         if (coordination == 5) return 3;
         if (coordination <= 4) return 2;
@@ -192,7 +192,7 @@ public final class OCLDeepSpaceFeaturizer {
     }
 
     private static boolean isConjugated(StereoMolecule mol, int bond) {
-        if (mol.isAromaticBond(bond) || mol.isDelocalizedBond(bond)) return true;
+        if (mol.isAromaticBond(bond) || mol.isDelocalizedBond(bond) || isImineDonorBond(mol, bond)) return true;
         int a = mol.getBondAtom(0, bond);
         int b = mol.getBondAtom(1, bond);
         if (mol.getAtomicNo(a) == 15 || mol.getAtomicNo(a) == 16
@@ -209,6 +209,34 @@ public final class OCLDeepSpaceFeaturizer {
                     && mol.getAtomicNo(a) != 6 && (mol.isStabilizedAtom(a) || mol.getAtomCharge(a) != 0))
                 || (mol.isAromaticAtom(a) && (mol.getAtomicNo(b) == 7 || mol.getAtomicNo(b) == 8))
                 || (mol.isAromaticAtom(b) && (mol.getAtomicNo(a) == 7 || mol.getAtomicNo(a) == 8));
+    }
+
+    /** RDKit assigns neutral oxime/hydrazone donors to the C=N–O/N conjugated system.
+     * OCL's stabilized-atom flag alone does not identify this N–O/N single bond. */
+    private static boolean hasImineDonorBond(StereoMolecule mol, int atom) {
+        for (int i = 0; i < mol.getConnAtoms(atom); i++) {
+            int bond = mol.getConnBond(atom, i);
+            if (isImineDonorBond(mol, bond)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isImineDonorBond(StereoMolecule mol, int bond) {
+        if (mol.getBondOrder(bond) != 1) return false;
+        int a = mol.getBondAtom(0, bond), b = mol.getBondAtom(1, bond);
+        return isImineDonorSide(mol, a, b) || isImineDonorSide(mol, b, a);
+    }
+
+    private static boolean isImineDonorSide(StereoMolecule mol, int imine, int donor) {
+        int donorElement = mol.getAtomicNo(donor);
+        if (mol.getAtomicNo(imine) != 7 || (donorElement != 7 && donorElement != 8)
+                || mol.getAtomCharge(imine) != 0 || mol.getAtomCharge(donor) != 0
+                || mol.isAromaticAtom(imine)) return false;
+        for (int i = 0; i < mol.getConnAtoms(imine); i++) {
+            if (mol.getAtomicNo(mol.getConnAtom(imine, i)) == 6
+                    && mol.getBondOrder(mol.getConnBond(imine, i)) == 2) return true;
+        }
+        return false;
     }
 
     private static boolean hasAdjacentPi(StereoMolecule mol, int atom, int excludedBond) {

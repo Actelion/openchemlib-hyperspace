@@ -1,0 +1,4 @@
+/** Original vector mark inspired by the supplied cyan/orange precision design board. */
+export function PrismMark(){return <svg className="prism-mark" viewBox="0 0 44 42" fill="none" aria-hidden="true"><path d="M20.5 1.5 2 35.5 20.5 22.5Z" fill="#00bdd5"/><path d="m23.5 1.5 18.5 34-18.5-13Z" fill="#00a7c4"/><path d="M4 39 22 26l18 13-18-4.5Z" fill="#d9701a"/></svg>;}
+export function Brand(){return <div className="wordmark"><PrismMark/><b>hyperspace</b><span>WORKBENCH</span></div>;}
+export function ThemeIcon({dark}:{dark:boolean}){return <svg className="interface-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{dark?<><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></>:<path d="M20.8 13A9 9 0 0 1 11 3.2 9 9 0 1 0 20.8 13Z"/>}</svg>;}

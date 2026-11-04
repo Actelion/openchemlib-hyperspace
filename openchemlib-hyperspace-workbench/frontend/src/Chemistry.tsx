@@ -1,11 +1,28 @@
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import {CanvasEditor,Molecule} from 'openchemlib';
 import type {Document,Query,Selection} from './api';
+import {useAppearance} from './Appearance';
 
 export function Structure({document:doc,atoms=[],height=150}:{document:Document;atoms?:number[];height?:number}){
-  try{const m=Molecule.fromIDCode(doc.idcode,doc.coordinates);m.ensureHelperArrays(Molecule.cHelperCIP);for(const a of atoms)if(a<m.getAllAtoms())m.setAtomColor(a,Molecule.cAtomColorMagenta);
-    const svg=m.toSVG(320,height,undefined,{strokeWidth:1.5});return <img className="structure" height={height} src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`} alt="Molecular structure with query matches in magenta"/>;
-  }catch{return <div className="structure-error">Structure could not be depicted</div>;}
+  const {theme}=useAppearance();
+  const source=useMemo(()=>{
+    try {
+      // Work on a depiction copy only. IDCode, coordinates, matching and scoring stay untouched.
+      const m=Molecule.fromIDCode(doc.idcode,doc.coordinates);m.ensureHelperArrays(Molecule.cHelperCIP);
+      for(const a of atoms)if(a>=0&&a<m.getAllAtoms())m.setAtomColor(a,Molecule.cAtomColorMagenta);
+      const svg=m.toSVG(320,height,undefined,{strokeWidth:1.55});
+      // OCL's public SVG API emits explicit RGB paint attributes. Neutral ink and the explicit match color follow the palette; saturated blue/red/green
+      // get readable dark-mode shades of the same hue. Stereo geometry is untouched.
+      const paint:Record<string,string>={
+        '0,0,0':theme==='dark'?'#edf4f7':'#172d38',
+        '192,0,255':theme==='dark'?'#35d4ea':'#007e96',
+        ...(theme==='dark'?{'0,0,255':'#9cbaff','48,80,248':'#9cbaff','0,143,255':'#87c9ff','255,0,0':'#ff969c','255,13,13':'#ff969c','0,192,0':'#88d7a1','0,128,0':'#88d7a1'}:{}),
+      };
+      const themed=svg.replace(/(stroke|fill)="rgb\((\d+,\d+,\d+)\)"/g,(original,attribute:string,rgb:string)=>paint[rgb]?`${attribute}="${paint[rgb]}"`:original);
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(themed)}`;
+    }catch{return null;}
+  },[doc.idcode,doc.coordinates,height,atoms.join(','),theme]);
+  return source?<img className="structure" height={height} src={source} alt={atoms.length?'Molecular structure with query matches highlighted in cyan':'Molecular structure'}/>:<div className="structure-error">Structure could not be depicted</div>;
 }
 export function QueryCanvas({query,selection,onPublish,onSelection}:{query:Query|null;selection:Selection;onPublish:(doc:Document,baseId:string|null)=>Promise<unknown>;onSelection:(atoms:string[],bonds:string[])=>void}){
   const host=useRef<HTMLDivElement>(null),editor=useRef<CanvasEditor|null>(null),latest=useRef({query,selection,onSelection});latest.current={query,selection,onSelection};

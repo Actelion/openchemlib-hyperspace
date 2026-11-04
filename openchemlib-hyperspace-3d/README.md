@@ -413,3 +413,26 @@ java -cp 'openchemlib-hyperspace-3d/target/classes:openchemlib-hyperspace-3d/tar
   com.idorsia.research.chem.hyperspace3d.benchmark.MoleculeCacheReadBenchmark \
   /path/to/cache BASE_128 1 32768
 ```
+
+
+### Query-feature compatibility with existing Python caches
+
+Manifest/checkpoint compatibility and graph-feature parity are separate checks.
+The existing golden fixtures prove agreement for their molecules; they do not
+establish universal RDKit/OCL ring, aromaticity or conjugation equivalence.
+
+A production-cache investigation identified missing neutral C=N–O/N conjugation
+in Java. The featurizer now handles these oxime/hydrazone donors, with an independent
+12-molecule Python/RDKit fixture (`ImineConjugationParityTest`) including saturated
+controls. All original feature/model tests still pass. No model retraining or
+supplier-cache modification is involved.
+
+Broader checking of 64 accepted molecules from 17 evenly spaced shard positions
+also found 12 cases with remaining ring-membership, aromaticity or other
+bond-conjugation differences. This deliberately small, nonuniform sample is not
+an estimate of the population error rate. It demonstrates that matching checkpoint
+hashes alone cannot certify reliable query featurization for every molecule.
+Validate the intended query chemistry before treating a Python-produced cache as
+fully compatible with OCL-produced queries. The unresolved cases require a
+separate parity extension or an explicit exact-RDKit query-feature path; they
+must not be dismissed as FP16 rounding.

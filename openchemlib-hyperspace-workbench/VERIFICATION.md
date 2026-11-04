@@ -109,6 +109,36 @@ user-owned untracked datasets and the unrelated
 user data were left untouched. Consequently the result proves the complete intended
 source tree, not compilation of that unrelated untracked test in the original folder.
 
+## Precision theme refresh (frontend only)
+
+The later appearance update follows the supplied cyan/burnt-orange light/dark
+reference: prism mark, sharper panels, cyan actions/match highlights and consistent
+synthon-position accents. Dark SVG depictions use light ink and readable shades
+of OCL's atom colors. The native canvas keeps its editor instance and uses a
+presentation filter because its public API has no dark-palette setting.
+
+Verification rerun for this change:
+
+- TypeScript/Vite production build passes; the existing OCL chunk-size advisory
+  remains. No Java, search/model contract or chemical identity change was made.
+- All six real browser scenarios pass together (31.1 seconds), including an
+  unpublished canvas drawing surviving a light/dark toggle and a competing agent
+  edit. The existing 14 Java→OCL JS query-feature documents also pass.
+- Light/dark structures, tables, library catalogue, saved collections and dialogs
+  were visually inspected. Six actual public amide-coupling products were prepared
+  in a separate review workspace to verify ring-containing molecule depictions.
+- A focused browser check confirms that changing appearance leaves the published
+  query and workspace revision unchanged. The explicit theme survives reload;
+  a fresh browser follows the OS dark preference. No page runtime errors occurred.
+- A 1024-pixel desktop viewport has no horizontal document overflow. Token contrast
+  for body text, muted text, action text, primary buttons and orange chips is at
+  least 4.5:1 in both themes. Chemical match colors and actual OCL red/blue atom
+  paints are checked in the resulting dark SVGs.
+
+Screenshots (`precision-light.png`, `precision-dark.png` and auxiliary views) are
+ignored artifacts in `frontend/test-results`. The scientist's running workspace
+was preserved; all preparation/interaction checks used a separate owner.
+
 ## Remaining practical limits
 
 - Five existing desktop/display gates remain skipped; interactive Swing windows
@@ -123,3 +153,35 @@ source tree, not compilation of that unrelated untracked test in the original fo
 - No remaining implementation blocker for the requested local prototype was found.
   Production beam/exhaustive constrained ranking, candidate conformer databases,
   multi-user hosting and elaborate analytics remain outside this milestone.
+
+
+## Later production-cache check — unresolved feature parity
+
+The Enamine REAL January 2026 source directory contains 13.6M and 136M enumerated
+molecule tables. A completed Python dual-vector cache was found for the larger
+source: 136,430,449 source rows, 132,030,824 accepted molecules and 4,399,625
+rejections in 137 shards. Its foundation/predictor/projection hashes match the
+loaded canonical and compact bundles. Metadata/file-size validation passes and
+registration/loading does not copy or scan the fingerprint payloads.
+
+A seven-row real-source check exposed neutral imine-donor feature differences.
+A targeted code correction plus an independently specified public 12-molecule
+RDKit fixture resolves those cases exactly. On the first seven production rows,
+maximum cache differences fall to approximately 0.000487 (128D) and 0.000955 (16D),
+consistent with the original mixed-precision/FP16 generation. The updated 3D suite
+reports 64 passed, zero failed/skipped with available integration gates enabled.
+
+However, the broader 64-row check described in the 3D README identifies remaining
+ring/aromaticity/conjugation discrepancies. The cache is **registered and enabled for exploratory screening** in the live
+demo after discussing these limitations. Exact query-feature parity and the
+impact on retrieval quality remain unverified; enabling it is not a claim that
+all preprocessing differences have been resolved. No complete library screen, fingerprint regeneration or production-data
+copy was started. No separate full 13.6M fingerprint cache was found.
+
+The targeted featurizer correction is in the working tree and packaged 3D module;
+it has not been deployed into the still-running workbench process. The existing
+public-cache wire-format test remains valid for its scope; its Java-generated
+vectors must not be taken as proof of arbitrary real RDKit/OCL feature parity.
+The local detailed data report is in the demo workspace's
+`data-notes/enamine-real-compatibility.json`; no supplier structures or identifiers
+were added to the repository fixtures.

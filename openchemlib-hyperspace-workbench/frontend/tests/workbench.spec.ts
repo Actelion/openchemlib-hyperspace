@@ -34,7 +34,7 @@ test('scientist toy search, expansion, collection, export and reconnect',async({
  await page.locator('.query-panel').evaluate(element=>{element.scrollTop=0;});
  await page.screenshot({path:'test-results/workbench-structures-light.png',fullPage:true});
  await page.getByRole('button',{name:'Toggle appearance'}).click();
- await expect(page.getByRole('button',{name:'Export ↗',exact:true})).toHaveCSS('background-color','rgb(28, 32, 42)');
+ await expect(page.getByRole('button',{name:'Export ↗',exact:true})).toHaveCSS('background-color','rgb(17, 31, 40)');
  await page.screenshot({path:'test-results/workbench-structures-dark.png',fullPage:true});
  await page.getByRole('button',{name:'Toggle appearance'}).click();
  await page.getByRole('button',{name:'☷ Table',exact:true}).click();
@@ -177,6 +177,7 @@ test('an unpublished OCL drawing survives an agent edit and publishes as an expl
   const base=(await mcp.call('wb_query_create',{format:'smiles',structure:'CCO',fragment:true,name:'Draft base',expectedRevision:state.revision})).result.query;
   await page.goto(connection.url+'/#token='+connection.token);await expect(page.locator('.query-name')).toContainText('Draft base');const canvas=page.locator('[data-testid=query-canvas] canvas').first();const bounds=(await canvas.boundingBox())!;
   await page.mouse.click(bounds.x+26,bounds.y+121);await page.mouse.move(bounds.x+130,bounds.y+58);await page.mouse.down();await page.mouse.move(bounds.x+190,bounds.y+90,{steps:8});await page.mouse.up();await expect(page.getByRole('button',{name:'Publish drawing',exact:true})).toBeEnabled();
+  await page.getByRole('button',{name:'Toggle appearance',exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');await expect(page.getByRole('button',{name:'Publish drawing',exact:true})).toBeEnabled();
   state=(await mcp.call('wb_workspace_state')).result;await mcp.call('wb_query_create',{format:'smiles',structure:'c1ccccc1',fragment:true,name:'Agent replacement',expectedRevision:state.revision});await expect(page.locator('.draft-conflict')).toContainText('your drawing is preserved');await expect(page.getByRole('button',{name:'Publish draft as branch',exact:true})).toBeEnabled();await page.getByRole('button',{name:'Publish draft as branch',exact:true}).click();await expect(page.locator('.query-name')).toContainText('Drawing branch');
   state=(await mcp.call('wb_workspace_state')).result;expect(state.currentQuery.parentId).toBe(base.id);expect(state.currentQuery.document.idcode).not.toBe(base.document.idcode);const history=(await mcp.call('wb_query_history',{limit:20})).result;expect(history.items.some((q:any)=>q.name==='Agent replacement')).toBe(true);await expect(page.locator('.draft-conflict')).toHaveCount(0);
  }finally{mcp.close();}

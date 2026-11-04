@@ -41,6 +41,19 @@ in the UI/request: requesting CUDA without a working provider fails. It never
 silently uses CPU. Install the native CUDA/cuDNN dependencies required by that
 ONNX Runtime version. GPU execution was not verified in this workbench milestone.
 
+## Light and dark appearance
+
+The Precision theme uses signal cyan for actions, selection and query-match
+highlights, with burnt-orange accents for the second synthon position. Crisp
+panels and a vector prism mark follow the supplied design inspiration. The dark
+appearance uses deep blue-black surfaces and readable molecular ink, including
+lighter shades for saturated atom colors.
+
+Use the moon/sun button in the top bar. The choice persists in this browser;
+without an override, the OS appearance preference is used. Changing appearance
+preserves the current editor instance and any unpublished drawing. This is a
+presentation change: IDCodes, atom/bond references and search scores are unchanged.
+
 ## Reproducible toy workflow
 
 1. In **Libraries**, choose **Prepare toy library**. It creates real rawspace and

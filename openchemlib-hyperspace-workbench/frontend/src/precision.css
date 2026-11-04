@@ -1,0 +1,239 @@
+/* Precision theme: signal cyan, burnt orange and cool technical surfaces.
+   Layout and search workflows stay in style.css. These tokens and component
+   treatments apply consistently to both appearances. */
+:root {
+  color-scheme: light;
+  --bg: #f1f6f9;
+  --surface: #ffffff;
+  --subtle: #f6fafc;
+  --border: #ccdbe3;
+  --ink: #172d38;
+  --muted: #5c7481;
+  --accent: #007e96;
+  --signal: #00bdd5;
+  --accent-bg: #e4f7fb;
+  --accent-border: #76cddd;
+  --orange: #ac4f0e;
+  --orange-bg: #fff0e3;
+  --orange-border: #efc7a6;
+  --green: #207459;
+  --danger: #b73f4e;
+  --danger-bg: #fff0f1;
+  --danger-border: #ecc3c9;
+  --primary-ink: #062832;
+  --shadow: 0 2px 8px #17323d06;
+  --molecule-bg: transparent;
+  color: var(--ink);
+  background: var(--bg);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.45;
+}
+
+:root[data-theme=dark] {
+  color-scheme: dark;
+  --bg: #0b151c;
+  --surface: #111f28;
+  --subtle: #172934;
+  --border: #344c59;
+  --ink: #edf4f7;
+  --muted: #a1b5c0;
+  --accent: #35d4ea;
+  --signal: #00bdd5;
+  --accent-bg: #153640;
+  --accent-border: #277486;
+  --orange: #ffc18b;
+  --orange-bg: #402d22;
+  --orange-border: #775034;
+  --green: #85cfb0;
+  --danger: #ff9cab;
+  --danger-bg: #3b222b;
+  --danger-border: #754451;
+  --shadow: 0 2px 8px #00000012;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+::selection { background: var(--signal); color: var(--primary-ink); }
+button, input, select, textarea { border-radius: 3px; }
+button { font-weight: 600; }
+button.primary,
+:root[data-theme=dark] button.primary {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: var(--primary-ink);
+  font-weight: 750;
+}
+button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--signal) 85%, white);
+  border-color: var(--signal);
+  filter: none;
+}
+button:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible, [tabindex]:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+button:disabled { opacity: .48; }
+button.link { font-weight: 600; }
+input, select, textarea { background: var(--surface); }
+input::placeholder, textarea::placeholder { opacity: 1; }
+input[type=checkbox] { accent-color: var(--accent); }
+h1 { font-weight: 760; letter-spacing: -.7px; }
+h2, h3 { font-weight: 700; }
+.eyebrow { color: var(--muted); letter-spacing: 1.2px; font-weight: 700; }
+.tag, .count, .notice, pre, .segmented, .segmented button { border-radius: 3px; }
+.tag { letter-spacing: .15px; }
+.inline-error, .structure-error { color: var(--danger); }
+.error-banner { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
+.tag.red { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
+
+/* Brand and navigation retain the original space allotted to chemistry. */
+.topbar { border-bottom-color: var(--border); gap: 32px; }
+.prism-mark { width: 35px; height: 38px; flex: 0 0 35px; }
+.wordmark { gap: 9px; }
+.wordmark b { font-size: 23px; font-weight: 800; letter-spacing: -.9px; }
+.wordmark > span:last-child { font-size: 8px; letter-spacing: 1.8px; margin-left: 7px; padding-left: 14px; }
+.interface-icon { width: 20px; height: 20px; display: block; }
+.topbar nav { gap: 26px; }
+.topbar nav button { font-size: 11px; font-weight: 740; text-transform: uppercase; letter-spacing: .45px; }
+.topbar nav button.active:after { height: 4px; border-radius: 0; background: var(--signal); }
+.topbar nav button.active { color: var(--accent); }
+.top-actions .icon { min-width: 32px; height: 32px; border: 1px solid transparent; border-radius: 3px; }
+.top-actions .icon:hover { border-color: var(--border); }
+.appearance-toggle[aria-pressed=true] { color: var(--accent); background: var(--accent-bg); }
+.connection i, .workspace-dot { background: var(--signal); }
+.connection.offline i { background: var(--orange); }
+.workspace-strip { background: var(--subtle); }
+.workspace-strip .workspace-name { font-weight: 650; }
+.workspace-name > .workspace-dot { margin-right: 2px; }
+
+/* Crisp, lightly framed scientific panels rather than raised dashboard tiles. */
+.asset-card, .family-card, .hit-card, .collection-card, .saved-run,
+.compare-card, .property-plot { border-radius: 4px; box-shadow: var(--shadow); }
+.asset-card:hover { border-color: var(--accent-border); }
+.asset-symbol { border-radius: 3px; border: 1px solid var(--accent-border); }
+.asset-card h3 { font-size: 14px; }
+.asset-card .eyebrow { letter-spacing: 1px; }
+.metric-row b { font-weight: 700; }
+.guidance { border-radius: 4px; border-left: 3px solid var(--signal); }
+.guidance > span { border-color: var(--accent-border); }
+.page-heading h1 { font-size: 27px; }
+.library-section > header h2, .saved-columns > section > header h2 { font-size: 14px; }
+.library-section > header { border-bottom: 1px solid var(--border); padding-bottom: 11px; }
+
+.panel-heading { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 15px; }
+.panel-heading h2 { text-transform: uppercase; font-size: 12px; font-weight: 760; letter-spacing: .6px; }
+.query-panel { background: var(--surface); }
+.query-tabs { border-radius: 3px; }
+.segmented button.selected { color: var(--accent); box-shadow: none; font-weight: 700; border-color: var(--border); }
+.query-tabs button.selected { border-bottom-color: var(--signal); }
+.query-name { font-weight: 700; margin-bottom: 11px; }
+.canvas-wrap { border-radius: 3px; }
+.search-controls > .eyebrow { color: var(--ink); font-weight: 750; }
+.search-button { min-height: 40px; border-radius: 3px; font-size: 11px; letter-spacing: .2px; }
+.query-panel > details[open] > summary { color: var(--accent); }
+
+/* The native OCL canvas has no public dark palette API. This is display-only:
+   invert the light canvas and restore chromatic hues, blending its black paper
+   into the dark panel. The editor instance/draft is never recreated on a toggle. */
+:root[data-theme=dark] .canvas-wrap {
+  background: var(--surface);
+  isolation: isolate;
+  color-scheme: light;
+}
+:root[data-theme=dark] .canvas-wrap > [data-openchemlib-canvas-editor] {
+  filter: invert(1) hue-rotate(180deg);
+  mix-blend-mode: screen;
+}
+
+.results-header { background: var(--surface); border-top: 2px solid var(--signal); }
+.results-header h1 { font-weight: 760; }
+.results-header .eyebrow { font-size: 10px; color: var(--accent); }
+.run-meta { flex-wrap: wrap; row-gap: 7px; }
+.scope-bar { border-radius: 3px; border-left: 2px solid var(--accent-border); }
+.scope-bar > span { color: var(--accent); }
+.result-tools > .segmented { border-radius: 3px; }
+.result-tools > .segmented button.selected { border-bottom: 2px solid var(--signal); }
+.filter-bar { padding-bottom: 11px; border-bottom: 1px solid var(--border); }
+.filter-bar > span { color: var(--muted); }
+.family-card.chosen, .hit-card.chosen { border-color: var(--signal); box-shadow: 0 0 0 1px var(--signal); }
+.hit-card { position: relative; }
+.hit-card:hover { border-color: var(--accent-border); box-shadow: 0 2px 10px #003b5010; }
+.hit-card.focused { border-color: var(--signal); box-shadow: 0 0 0 1px var(--signal); }
+.hit-card.focused:after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 13px;
+  height: 13px;
+  background: linear-gradient(45deg, transparent 46%, var(--signal) 47% 57%, var(--bg) 58%);
+  pointer-events: none;
+}
+.hit-card-top { background: var(--subtle); border-bottom: 1px solid var(--border); min-height: 37px; }
+.hit-card-top .mono { font-size: 10px; color: var(--ink); font-weight: 650; }
+.hit-card.chosen .hit-card-top { background: var(--accent-bg); }
+.structure { background: var(--molecule-bg); }
+.hit-card-bottom { font-size: 10px; padding-top: 9px; padding-bottom: 9px; }
+.hit-card-bottom b { font-weight: 650; }
+.hit-source { line-height: 1.4; }
+.synthon-chips { display: flex; gap: 5px; flex-wrap: wrap; padding: 0 11px 10px; }
+.synthon-chips:empty { display: none; }
+.synthon-chip {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--accent-bg);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+  border-radius: 3px;
+  padding: 2px 5px;
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+.synthon-chip[data-position="1"] { color: var(--orange); background: var(--orange-bg); border-color: var(--orange-border); }
+.synthon-chip[data-position="2"] { color: var(--ink); background: var(--subtle); border-color: var(--border); }
+.hit-inspector > .structure { border-radius: 3px; background: var(--subtle); }
+.hit-inspector h4 { text-transform: uppercase; letter-spacing: .5px; font-size: 10px; }
+.hit-inspector .inspector-metrics b { font-weight: 700; }
+.inspector-synthon { border-radius: 3px; border-left: 3px solid var(--signal); background: var(--subtle); }
+.inspector-synthon[data-position="1"] { border-left-color: #d9701a; }
+.inspector-synthon[data-position="2"] { border-left-color: var(--muted); }
+.inspector-synthon > .mono { color: var(--accent); font-weight: 650; }
+.inspector-synthon[data-position="1"] > .mono { color: var(--orange); }
+.table-wrap th { text-transform: uppercase; font-size: 9px; letter-spacing: .5px; }
+.table-wrap tbody tr:hover td { background: var(--subtle); }
+.table-wrap tbody tr.chosen td { background: var(--accent-bg); }
+.collection-note { border-radius: 3px; border-left-color: var(--signal); }
+.collection-icon { border-radius: 3px; }
+.comparison-values b { color: var(--accent); }
+.empty > span { border-radius: 4px; }
+
+.job-drawer { border-top-color: var(--accent-border); }
+.job-drawer.open { box-shadow: 0 -3px 12px #00000008; }
+.drawer-bar { background: var(--surface); }
+.drawer-content { background: var(--surface); }
+.drawer-bar .segmented { border-radius: 3px; }
+.working-dot { background: var(--signal); }
+.idle-dot { background: var(--signal); opacity: .85; }
+.modal { border-radius: 6px; box-shadow: 0 20px 80px #00000030; }
+.modal-backdrop { background: #07131c80; backdrop-filter: blur(3px); }
+.modal > header { padding-bottom: 13px; border-bottom: 1px solid var(--border); }
+.source-preparation .recipe-preview { border-radius: 3px; border-left: 3px solid var(--signal); }
+
+@media (max-width:1120px) {
+  .topbar { gap: 22px; }
+  .topbar nav { gap: 17px; }
+  .wordmark b { font-size: 21px; }
+}
+@media (max-width:780px) {
+  .topbar { gap: 14px; }
+  .topbar nav { gap: 9px; }
+  .topbar nav button { font-size: 9px; letter-spacing: .15px; }
+  .wordmark b { font-size: 18px; }
+  .prism-mark { width: 27px; height: 31px; flex-basis: 27px; }
+  .top-actions .icon { min-width: 26px; padding: 4px; }
+}

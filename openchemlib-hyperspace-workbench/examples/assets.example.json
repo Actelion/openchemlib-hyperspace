@@ -1,0 +1,11 @@
+{
+  "exampleVersion": 1,
+  "description": "Register these backend-local paths individually through asset.register. IDs are returned by the owner; this is documentation, not an automatically loaded configuration.",
+  "assets": [
+    {"path": "/models/deepspace7-v1", "kind": "GRAPH_MODEL", "name": "Canonical 50-feature graph model", "sourceVersion": "selected deployment", "provenance": "External validated canonical bundle"},
+    {"path": "/models/deepspace7-skelspheres16", "kind": "COMPACT_MODEL", "name": "Compatible 16D projection", "provenance": "External projection bound to canonical checkpoint"},
+    {"path": "/models/shared-candidate-pose", "kind": "POSE_MODEL", "name": "Compatible supplied-pose model", "provenance": "External pose bundle with verified shared-candidate provenance"},
+    {"path": "/data/molecule-fingerprints", "kind": "FLAT_INDEX", "name": "Native accepted molecule rows", "sourceVersion": "your immutable snapshot", "provenance": "Prepared native dual-vector cache"},
+    {"path": "/data/python-supplier-cache", "kind": "PYTHON_CACHE", "name": "Python supplier cache", "sourceVersion": "your immutable snapshot", "provenance": "Existing supported streamed supplier fingerprint format"}
+  ]
+}

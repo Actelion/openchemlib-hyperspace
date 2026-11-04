@@ -389,8 +389,9 @@ public class SubstructureSearchHelper {
         if(bridge_bonds.size()==2) {
             for (int za = bridge_bonds.get(0).getMiddle(); za <= bridge_bonds.get(0).getRight(); za++) {
                 for (int zb = bridge_bonds.get(1).getMiddle(); zb <= bridge_bonds.get(1).getRight(); zb++) {
-                    StereoMolecule expanded_a = expandBridgeBond(query,bridge_bonds.get(0).getLeft(),za);
-                    StereoMolecule expanded   = expandBridgeBond(expanded_a,bridge_bonds.get(1).getLeft(),zb);
+                    // Expand the higher original bond index first: deleting it must not shift the lower bridge index.
+                    StereoMolecule expanded_a = expandBridgeBond(query,bridge_bonds.get(1).getLeft(),zb);
+                    StereoMolecule expanded   = expandBridgeBond(expanded_a,bridge_bonds.get(0).getLeft(),za);
                     expandedQueries.add(expanded);
                 }
             }
@@ -408,31 +409,14 @@ public class SubstructureSearchHelper {
         StereoMolecule mi = new StereoMolecule(mi_1);
         mi.ensureHelperArrays(Molecule.cHelperCIP);
 
-        // special handling for bridge bonds of size 0
+        // OCL counts intermediate atoms. Zero means a direct bond between the original endpoints.
+        int qf_any_bond_type = Molecule.cBondQFAllBondTypes;
         if(num_bridge_atoms==0) {
-            List<Pair<Integer,Integer>> neighbors_a =new ArrayList<>();
-            for(int ni =0;ni< mi.getConnAtoms(a1);ni++) {
-                int nai = mi.getConnAtom(a1,ni);
-                if(nai==a2){continue;} // skip the bridge neighbor..
-                int nbondi = mi.getBondTypeSimple(mi.getBond(nai,a1));
-                neighbors_a.add( Pair.of( nai , nbondi ));
-            }
-
-            // remove a, then connect b to all neighbors of a
-            mi.markAtomForDeletion(a1);
-            int amap[] = mi.deleteMarkedAtomsAndBonds();
-
-            // insert bonds to b:
-            for(Pair<Integer,Integer> pi : neighbors_a) {
-                mi.addBond(amap[a2],amap[pi.getLeft()],pi.getRight());
-            }
+            mi.setBondQueryFeature(bond,Molecule.cBondQFAllFeatures,false);
+            mi.setBondQueryFeature(bond,qf_any_bond_type,true);
             mi.ensureHelperArrays(Molecule.cHelperCIP);
             return mi;
         }
-
-
-        int qf_any_bond_type = Molecule.cBondTypeSingle | Molecule.cBondTypeDouble |
-                Molecule.cBondTypeTriple | Molecule.cBondTypeDelocalized;
 
         mi.deleteBond(bond);
         int last = a1;

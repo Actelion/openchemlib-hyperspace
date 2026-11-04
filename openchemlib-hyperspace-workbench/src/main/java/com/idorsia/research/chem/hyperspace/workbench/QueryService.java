@@ -27,6 +27,14 @@ public final class QueryService {
         QueryChemistry.Document changed=QueryChemistry.edit(baseId,original.document(),edits);
         return publish(expected,actor,changed,null,name,baseId,"query.edit");
     }
+    public PublishResult branch(long expected,String actor,String queryId,String name) {
+        var source=revision(queryId);var pose=source.pose()==null||source.pose().isNull()?null:source.pose().deepCopy();
+        return publish(expected,actor,source.document(),pose,name==null?"Branch · "+source.name():name,source.id(),"query.branch");
+    }
+    public ResultService.Page<WorkspaceStore.QueryRevision> history(int offset,int limit) {
+        require(offset>=0&&limit>=1&&limit<=100,"History pages contain 1–100 revisions");var rows=new ArrayList<>(store.snapshot().queries.values());Collections.reverse(rows);
+        int start=Math.min(offset,rows.size());return new ResultService.Page<>(List.copyOf(rows.subList(start,Math.min(start+limit,rows.size()))),offset,limit,rows.size(),"Immutable query revisions; branching preserves the original run and pose provenance.");
+    }
     public PublishResult attachPose(long expected,String actor,QueryChemistry.Document document,JsonNode pose,String name) {
         require(pose!=null&&!pose.isNull(),"Pose provenance is required");
         require(!document.fragment(),"A supplied pose must be a concrete molecule");
@@ -45,7 +53,7 @@ public final class QueryService {
             require(query.name().length()<=200,"Query name is too long");
             state.queries.put(query.id(),query);state.currentQueryId=query.id();state.selection=WorkspaceStore.Selection.empty(query.id());
             return new PublishResult(state.revision+1,query,QueryChemistry.inspect(query.id(),document),true,
-                    previous!=null&&previous.pose()!=null&&pose==null);
+                    previous!=null&&previous.pose()!=null&&!previous.pose().isNull()&&pose==null);
         });
     }
     public WorkspaceStore.Selection select(long expected,String actor,WorkspaceStore.Selection selection) {
@@ -66,10 +74,14 @@ public final class QueryService {
     }
     public PublishResult editSelection(long expected,String actor,QueryChemistry.Operation operation,List<Integer> elements,
                                       String stateValue,Integer min,Integer max,Boolean enabled) {
+        return editSelection(expected,actor,operation,elements,stateValue,min,max,enabled,null,false);
+    }
+    public PublishResult editSelection(long expected,String actor,QueryChemistry.Operation operation,List<Integer> elements,
+                                      String stateValue,Integer min,Integer max,Boolean enabled,List<String> types,Boolean exclude) {
         var selection=store.snapshot().selection;
         require(selection.queryRevisionId()!=null,"Select a query first");
         boolean atom=operation.name().startsWith("ATOM_");
-        var edit=new QueryChemistry.Edit(operation,atom?selection.atoms():selection.bonds(),elements,false,stateValue,null,enabled,min,max);
+        var edit=new QueryChemistry.Edit(operation,atom?selection.atoms():selection.bonds(),elements,exclude,stateValue,types,enabled,min,max);
         return edit(expected,actor,selection.queryRevisionId(),List.of(edit),"Edited selection");
     }
     public WorkspaceStore.State undo(long expected,String actor) {

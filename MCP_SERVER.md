@@ -182,3 +182,21 @@ For supplied MOL/SDF conformations, see [Pose search](POSE_SEARCH.md). The typed
 distribution. Search status, bounded `pose-search` logs, cancellation and artifacts
 use the same detached job lifecycle. `get_workflow_help` topic `pose-search`
 contains the full model-provenance and score-semantics contract.
+
+
+## Attach to the browser workbench
+
+To collaborate with a scientist in the same visible, persistent workspace, start
+the [local web workbench](openchemlib-hyperspace-workbench/README.md), then use the
+MCP JAR with `--workbench /absolute/path/to/workspace/connection.json` instead of
+`--config`. This requires the repository's JDK 22+ build. The `wb_` tools discover
+operations from the live owner and call its validated API; they do not load another
+copy of an index or modify workspace state independently. Start with
+`wb_workspace_state`; all writes require its current `expectedRevision`.
+
+The workbench includes query-feature inspection/edits, shared selection, real
+substructure/learned/pose searches, bounded ranking, preparation/logs/recovery,
+collections/comparison/export and browser navigation. See its
+[client example](openchemlib-hyperspace-workbench/examples/mcp-client.example.json).
+The existing standalone `--config` tools and detached preparation workflows remain
+available with their original names.

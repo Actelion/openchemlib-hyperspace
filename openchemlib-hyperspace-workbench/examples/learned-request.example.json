@@ -1,0 +1,21 @@
+{
+  "operation": "search.learned",
+  "expectedRevision": 0,
+  "actor": "scientist:example",
+  "arguments": {
+    "request": {
+      "formatVersion": 1,
+      "mode": "PHESA_3D",
+      "queryId": "REPLACE_WITH_PUBLISHED_QUERY_ID",
+      "indexAssetId": "REPLACE_WITH_LOADED_CACHE_ASSET_ID",
+      "modelAssetId": "REPLACE_WITH_LOADED_GRAPH_MODEL_ASSET_ID",
+      "objective": "phesa_total",
+      "topK": 100,
+      "device": "CPU",
+      "intraOpThreads": 2,
+      "batchSize": 4096,
+      "encoderBatchSize": 128,
+      "prefetchDepth": 2
+    }
+  }
+}

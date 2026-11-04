@@ -17,14 +17,15 @@ public final class WorkspaceStore implements AutoCloseable {
         public Selection{atoms=List.copyOf(atoms);bonds=List.copyOf(bonds);hits=List.copyOf(hits);}
         public static Selection empty(String query){return new Selection(query,List.of(),List.of(),List.of());}
     }
-    public record Activity(long revision,String actor,String operation,String at){}
+    public record Activity(long sequence,long revision,String actor,String operation,String at){}
     public record UndoFrame(String queryId,Selection selection){}
     public static final class State {
         public int schemaVersion=1;
         public String workspaceId="workspace-"+UUID.randomUUID(),name="Hyperspace workbench",currentQueryId;
-        public long revision;
+        public long revision,sequence;
+        public JsonNode preparationRuntime;
         public Map<String,QueryRevision> queries=new LinkedHashMap<>();
-        public Map<String,JsonNode> libraries=new LinkedHashMap<>(),sourceSnapshots=new LinkedHashMap<>(),assets=new LinkedHashMap<>(),runs=new LinkedHashMap<>(),collections=new LinkedHashMap<>();
+        public Map<String,JsonNode> libraries=new LinkedHashMap<>(),sourceSnapshots=new LinkedHashMap<>(),assets=new LinkedHashMap<>(),runs=new LinkedHashMap<>(),jobs=new LinkedHashMap<>(),collections=new LinkedHashMap<>();
         public Selection selection=Selection.empty(null);
         public List<Activity> activity=new ArrayList<>();
         public List<UndoFrame> undo=new ArrayList<>();
@@ -61,14 +62,20 @@ public final class WorkspaceStore implements AutoCloseable {
         ensureOpen();
         if(expectedRevision!=state.revision)throw new WorkbenchException("revision_conflict",409,"Workspace changed; expected "+expectedRevision+", current "+state.revision);
         WorkbenchException.require(actor!=null&&!actor.isBlank()&&actor.length()<=80,"An actor of at most 80 characters is required");
-        State next=copy(state);T result=operationBody.apply(next);
-        next.revision=state.revision+1;
-        next.activity.add(new Activity(next.revision,actor,operation,Instant.now().toString()));
+        return write(actor,operation,true,operationBody);
+    }
+    /** Background progress does not invalidate an unrelated human/agent edit. Sequence orders every event. */
+    public synchronized <T> T internal(String operation,Function<State,T> body){
+        ensureOpen();return write("system",operation,false,body);
+    }
+    private <T> T write(String actor,String operation,boolean userEdit,Function<State,T> body) {
+        State next=copy(state);T result=body.apply(next);
+        next.revision=state.revision+(userEdit?1:0);next.sequence=state.sequence+1;
+        next.activity.add(new Activity(next.sequence,next.revision,actor,operation,Instant.now().toString()));
         if(next.activity.size()>1000)next.activity=new ArrayList<>(next.activity.subList(next.activity.size()-1000,next.activity.size()));
         try{persist(next);}catch(IOException e){throw new WorkbenchException("workspace_write_failed",500,"Workspace state was not changed: "+e.getMessage());}
         state=next;return result;
     }
-    public synchronized <T> T internal(String operation,Function<State,T> body){return mutate(state.revision,"system",operation,body);}
     public static void pushUndo(State state) {
         state.undo.add(new UndoFrame(state.currentQueryId,state.selection));
         if(state.undo.size()>100)state.undo.remove(0);

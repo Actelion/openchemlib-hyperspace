@@ -1,0 +1,18 @@
+{
+  "operation": "preparation.configure",
+  "expectedRevision": 0,
+  "actor": "scientist:example",
+  "arguments": {
+    "runtime": {
+      "formatVersion": 1,
+      "cliJar": "/absolute/path/openchemlib-hyperspace/openchemlib-hyperspace-cli/target/openchemlib-hyperspace-cli.jar",
+      "fingerprintJar": "/absolute/path/openchemlib-hyperspace/openchemlib-hyperspace-3d/target/openchemlib-hyperspace-3d-3.1.0.jar",
+      "fingerprintLibDirectory": "/absolute/path/openchemlib-hyperspace/openchemlib-hyperspace-3d/target/lib",
+      "modelBundle": "/models/deepspace7-v1",
+      "compactBundle": "/models/deepspace7-skelspheres16",
+      "javaExecutable": "/absolute/path/jdk/bin/java",
+      "threads": 4,
+      "heap": "4G"
+    }
+  }
+}

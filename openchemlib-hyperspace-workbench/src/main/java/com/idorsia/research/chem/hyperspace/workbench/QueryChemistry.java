@@ -9,9 +9,9 @@ import static com.idorsia.research.chem.hyperspace.workbench.WorkbenchException.
 public final class QueryChemistry {
     public record Document(String idcode,String coordinates,boolean fragment){}
     public record Atom(String ref,int index,String element,int charge,String featuresHex,List<Integer> elements,
-                       boolean aromatic,boolean notAromatic,boolean ring,boolean matchStereo){}
+                       boolean aromatic,boolean notAromatic,boolean ring,boolean matchStereo,boolean excludeElements,String ringState){}
     public record Bond(String ref,int index,String atomA,String atomB,int type,int features,
-                       boolean bridge,Integer minAtoms,Integer maxAtoms){}
+                       boolean bridge,Integer minAtoms,Integer maxAtoms,List<String> allowedTypes,String aromaticState,String ringState,boolean matchStereo){}
     public record Inspection(String revisionId,Document document,List<Atom> atoms,List<Bond> bonds,List<String> warnings){}
     public enum Operation {ATOM_ELEMENTS,ATOM_AROMATIC,ATOM_RING,ATOM_STEREO,BOND_TYPES,BOND_AROMATIC,BOND_RING,BOND_STEREO,BOND_BRIDGE,CLEAR_BRIDGE}
     public record Edit(Operation operation,List<String> refs,List<Integer> elements,Boolean exclude,
@@ -49,13 +49,19 @@ public final class QueryChemistry {
             atoms.add(new Atom(atomRef(revision,a),a,m.getAtomLabel(a),m.getAtomCharge(a),Long.toHexString(features),
                     alternatives==null?List.of():Arrays.stream(alternatives).boxed().toList(),
                     (features&Molecule.cAtomQFAromatic)!=0,(features&Molecule.cAtomQFNotAromatic)!=0,
-                    (features&Molecule.cAtomQFNotChain)!=0,(features&Molecule.cAtomQFMatchStereo)!=0));
+                    (features&Molecule.cAtomQFNotChain)!=0,(features&Molecule.cAtomQFMatchStereo)!=0,
+                    alternatives!=null&&(features&Molecule.cAtomQFAny)!=0,
+                    (features&Molecule.cAtomQFNotChain)!=0?"ring":(features&Molecule.cAtomQFRingState)==(Molecule.cAtomQFNot2RingBonds|Molecule.cAtomQFNot3RingBonds|Molecule.cAtomQFNot4RingBonds)?"chain":"any"));
         }
         int bridges=0;
         for(int b=0;b<m.getBonds();b++) {
             boolean bridge=m.isBondBridge(b);if(bridge)bridges++;
             bonds.add(new Bond(bondRef(revision,b),b,atomRef(revision,m.getBondAtom(0,b)),atomRef(revision,m.getBondAtom(1,b)),
-                    m.getBondType(b),m.getBondQueryFeatures(b),bridge,bridge?m.getBondBridgeMinSize(b):null,bridge?m.getBondBridgeMaxSize(b):null));
+                    m.getBondType(b),m.getBondQueryFeatures(b),bridge,bridge?m.getBondBridgeMinSize(b):null,bridge?m.getBondBridgeMaxSize(b):null,
+                    allowedBondTypes(m.getBondQueryFeatures(b)),
+                    (m.getBondQueryFeatures(b)&Molecule.cBondQFAromatic)!=0?"aromatic":(m.getBondQueryFeatures(b)&Molecule.cBondQFNotAromatic)!=0?"aliphatic":"any",
+                    (m.getBondQueryFeatures(b)&Molecule.cBondQFRing)!=0?"ring":(m.getBondQueryFeatures(b)&Molecule.cBondQFNotRing)!=0?"chain":"any",
+                    (m.getBondQueryFeatures(b)&Molecule.cBondQFMatchStereo)!=0));
         }
         if(!m.isFragment())warnings.add("Concrete molecule: substructure execution will use a fragment copy. Learned scoring requires a concrete supported molecule.");
         if(bridges>2)warnings.add("Current Hyperspace bridge expansion supports at most two bridge bonds.");
@@ -115,14 +121,20 @@ public final class QueryChemistry {
     public static List<ExampleResult> test(Document document,List<String> smiles)throws Exception {
         require(smiles!=null&&smiles.size()<=50,"At most 50 example molecules");
         StereoMolecule fragment=parse(document);fragment.setFragment(true);
-        List<StereoMolecule> queries=SubstructureSearchHelper.expandBridgedSearches(fragment);
+
         List<ExampleResult> results=new ArrayList<>();
         for(String text:smiles) {
             StereoMolecule molecule=new StereoMolecule();new SmilesParser().parse(molecule,text);boolean found=false;
-            for(StereoMolecule q:queries){q.setFragment(true);var searcher=new SSSearcher();searcher.setMol(q,molecule);if(searcher.isFragmentInMolecule()){found=true;break;}}
+            var searcher=new SSSearcher();searcher.setMol(fragment,molecule);found=searcher.isFragmentInMolecule();
             results.add(new ExampleResult(text,found));
         }
         return results;
+    }
+    private static List<String> allowedBondTypes(int features) {
+        List<String> types=new ArrayList<>();
+        if((features&Molecule.cBondTypeSingle)!=0)types.add("single");if((features&Molecule.cBondTypeDouble)!=0)types.add("double");
+        if((features&Molecule.cBondTypeTriple)!=0)types.add("triple");if((features&Molecule.cBondTypeDelocalized)!=0)types.add("aromatic");
+        return List.copyOf(types);
     }
     public static String atomRef(String revision,int index){return revision+":a"+index;}
     public static String bondRef(String revision,int index){return revision+":b"+index;}

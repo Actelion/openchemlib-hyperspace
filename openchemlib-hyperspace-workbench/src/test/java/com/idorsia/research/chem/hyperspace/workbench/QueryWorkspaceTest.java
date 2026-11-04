@@ -29,6 +29,16 @@ class QueryWorkspaceTest {
         Files.createDirectories(Path.of("target"));
         WorkspaceStore.JSON.writeValue(Path.of("target/query-roundtrip.json").toFile(),List.of(graph,changed,bridged));
     }
+    @Test void backgroundProgressDoesNotInvalidateHumanEditsButAgentEditsDo()throws Exception {
+        try(var store=new WorkspaceStore(temporary)) {
+            var service=new QueryService(store);var first=service.create(0,"scientist","smiles","CCO",true,null,"query",null);
+            store.internal("job.progress",state->{state.viewEntityId="progress";return null;});
+            assertEquals(1,store.snapshot().revision);assertEquals(2,store.snapshot().sequence);
+            service.select(1,"scientist",WorkspaceStore.Selection.empty(first.query().id()));
+            assertThrows(WorkbenchException.class,()->service.create(1,"agent:local","smiles","CN",true,null,"stale",null));
+            assertEquals(2,store.snapshot().revision);assertEquals(3,store.snapshot().sequence);
+        }
+    }
     @Test void staleFeatureReferencesAndFailedMutationsCannotChangeState()throws Exception {
         try(var store=new WorkspaceStore(temporary)) {
             var service=new QueryService(store);

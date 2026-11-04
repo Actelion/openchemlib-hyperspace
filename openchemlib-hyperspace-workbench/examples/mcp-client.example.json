@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "hyperspace-workbench": {
+      "command": "java",
+      "args": [
+        "-jar",
+        "/absolute/path/openchemlib-hyperspace/openchemlib-hyperspace-mcp/target/openchemlib-hyperspace-mcp.jar",
+        "--workbench",
+        "/absolute/path/my-workspace/connection.json"
+      ]
+    }
+  }
+}

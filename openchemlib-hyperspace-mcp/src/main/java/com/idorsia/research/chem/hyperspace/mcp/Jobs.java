@@ -12,9 +12,13 @@ import java.util.concurrent.TimeUnit;
 final class Jobs {
     static final Set<String> ACTIVE = Set.of("pending", "running");
     final ServerConfig config;
+    private final String workerClasspath;
 
     Jobs(ServerConfig config) throws IOException {
-        this.config = config;
+        this(config,null);
+    }
+    Jobs(ServerConfig config,String workerClasspath)throws IOException {
+        this.config=config;this.workerClasspath=workerClasspath;
         Files.createDirectories(config.workspace().resolve("jobs"));
     }
 
@@ -89,7 +93,7 @@ final class Jobs {
                                 config.javaExecutable(),
                                 "-Xmx256M",
                                 "-cp",
-                                self(),
+                                workerClasspath==null?self():workerClasspath,
                                 HyperspaceMcp.class.getName(),
                                 "--worker",
                                 d.toString())

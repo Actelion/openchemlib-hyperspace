@@ -23,6 +23,15 @@ scaffold/arm decomposition training records as JSONL, optionally gzip-compressed
 it does not itself compute latent vectors.
 
 
+## Local scientist and agent web workbench
+
+The [web workbench](openchemlib-hyperspace-workbench/README.md) combines a React/OpenChemLib
+query studio, a persistent library catalogue, real combinatorial and learned
+2D/3D/supplied-pose search, bounded product ranking and saved collections. A local
+MCP agent attaches to the same Java owner with `--workbench /path/to/connection.json`;
+browser and agent edits share revision checks, jobs and loaded resources. The guide
+includes a redistributable toy setup, external-model examples and verification results.
+
 ## Agent-assisted setup via MCP
 
 The [Hyperspace MCP server](MCP_SERVER.md) lets an MCP-capable agent inspect supplier files, prepare search indexes, monitor jobs across sessions, and open a configured GUI. See the guide for installation and a toy-space walkthrough.

@@ -27,13 +27,14 @@ public final class HyperspaceMcp {
     }
 
     public static void main(String[] args) throws Exception {
+        if(args.length==2&&args[0].equals("--workbench")){WorkbenchRemote.serve(Path.of(args[1]));return;}
         if (args.length == 2 && args[0].equals("--worker")) {
             new Worker(Path.of(args[1])).run();
             return;
         }
         if (args.length != 2 || !args[0].equals("--config")) {
             System.err.println(
-                    "Usage: java -jar openchemlib-hyperspace-mcp.jar --config server.json");
+                    "Usage: java -jar openchemlib-hyperspace-mcp.jar --config server.json OR --workbench WORKSPACE/connection.json");
             System.exit(2);
             return;
         }
